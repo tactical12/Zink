@@ -1,0 +1,335 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <RootNamespace>Zink</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\Zink.ico</ApplicationIcon>
+
+    <!-- ✅ Store upload fix: increment package/app version to avoid duplicate identity in Partner Center -->
+    <Version>2.3.5.1</Version>
+    <AssemblyVersion>2.3.5.1</AssemblyVersion>
+    <FileVersion>2.3.5.1</FileVersion>
+
+    <!-- x86 + x64 + arm64 support (Store-complete) -->
+    <Platforms>x86;x64;arm64</Platforms>
+
+    <!-- Ensure restore generates assets for all targets -->
+    <RuntimeIdentifiers>win-x86;win-x64;win-arm64</RuntimeIdentifiers>
+
+    <!-- Bundle .NET 8 runtime so users don't have to install it -->
+    <SelfContained>true</SelfContained>
+
+    <!-- Fix duplicate assembly attributes (e.g. AssemblyFileVersionAttribute) -->
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+
+    <!-- WinUI 3: keep trimming off (safer) -->
+    <PublishTrimmed>false</PublishTrimmed>
+
+    <UseWinUI>true</UseWinUI>
+    <EnableMsixTooling>true</EnableMsixTooling>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- Make output architecture match selected Platform -->
+  <PropertyGroup Condition="'$(Platform)'=='x86'">
+    <PlatformTarget>x86</PlatformTarget>
+    <RuntimeIdentifier>win-x86</RuntimeIdentifier>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Platform)'=='x64'">
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Platform)'=='arm64'">
+    <PlatformTarget>arm64</PlatformTarget>
+    <RuntimeIdentifier>win-arm64</RuntimeIdentifier>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Remove="Assets\BadgeLogo.scale-100.png" />
+    <Content Remove="Assets\BadgeLogo.scale-125.png" />
+    <Content Remove="Assets\BadgeLogo.scale-150.png" />
+    <Content Remove="Assets\BadgeLogo.scale-200.png" />
+    <Content Remove="Assets\BadgeLogo.scale-400.png" />
+    <Content Remove="Assets\splashScreen.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="DiscordRichPresence" Version="1.6.1.70" />
+    <PackageReference Include="Microsoft.AspNetCore.WebSockets" Version="2.3.9" />
+    <PackageReference Include="Microsoft.Graphics.Win2D" Version="1.4.0" />
+    <PackageReference Include="Microsoft.Identity.Client" Version="4.81.0" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3856.49" />
+    <PackageReference Include="Microsoft.Windows.CsWinRT" Version="2.2.0" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260317003" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.1721" />
+    <PackageReference Include="NAudio" Version="2.3.0" />
+    <PackageReference Include="SharpDX" Version="4.2.0" />
+    <PackageReference Include="SharpDX.Direct3D11" Version="4.2.0" />
+    <PackageReference Include="SharpDX.DXGI" Version="4.2.0" />
+    <PackageReference Include="SIPSorcery" Version="10.0.3" />
+    <PackageReference Include="SIPSorceryMedia.Encoders" Version="10.0.4" />
+    <PackageReference Include="SIPSorceryMedia.Windows" Version="8.0.14" />
+    <PackageReference Include="TagLibSharp" Version="2.3.0" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(Platform)'=='x64'">
+    <Content Include="$(SolutionDir)x64\Debug\ZinkRecorderMux.dll">
+      <Link>ZinkRecorderMux.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <!-- everything below unchanged from your file -->
+  <ItemGroup>
+    <None Remove="Assets\ZinkLogo.png" />
+    <None Remove="bbcradio1.png" />
+    <None Remove="bbcradio2.png" />
+    <None Remove="bbcradio3.png" />
+    <None Remove="capital.png" />
+    <None Remove="capitalfm.png" />
+    <None Remove="CodecInstallers\DolbyLaboratories.DolbyAC4DecoderOEM_1.0.0.0_neutral_~_rz1tebttyb220 %281%29.AppxBundle" />
+    <None Remove="CodecInstallers\DolbyLaboratories.DolbyDigitalPlusDecoderOEM_1.1.285.0_neutral_~_rz1tebttyb220 %281%29.AppxBundle" />
+    <None Remove="heart.png" />
+    <None Remove="heartfm.png" />
+    <None Remove="HomePage.xaml" />
+    <None Remove="Kiss.png" />
+    <None Remove="Kissfm.png" />
+    <None Remove="Pages\AboutPage.xaml" />
+    <None Remove="Pages\AmazonLunaPage.xaml" />
+    <None Remove="Pages\AmazonMusicPage.xaml" />
+    <None Remove="Pages\AppCustomizationPage.xaml" />
+    <None Remove="Pages\AppThemePage.xaml" />
+    <None Remove="Pages\BBCiPlayerPage.xaml" />
+    <None Remove="Pages\BlueskyPage.xaml" />
+    <None Remove="Pages\BoosteroidPage.xaml" />
+    <None Remove="Pages\CustomisePage.xaml" />
+    <None Remove="Pages\DiscordPage.xaml" />
+    <None Remove="Pages\DisneyPlusPage.xaml" />
+    <None Remove="Pages\EqualizerPage.xaml" />
+    <None Remove="Pages\FacebookPage.xaml" />
+    <None Remove="Pages\FeedbackPage.xaml" />
+    <None Remove="Pages\GeForceNowPage.xaml" />
+    <None Remove="Pages\HomeDashboardPage.xaml" />
+    <None Remove="Pages\InstagramPage.xaml" />
+    <None Remove="Pages\LikedRadioSongsPage.xaml" />
+    <None Remove="Pages\LinkedInPage.xaml" />
+    <None Remove="Pages\MastodonPage.xaml" />
+    <None Remove="Pages\MediaPlayerPage.xaml" />
+    <None Remove="Pages\MessengerPage.xaml" />
+    <None Remove="Pages\MusicLibraryPage.xaml" />
+    <None Remove="Pages\My5Page.xaml" />
+    <None Remove="Pages\NativeVoiceSharePage.xaml" />
+    <None Remove="Pages\NetflixPage.xaml" />
+    <None Remove="Pages\NotificationsPage.xaml" />
+    <None Remove="Pages\NowTVPage.xaml" />
+    <None Remove="Pages\ParamountPlusPage.xaml" />
+    <None Remove="Pages\PhotoViewerPage.xaml" />
+    <None Remove="Pages\PinterestPage.xaml" />
+    <None Remove="Pages\PrimeVideoPage.xaml" />
+    <None Remove="Pages\PrivacyPolicyPage.xaml" />
+    <None Remove="Pages\RadioWidgetPage.xaml" />
+    <None Remove="Pages\RedditPage.xaml" />
+    <None Remove="Pages\ReviewPage.xaml" />
+    <None Remove="Pages\ScreenRecorderPage.xaml" />
+    <None Remove="Pages\SearchResultsPage.xaml" />
+    <None Remove="Pages\SettingsPage.xaml" />
+    <None Remove="Pages\ShadowPCPage.xaml" />
+    <None Remove="Pages\Social\CallPage.xaml" />
+    <None Remove="Pages\Social\FriendRequestsPage.xaml" />
+    <None Remove="Pages\Social\FriendsPage.xaml" />
+    <None Remove="Pages\Social\LoginPage.xaml" />
+    <None Remove="Pages\Social\ProfilePage.xaml" />
+    <None Remove="Pages\Social\RegisterPage.xaml" />
+    <None Remove="Pages\SpotifyHomePage.xaml" />
+    <None Remove="Pages\SpotifyLoginPage.xaml" />
+    <None Remove="Pages\SpotifyWidgetPage.xaml" />
+    <None Remove="Pages\TelegramPage.xaml" />
+    <None Remove="Pages\ThreadsPage.xaml" />
+    <None Remove="Pages\TikTokPage.xaml" />
+    <None Remove="Pages\TumblrPage.xaml" />
+    <None Remove="Pages\TwitchPage.xaml" />
+    <None Remove="Pages\VersionHistoryPage.xaml" />
+    <None Remove="Pages\VideoLibraryPage.xaml" />
+    <None Remove="Pages\VisualizerPage.xaml" />
+    <None Remove="Pages\WhatsAppPage.xaml" />
+    <None Remove="Pages\XboxPage.xaml" />
+    <None Remove="Pages\XPage.xaml" />
+    <None Remove="Pages\YouTubeMusicPage.xaml" />
+    <None Remove="RadioPage.xaml" />
+    <None Remove="smoothradio.png" />
+    <None Remove="SplashPage.xaml" />
+    <None Remove="SpotifyWidgetWindow.xaml" />
+    <None Remove="VideoPlayerPage.xaml" />
+    <None Remove="WebRTC\app.js" />
+    <None Remove="WebRTC\index.html" />
+    <None Remove="WebViewWindow.xaml" />
+    <None Remove="Windows\MiniRadioWidgetWindow.xaml" />
+    <None Remove="YouTubePage.xaml" />
+    <None Remove="Zink.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="CodecInstallers\DolbyLaboratories.DolbyAC4DecoderOEM_1.0.0.0_neutral_~_rz1tebttyb220 (1).AppxBundle">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="CodecInstallers\DolbyLaboratories.DolbyDigitalPlusDecoderOEM_1.1.285.0_neutral_~_rz1tebttyb220 (1).AppxBundle">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="WebRTC\app.js">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="WebRTC\index.html">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Update="Assets\Radio\bbcradio1.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Update="Assets\Radio\smoothfm.png">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Page Update="Pages\NativeVoiceSharePage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Update="Pages\Social\LoginPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Update="Pages\Social\RegisterPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Update="Pages\Social\FriendsPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Update="Pages\Social\FriendRequestsPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Update="Pages\Social\ProfilePage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Update="Pages\Social\CallPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <None Update="ZinkApp.vtt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Page Update="Pages\ScreenRecorderPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Page Update="Pages\AppThemePage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Page Update="Pages\PhotoViewerPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Page Update="Pages\TwitchPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Page Update="Pages\SearchResultsPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Page Update="Pages\CustomisePage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Page Update="Pages\AppCustomizationPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Page Update="Pages\HomeDashboardPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Page Update="Pages\ReviewPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+  </ItemGroup>
+
+  <PropertyGroup Condition="'$(DisableHasPackageAndPublishMenuAddedByProject)'!='true' and '$(EnableMsixTooling)'=='true'">
+    <HasPackageAndPublishMenu>true</HasPackageAndPublishMenu>
+  </PropertyGroup>
+
+  <!-- UPDATED: Signing + bundling fixed to avoid CN=Franc / wrong PFN -->
+  <PropertyGroup>
+    <PublishReadyToRun Condition="'$(Configuration)' == 'Debug'">False</PublishReadyToRun>
+    <PublishReadyToRun Condition="'$(Configuration)' != 'Debug'">False</PublishReadyToRun>
+    <PublishTrimmed Condition="'$(Configuration)' == 'Debug'">False</PublishTrimmed>
+    <PublishTrimmed Condition="'$(Configuration)' != 'Debug'">False</PublishTrimmed>
+
+    <GenerateAppInstallerFile>False</GenerateAppInstallerFile>
+
+    <!-- Store: ALWAYS create a bundle for upload -->
+    <AppxBundle>Always</AppxBundle>
+    <AppxBundlePlatforms>x64</AppxBundlePlatforms>
+
+    <AppxPackageSigningTimestampDigestAlgorithm>SHA256</AppxPackageSigningTimestampDigestAlgorithm>
+    <AppxAutoIncrementPackageRevision>True</AppxAutoIncrementPackageRevision>
+    <AppxSymbolPackageEnabled>True</AppxSymbolPackageEnabled>
+    <GenerateTestArtifacts>True</GenerateTestArtifacts>
+
+    <!-- IMPORTANT: Do NOT generate/use temporary store certs (causes CN=Franc identity outputs) -->
+    <GenerateTemporaryStoreCertificate>False</GenerateTemporaryStoreCertificate>
+
+    <HoursBetweenUpdateChecks>0</HoursBetweenUpdateChecks>
+
+    <!-- Recommended: avoid OneDrive for packaging outputs -->
+    <AppxPackageDir>C:\Users\Franc\Downloads\</AppxPackageDir>
+
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+
+    <!-- Debug: signed (local install/testing) / Release: unsigned (Partner Center upload) -->
+    <AppxPackageSigningEnabled Condition="'$(Configuration)'=='Debug'">True</AppxPackageSigningEnabled>
+    <AppxPackageSigningEnabled Condition="'$(Configuration)'!='Debug'">False</AppxPackageSigningEnabled>
+
+    <!-- Don't override x86/x64/arm64 PlatformTarget with AnyCPU -->
+    <PlatformTarget Condition="'$(PlatformTarget)'==''">AnyCPU</PlatformTarget>
+
+    <!-- Keep final override as in your file -->
+    <AppxPackageSigningEnabled>True</AppxPackageSigningEnabled>
+    <PackageCertificateKeyFile>Zink_TemporaryKey.pfx</PackageCertificateKeyFile>
+  </PropertyGroup>
+
+  <Target Name="CopyZinkRecorderMuxToAppX" AfterTargets="Build" Condition="'$(Platform)'=='x64'">
+    <PropertyGroup>
+      <_MuxSource>$(SolutionDir)x64\Debug\ZinkRecorderMux.dll</_MuxSource>
+      <_AppXPath>$(OutDir)AppX\ZinkRecorderMux.dll</_AppXPath>
+    </PropertyGroup>
+
+    <MakeDir Directories="$(OutDir)AppX" Condition="!Exists('$(OutDir)AppX')" />
+    <Copy SourceFiles="$(_MuxSource)" DestinationFiles="$(_AppXPath)" SkipUnchangedFiles="true" Condition="Exists('$(_MuxSource)')" />
+  </Target>
+
+</Project>

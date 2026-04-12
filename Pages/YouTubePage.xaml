@@ -1,0 +1,43 @@
+<Page
+    x:Class="Zink.Pages.YouTubePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Zink.Pages"
+    xmlns:controls="using:Microsoft.UI.Xaml.Controls"
+    xmlns:wv2="using:Microsoft.UI.Xaml.Controls"
+    Background="Black">
+
+    <Page.Resources>
+        <Storyboard x:Name="FadeInWebViewStoryboard">
+            <DoubleAnimation Storyboard.TargetName="YouTubeWebView"
+                             Storyboard.TargetProperty="Opacity"
+                             From="0" To="1" Duration="0:0:0.4"/>
+        </Storyboard>
+
+        <Storyboard x:Name="FadeOutLoaderStoryboard">
+            <DoubleAnimation Storyboard.TargetName="YouTubeLoader"
+                             Storyboard.TargetProperty="Opacity"
+                             From="1" To="0" Duration="0:0:0.3"/>
+        </Storyboard>
+    </Page.Resources>
+
+    <Grid>
+        <!-- Spinner -->
+        <controls:ProgressRing x:Name="YouTubeLoader"
+                               IsActive="True"
+                               Width="60"
+                               Height="60"
+                               Foreground="White"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Opacity="1"
+                               Visibility="Visible"/>
+
+        <!-- WebView2 (starts hidden and fades in) -->
+        <wv2:WebView2 x:Name="YouTubeWebView"
+                      Visibility="Collapsed"
+                      Opacity="0"
+                      HorizontalAlignment="Stretch"
+                      VerticalAlignment="Stretch"/>
+    </Grid>
+</Page>

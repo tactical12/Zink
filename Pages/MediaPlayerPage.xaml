@@ -1,0 +1,230 @@
+<Page
+    x:Class="Zink.MusicPlayerPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Zink"
+    Background="#111111">
+
+    <Page.Resources>
+        <SolidColorBrush x:Key="AccentBrush"     Color="#32FF7E"/>
+        <SolidColorBrush x:Key="TextBrush"       Color="White"/>
+        <SolidColorBrush x:Key="SubtleTextBrush" Color="#88FFFFFF"/>
+        <SolidColorBrush x:Key="BoxBrush"        Color="#1C1C1C"/>
+    </Page.Resources>
+
+    <Grid Padding="20">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"  MinWidth="220"/>
+            <ColumnDefinition Width="2*" MinWidth="300"/>
+            <ColumnDefinition Width="*"  MinWidth="220"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- === QUEUE PANEL === -->
+        <Border Grid.Column="0"
+                Background="{StaticResource BoxBrush}"
+                CornerRadius="12"
+                Padding="20"
+                Margin="10">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0"
+                           Text="Queue"
+                           FontSize="20"
+                           FontWeight="Bold"
+                           Foreground="{StaticResource TextBrush}"
+                           Margin="0,0,0,10"/>
+
+                <ListView Grid.Row="1"
+                          x:Name="QueueList"
+                          SelectionChanged="QueueList_SelectionChanged"
+                          ScrollViewer.VerticalScrollBarVisibility="Auto"
+                          ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListView.ItemTemplate>
+                        <DataTemplate x:DataType="local:MusicTrack">
+                            <TextBlock Text="{x:Bind Title}"
+                                       Foreground="{StaticResource TextBrush}"/>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+            </Grid>
+        </Border>
+
+        <!-- === PLAYER PANEL === -->
+        <Border Grid.Column="1"
+                Background="{StaticResource BoxBrush}"
+                CornerRadius="12"
+                Padding="20"
+                Margin="10">
+            <StackPanel>
+
+                <Border Background="#000"
+                        CornerRadius="8"
+                        MinWidth="200"
+                        MinHeight="200"
+                        Width="300"
+                        Height="300"
+                        Margin="0,0,0,10">
+                    <Image x:Name="AlbumArt" Stretch="UniformToFill"/>
+                </Border>
+
+                <TextBlock x:Name="TrackTitle"
+                           FontSize="24"
+                           FontWeight="Bold"
+                           Foreground="{StaticResource TextBrush}"/>
+                <TextBlock x:Name="TrackArtist"
+                           FontSize="16"
+                           Foreground="{StaticResource SubtleTextBrush}"/>
+                <TextBlock Text="Unknown Album"
+                           FontSize="14"
+                           Foreground="{StaticResource SubtleTextBrush}"
+                           Margin="0,0,0,10"/>
+
+                <StackPanel Height="40"/>
+
+                <Slider x:Name="SeekSlider"
+                        Minimum="0"
+                        ValueChanged="SeekSlider_ValueChanged"
+                        Foreground="{StaticResource AccentBrush}"
+                        Background="#333"
+                        Height="4"/>
+
+                <ProgressBar x:Name="SongProgressBar"
+                             Minimum="0"
+                             Maximum="100"
+                             Value="0"
+                             Height="4"
+                             Margin="0,4,0,0"
+                             Foreground="{StaticResource AccentBrush}"
+                             Background="#333"/>
+
+                <TextBlock x:Name="TimeDisplay"
+                           FontSize="12"
+                           Foreground="{StaticResource SubtleTextBrush}"
+                           Text="00:00 / 00:00"
+                           HorizontalAlignment="Center"
+                           Margin="0,5,0,10"/>
+
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Center"
+                            Spacing="8"
+                            Margin="0,0,0,10">
+                    <SymbolIcon x:Name="VolumeIcon" Symbol="Volume"/>
+                    <Slider x:Name="VolumeSlider"
+                            MinWidth="90"
+                            Width="120"
+                            Minimum="0"
+                            Maximum="1"
+                            ValueChanged="VolumeSlider_ValueChanged"
+                            SmallChange="0.05"
+                            LargeChange="0.1"/>
+                    <TextBlock x:Name="VolumePercent"
+                               Text="50%"
+                               FontSize="12"
+                               Foreground="{StaticResource SubtleTextBrush}"/>
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Center"
+                            Spacing="20"
+                            Margin="0,20,0,10">
+                    <Button Click="Previous_Click"
+                            Background="Transparent"
+                            Foreground="{StaticResource AccentBrush}">
+                        <SymbolIcon Symbol="Back"/>
+                    </Button>
+
+                    <Button x:Name="PlayPauseButton"
+                            Click="PlayPause_Click"
+                            Background="{StaticResource AccentBrush}"
+                            Foreground="Black"
+                            MinWidth="36"
+                            MinHeight="36"
+                            Width="50"
+                            Height="50"
+                            CornerRadius="25">
+                        <SymbolIcon Symbol="Play"/>
+                    </Button>
+
+                    <Button Click="Next_Click"
+                            Background="Transparent"
+                            Foreground="{StaticResource AccentBrush}">
+                        <SymbolIcon Symbol="Forward"/>
+                    </Button>
+
+                    <ToggleButton x:Name="ShuffleButton"
+                                  Click="ShuffleButton_Click"
+                                  Background="Transparent"
+                                  Foreground="{StaticResource AccentBrush}">
+                        <SymbolIcon Symbol="Shuffle"/>
+                    </ToggleButton>
+
+                    <ToggleButton x:Name="RepeatButton"
+                                  Click="RepeatButton_Click"
+                                  Background="Transparent"
+                                  Foreground="{StaticResource AccentBrush}">
+                        <SymbolIcon Symbol="RepeatAll"/>
+                    </ToggleButton>
+                </StackPanel>
+
+                <ToggleButton x:Name="BackgroundPlaybackToggle"
+                              Content="Play in Background"
+                              IsChecked="False"
+                              Margin="0,10,0,0"
+                              Background="{StaticResource AccentBrush}"
+                              Foreground="Black"
+                              Padding="10,5"
+                              CornerRadius="6"/>
+
+                <MediaPlayerElement x:Name="Player"
+                                    AreTransportControlsEnabled="False"
+                                    AutoPlay="False"
+                                    Visibility="Collapsed"/>
+            </StackPanel>
+        </Border>
+
+        <!-- === BROWSE PANEL === -->
+        <Border Grid.Column="2"
+                Background="{StaticResource BoxBrush}"
+                CornerRadius="12"
+                Padding="20"
+                Margin="10">
+            <StackPanel>
+                <TextBlock Text="Browse"
+                           FontSize="20"
+                           FontWeight="Bold"
+                           Foreground="{StaticResource TextBrush}"
+                           Margin="0,0,0,10"/>
+
+                <Button x:Name="BrowseFilesButton"
+                        Content="Browse Music Files"
+                        Click="BrowseFiles_Click"
+                        Background="#2C2C2C"
+                        Foreground="{StaticResource TextBrush}"
+                        CornerRadius="6"
+                        Margin="0,0,0,10"/>
+
+                <ListView x:Name="SelectedFilesList"
+                          MinHeight="120"
+                          Height="200"
+                          ItemsSource="{x:Bind _selectedTracks, Mode=OneWay}">
+                    <ListView.ItemTemplate>
+                        <DataTemplate x:DataType="local:MusicTrack">
+                            <TextBlock Text="{x:Bind Title}"
+                                       Foreground="{StaticResource TextBrush}"/>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+
+                <Button Content="Send to Player"
+                        Click="SendToPlayer_Click"
+                        Background="{StaticResource AccentBrush}"
+                        Foreground="Black"
+                        CornerRadius="6"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Page>

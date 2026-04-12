@@ -1,0 +1,312 @@
+<Page
+    x:Class="Zink.Pages.EqualizerPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Zink.Pages"
+    Background="#111111">
+
+    <Page.Resources>
+        <SolidColorBrush x:Key="AccentBrush" Color="#32FF7E"/>
+        <SolidColorBrush x:Key="TextBrush" Color="White"/>
+        <SolidColorBrush x:Key="SubtleTextBrush" Color="#88FFFFFF"/>
+        <SolidColorBrush x:Key="BoxBrush" Color="#1C1C1C"/>
+    </Page.Resources>
+
+    <Grid Padding="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <!-- Header + buttons -->
+            <RowDefinition Height="Auto"/>
+            <!-- Master gain + preset -->
+            <RowDefinition Height="*"/>
+            <!-- EQ bands -->
+        </Grid.RowDefinitions>
+
+        <!-- Header + Save / Reset buttons -->
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Text="Equalizer"
+                       FontSize="24"
+                       FontWeight="Bold"
+                       Foreground="{StaticResource TextBrush}"
+                       VerticalAlignment="Center"/>
+
+            <StackPanel Grid.Column="1"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        Spacing="10">
+                <!-- Save Button -->
+                <Button x:Name="SaveButton"
+                        Content="Save"
+                        Click="SaveButton_Click"
+                        Background="#0078D7"
+                        Foreground="White"
+                        CornerRadius="6"
+                        Padding="12,6"/>
+
+                <!-- Reset to Default Button -->
+                <Button x:Name="ResetButton"
+                        Content="Reset to Default"
+                        Click="ResetButton_Click"
+                        Background="#2C2C2C"
+                        Foreground="White"
+                        CornerRadius="6"
+                        Padding="12,6"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Master Gain + Preset -->
+        <Border Grid.Row="1"
+                Background="{StaticResource BoxBrush}"
+                CornerRadius="12"
+                Padding="16"
+                Margin="0,16,0,16">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="2*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Master gain -->
+                <StackPanel Grid.Column="0" Margin="0,0,24,0">
+                    <TextBlock Text="Master Gain"
+                               Foreground="{StaticResource TextBrush}"
+                               FontSize="16"
+                               Margin="0,0,0,4"/>
+
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+                        <Slider x:Name="MasterGainSlider"
+                                Minimum="-12"
+                                Maximum="12"
+                                ValueChanged="MasterGainSlider_ValueChanged"
+                                Width="260"/>
+                        <TextBlock x:Name="MasterGainLabel"
+                                   Text="0 dB"
+                                   Foreground="{StaticResource SubtleTextBrush}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Presets -->
+                <StackPanel Grid.Column="1">
+                    <TextBlock Text="Preset"
+                               Foreground="{StaticResource TextBrush}"
+                               FontSize="16"
+                               Margin="0,0,0,4"/>
+
+                    <ComboBox x:Name="PresetComboBox"
+                              SelectionChanged="PresetComboBox_SelectionChanged"
+                              Width="200">
+                        <ComboBoxItem Content="Flat"           Tag="Flat"           IsSelected="True"/>
+                        <ComboBoxItem Content="Bass Boost"     Tag="BassBoost"/>
+                        <ComboBoxItem Content="Treble Boost"   Tag="TrebleBoost"/>
+                        <ComboBoxItem Content="Rock"           Tag="Rock"/>
+                        <ComboBoxItem Content="Pop"            Tag="Pop"/>
+                        <ComboBoxItem Content="Classical"      Tag="Classical"/>
+                        <ComboBoxItem Content="Custom"         Tag="Custom"/>
+                    </ComboBox>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- EQ Bands -->
+        <Border Grid.Row="2"
+                Background="{StaticResource BoxBrush}"
+                CornerRadius="12"
+                Padding="16">
+            <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollBarVisibility="Disabled">
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Center"
+                            Spacing="16">
+                    <!-- Each band is a vertical stack: label, value, slider -->
+
+                    <!-- 31 Hz -->
+                    <StackPanel Width="60">
+                        <TextBlock Text="31 Hz"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{StaticResource TextBrush}"/>
+                        <TextBlock x:Name="Band31Label"
+                                   Text="0 dB"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{StaticResource SubtleTextBrush}"
+                                   Margin="0,0,0,4"/>
+                        <Slider x:Name="Band31Slider"
+                                Orientation="Vertical"
+                                Minimum="-12"
+                                Maximum="12"
+                                ValueChanged="BandSlider_ValueChanged"
+                                Height="200"/>
+                    </StackPanel>
+
+                    <!-- 62 Hz -->
+                    <StackPanel Width="60">
+                        <TextBlock Text="62 Hz"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{StaticResource TextBrush}"/>
+                        <TextBlock x:Name="Band62Label"
+                                   Text="0 dB"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{StaticResource SubtleTextBrush}"
+                                   Margin="0,0,0,4"/>
+                        <Slider x:Name="Band62Slider"
+                                Orientation="Vertical"
+                                Minimum="-12"
+                                Maximum="12"
+                                ValueChanged="BandSlider_ValueChanged"
+                                Height="200"/>
+                    </StackPanel>
+
+                    <!-- 125 Hz -->
+                    <StackPanel Width="60">
+                        <TextBlock Text="125 Hz"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{StaticResource TextBrush}"/>
+                        <TextBlock x:Name="Band125Label"
+                                   Text="0 dB"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{StaticResource SubtleTextBrush}"
+                                   Margin="0,0,0,4"/>
+                        <Slider x:Name="Band125Slider"
+                                Orientation="Vertical"
+                                Minimum="-12"
+                                Maximum="12"
+                                ValueChanged="BandSlider_ValueChanged"
+                                Height="200"/>
+                    </StackPanel>
+
+                    <!-- 250 Hz -->
+                    <StackPanel Width="60">
+                        <TextBlock Text="250 Hz"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{StaticResource TextBrush}"/>
+                        <TextBlock x:Name="Band250Label"
+                                   Text="0 dB"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{StaticResource SubtleTextBrush}"
+                                   Margin="0,0,0,4"/>
+                        <Slider x:Name="Band250Slider"
+                                Orientation="Vertical"
+                                Minimum="-12"
+                                Maximum="12"
+                                ValueChanged="BandSlider_ValueChanged"
+                                Height="200"/>
+                    </StackPanel>
+
+                    <!-- 500 Hz -->
+                    <StackPanel Width="60">
+                        <TextBlock Text="500 Hz"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{StaticResource TextBrush}"/>
+                        <TextBlock x:Name="Band500Label"
+                                   Text="0 dB"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{StaticResource SubtleTextBrush}"
+                                   Margin="0,0,0,4"/>
+                        <Slider x:Name="Band500Slider"
+                                Orientation="Vertical"
+                                Minimum="-12"
+                                Maximum="12"
+                                ValueChanged="BandSlider_ValueChanged"
+                                Height="200"/>
+                    </StackPanel>
+
+                    <!-- 1 kHz -->
+                    <StackPanel Width="60">
+                        <TextBlock Text="1 kHz"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{StaticResource TextBrush}"/>
+                        <TextBlock x:Name="Band1kLabel"
+                                   Text="0 dB"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{StaticResource SubtleTextBrush}"
+                                   Margin="0,0,0,4"/>
+                        <Slider x:Name="Band1kSlider"
+                                Orientation="Vertical"
+                                Minimum="-12"
+                                Maximum="12"
+                                ValueChanged="BandSlider_ValueChanged"
+                                Height="200"/>
+                    </StackPanel>
+
+                    <!-- 2 kHz -->
+                    <StackPanel Width="60">
+                        <TextBlock Text="2 kHz"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{StaticResource TextBrush}"/>
+                        <TextBlock x:Name="Band2kLabel"
+                                   Text="0 dB"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{StaticResource SubtleTextBrush}"
+                                   Margin="0,0,0,4"/>
+                        <Slider x:Name="Band2kSlider"
+                                Orientation="Vertical"
+                                Minimum="-12"
+                                Maximum="12"
+                                ValueChanged="BandSlider_ValueChanged"
+                                Height="200"/>
+                    </StackPanel>
+
+                    <!-- 4 kHz -->
+                    <StackPanel Width="60">
+                        <TextBlock Text="4 kHz"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{StaticResource TextBrush}"/>
+                        <TextBlock x:Name="Band4kLabel"
+                                   Text="0 dB"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{StaticResource SubtleTextBrush}"
+                                   Margin="0,0,0,4"/>
+                        <Slider x:Name="Band4kSlider"
+                                Orientation="Vertical"
+                                Minimum="-12"
+                                Maximum="12"
+                                ValueChanged="BandSlider_ValueChanged"
+                                Height="200"/>
+                    </StackPanel>
+
+                    <!-- 8 kHz -->
+                    <StackPanel Width="60">
+                        <TextBlock Text="8 kHz"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{StaticResource TextBrush}"/>
+                        <TextBlock x:Name="Band8kLabel"
+                                   Text="0 dB"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{StaticResource SubtleTextBrush}"
+                                   Margin="0,0,0,4"/>
+                        <Slider x:Name="Band8kSlider"
+                                Orientation="Vertical"
+                                Minimum="-12"
+                                Maximum="12"
+                                ValueChanged="BandSlider_ValueChanged"
+                                Height="200"/>
+                    </StackPanel>
+
+                    <!-- 16 kHz -->
+                    <StackPanel Width="60">
+                        <TextBlock Text="16 kHz"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{StaticResource TextBrush}"/>
+                        <TextBlock x:Name="Band16kLabel"
+                                   Text="0 dB"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{StaticResource SubtleTextBrush}"
+                                   Margin="0,0,0,4"/>
+                        <Slider x:Name="Band16kSlider"
+                                Orientation="Vertical"
+                                Minimum="-12"
+                                Maximum="12"
+                                ValueChanged="BandSlider_ValueChanged"
+                                Height="200"/>
+                    </StackPanel>
+
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+    </Grid>
+</Page>

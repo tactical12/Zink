@@ -1,0 +1,27 @@
+<Page
+    x:Class="Zink.Pages.DiscordPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Zink.Pages"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <Grid>
+        <!-- Web content host -->
+        <Grid x:Name="WebHost">
+            <WebView2 x:Name="DiscordWebView"/>
+        </Grid>
+
+        <!-- Loading overlay -->
+        <Grid x:Name="LoaderOverlay"
+              Background="{ThemeResource LayerFillColorDefaultBrush}"
+              Opacity="0.96">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="16">
+                <ProgressRing x:Name="LoaderRing" IsActive="True" Width="56" Height="56"/>
+                <!-- ASCII only: three dots, no Unicode ellipsis; no en/em dashes -->
+                <TextBlock Text="Loading Discord..." Opacity="0.85" FontSize="14" HorizontalAlignment="Center"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Page>

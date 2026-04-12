@@ -1,0 +1,43 @@
+<Page
+    x:Class="Zink.Pages.FeedbackPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Zink.Pages"
+    Background="#111111">
+
+    <Page.Resources>
+        <SolidColorBrush x:Key="AccentBrush" Color="#32FF7E"/>
+        <SolidColorBrush x:Key="TextBrush" Color="White"/>
+        <SolidColorBrush x:Key="BoxBrush" Color="#1C1C1C"/>
+    </Page.Resources>
+
+    <Grid Padding="40">
+        <StackPanel Background="{StaticResource BoxBrush}" Padding="30" CornerRadius="12" Spacing="20">
+            <TextBlock Text="Send Feedback"
+                       FontSize="28"
+                       FontWeight="Bold"
+                       Foreground="{StaticResource AccentBrush}" />
+
+            <TextBlock Text="Let us know what you think about Zink. Your feedback helps us improve the experience."
+                       FontSize="14"
+                       Foreground="{StaticResource TextBrush}"
+                       TextWrapping="Wrap"/>
+
+            <TextBox x:Name="NameBox" PlaceholderText="Your Name" />
+            <TextBox x:Name="EmailBox" PlaceholderText="Your Email" />
+            <TextBox x:Name="MessageBox" PlaceholderText="Your Message" AcceptsReturn="True" Height="120" TextWrapping="Wrap" />
+
+            <Button x:Name="SubmitButton"
+                    Content="Submit Feedback"
+                    Click="SubmitFeedback_Click"
+                    Background="{StaticResource AccentBrush}"
+                    Foreground="Black"
+                    CornerRadius="6"
+                    Padding="10,5" />
+
+            <TextBlock x:Name="FeedbackStatus"
+                       FontSize="12"
+                       Foreground="{StaticResource TextBrush}" />
+        </StackPanel>
+    </Grid>
+</Page>

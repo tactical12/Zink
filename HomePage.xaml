@@ -1,0 +1,159 @@
+<Page
+    x:Class="Zink.HomePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Zink"
+    Background="#111111">
+
+    <Page.Resources>
+        <SolidColorBrush x:Key="AccentBrush" Color="#32FF7E"/>
+        <SolidColorBrush x:Key="TextBrush" Color="White"/>
+        <SolidColorBrush x:Key="SubtleTextBrush" Color="#88FFFFFF"/>
+        <SolidColorBrush x:Key="BoxBrush" Color="#1C1C1C"/>
+    </Page.Resources>
+
+    <Grid Padding="40">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="30" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="1000">
+                <TextBlock Text="Welcome to the Zink app."
+                           FontSize="36"
+                           FontWeight="Bold"
+                           Foreground="{StaticResource AccentBrush}"
+                           HorizontalAlignment="Center"/>
+
+                <TextBlock Text="Zink is your all-in-one media hub for music, video, radio, streaming services, cloud gaming, and lots of soical features. Zink helps you to connect locally and to the world. Whether you're relaxing with a playlist, catching up on YouTube, Browsing social feeds, listening to live radio like Heart and Capital and many more, or if your into some online gaming Zink has got you. Or what about jumping into a Spotify session - Zink brings everything together into one unified Fluent experience."
+                           FontSize="18"
+                           Foreground="{StaticResource TextBrush}"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap"/>
+
+                <TextBlock Text="Zink was designed for simplicity and style. Enjoy a seamless UI built around Fluent Design, bringing your music and video libraries together with online streaming services you already use. No switching apps - Zink keeps your entertainment in one place. Whether you're into visuals, sound, or chat, Zink helps you do it all smoothly and beautifully."
+                           FontSize="16"
+                           Foreground="{StaticResource SubtleTextBrush}"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,10"/>
+
+                <TextBlock Text="Quick Features Overview:"
+                           FontSize="16"
+                           Foreground="{StaticResource SubtleTextBrush}"
+                           Margin="0,10,0,0"/>
+
+                <StackPanel Spacing="8">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <FontIcon Glyph="&#xE189;" FontSize="18" FontFamily="Segoe MDL2 Assets" Foreground="{StaticResource AccentBrush}"/>
+                        <TextBlock Text="Music Player - Browse and play your songs"
+                                   Foreground="{StaticResource TextBrush}" FontSize="14"
+                                   TextWrapping="Wrap" MaxWidth="900"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <FontIcon Glyph="&#xE714;" FontSize="18" FontFamily="Segoe MDL2 Assets" Foreground="{StaticResource AccentBrush}"/>
+                        <TextBlock Text="Video Player - Watch videos in a modern Fluent UI"
+                                   Foreground="{StaticResource TextBrush}" FontSize="14"
+                                   TextWrapping="Wrap" MaxWidth="900"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <FontIcon Glyph="&#xE995;" FontSize="18" FontFamily="Segoe MDL2 Assets" Foreground="{StaticResource AccentBrush}"/>
+                        <TextBlock Text="Spotify - Stream music directly from your account"
+                                   Foreground="{StaticResource TextBrush}" FontSize="14"
+                                   TextWrapping="Wrap" MaxWidth="900"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <FontIcon Glyph="&#xE13D;" FontSize="18" FontFamily="Segoe MDL2 Assets" Foreground="{StaticResource AccentBrush}"/>
+                        <TextBlock Text="Discord - Chat and engage with friends or family"
+                                   Foreground="{StaticResource TextBrush}" FontSize="14"
+                                   TextWrapping="Wrap" MaxWidth="900"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <FontIcon Glyph="&#xE12B;" FontSize="18" FontFamily="Segoe MDL2 Assets" Foreground="{StaticResource AccentBrush}"/>
+                        <TextBlock Text="YouTube - Browse and watch the world"
+                                   Foreground="{StaticResource TextBrush}" FontSize="14"
+                                   TextWrapping="Wrap" MaxWidth="900"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <FontIcon Glyph="&#xE15D;" FontSize="18" FontFamily="Segoe MDL2 Assets" Foreground="{StaticResource AccentBrush}"/>
+                        <TextBlock Text="Radio - Listen to stations like Heart, Capital, and Kiss FM"
+                                   Foreground="{StaticResource TextBrush}" FontSize="14"
+                                   TextWrapping="Wrap" MaxWidth="900"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <FontIcon Glyph="&#xE12B;" FontSize="18" FontFamily="Segoe MDL2 Assets" Foreground="{StaticResource AccentBrush}"/>
+                        <TextBlock Text="Amazon Music - listen to your most loved songs or discover something new from amazon."
+                                   Foreground="{StaticResource TextBrush}" FontSize="14"
+                                   TextWrapping="Wrap" MaxWidth="900"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <FontIcon Glyph="&#xE12B;" FontSize="18" FontFamily="Segoe MDL2 Assets" Foreground="{StaticResource AccentBrush}"/>
+                        <TextBlock Text="Radio widget - listen to your most loved radio station and enjoy a mini player with albums and artist picutres in real time"
+                                   Foreground="{StaticResource TextBrush}" FontSize="14"
+                                   TextWrapping="Wrap" MaxWidth="900"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <FontIcon Glyph="&#xE12B;" FontSize="18" FontFamily="Segoe MDL2 Assets" Foreground="{StaticResource AccentBrush}"/>
+                        <TextBlock Text="BBC iplayer - watch all content related to the BBC"
+                                   Foreground="{StaticResource TextBrush}" FontSize="14"
+                                   TextWrapping="Wrap" MaxWidth="900"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <FontIcon Glyph="&#xE12B;" FontSize="18" FontFamily="Segoe MDL2 Assets" Foreground="{StaticResource AccentBrush}"/>
+                        <TextBlock Text="MY 5 - Channel 5 - watch everything that channel 5 has to offer on deamand."
+                                   Foreground="{StaticResource TextBrush}" FontSize="14"
+                                   TextWrapping="Wrap" MaxWidth="900"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <FontIcon Glyph="&#xE12B;" FontSize="18" FontFamily="Segoe MDL2 Assets" Foreground="{StaticResource AccentBrush}"/>
+                        <TextBlock Text="Netflix- enjoy your most loved classics or try somthing new to watch."
+                                   Foreground="{StaticResource TextBrush}" FontSize="14"
+                                   TextWrapping="Wrap" MaxWidth="900"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <FontIcon Glyph="&#xE12B;" FontSize="18" FontFamily="Segoe MDL2 Assets" Foreground="{StaticResource AccentBrush}"/>
+                        <TextBlock Text="Amazon Prime Video - Enjoy everything amazon related from the newest TV series to the latest Movies.
+                                   "
+                                   Foreground="{StaticResource TextBrush}" FontSize="14"
+                                   TextWrapping="Wrap" MaxWidth="900"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <FontIcon Glyph="&#xE12B;" FontSize="18" FontFamily="Segoe MDL2 Assets" Foreground="{StaticResource AccentBrush}"/>
+                        <TextBlock Text="Disney + enjoy everything disney has to offer"
+                                   Foreground="{StaticResource TextBrush}" FontSize="14"
+                                   TextWrapping="Wrap" MaxWidth="900"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <FontIcon Glyph="&#xE12B;" FontSize="18" FontFamily="Segoe MDL2 Assets" Foreground="{StaticResource AccentBrush}"/>
+                        <TextBlock Text="Paramount + watch and stream the latest tv shows or films."
+                                   Foreground="{StaticResource TextBrush}" FontSize="14"
+                                   TextWrapping="Wrap" MaxWidth="900"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <FontIcon Glyph="&#xE12B;" FontSize="18" FontFamily="Segoe MDL2 Assets" Foreground="{StaticResource AccentBrush}"/>
+                        <TextBlock Text="Xbox, Geforce Now, Amazon Luna, Boosteriod, Shadow PC - stream your most loved games via the cloud or choose from something new in there library"
+                                   Foreground="{StaticResource TextBrush}" FontSize="14"
+                                   TextWrapping="Wrap" MaxWidth="900"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <FontIcon Glyph="&#xE12B;" FontSize="18" FontFamily="Segoe MDL2 Assets" Foreground="{StaticResource AccentBrush}"/>
+                        <TextBlock Text="Discord, Youtube, Tiktok, Instagram, X, Facebook, Telegram Web, Messanger, Linkded in, Threads, Bluesky, MMastodon, Pinterest, Tumblr, Reddit - Connect on another level with all social feautres to connect with friends and family."
+                                   Foreground="{StaticResource TextBrush}" FontSize="14"
+                                   TextWrapping="Wrap" MaxWidth="900"/>
+                    </StackPanel>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Page>

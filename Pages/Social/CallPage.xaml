@@ -1,0 +1,540 @@
+<Page
+    x:Class="Zink.Pages.Social.CallPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:controls="using:Microsoft.UI.Xaml.Controls"
+    mc:Ignorable="d"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <Grid>
+        <Grid.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#0E1014" Offset="0"/>
+                <GradientStop Color="#12161C" Offset="0.55"/>
+                <GradientStop Color="#0B0D11" Offset="1"/>
+            </LinearGradientBrush>
+        </Grid.Background>
+
+        <Grid Padding="24">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="16"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="16"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Header -->
+            <Border Grid.Row="0"
+                    CornerRadius="28"
+                    Padding="22"
+                    Background="#1AFFFFFF"
+                    BorderBrush="#26FFFFFF"
+                    BorderThickness="1">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Grid Width="78" Height="78">
+                        <Ellipse Fill="#23262B"/>
+                        <Ellipse Stroke="#30FFFFFF" StrokeThickness="1"/>
+                        <TextBlock x:Name="AvatarInitialText"
+                                   Text="V"
+                                   FontSize="34"
+                                   FontWeight="SemiBold"
+                                   Foreground="White"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"/>
+                    </Grid>
+
+                    <StackPanel Grid.Column="1"
+                                VerticalAlignment="Center"
+                                Spacing="5">
+                        <TextBlock Text="Zink Call"
+                                   FontSize="36"
+                                   FontWeight="SemiBold"
+                                   Foreground="White"/>
+                        <TextBlock x:Name="PeerText"
+                                   Text="Preparing call..."
+                                   FontSize="16"
+                                   Foreground="#D4D4D4"/>
+                        <TextBlock x:Name="ModeText"
+                                   Text="Mode: Voice Call"
+                                   FontSize="14"
+                                   Foreground="#A8A8A8"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center"
+                                Spacing="8">
+                        <Border x:Name="ConnectionBadge"
+                                Background="#2D3138"
+                                CornerRadius="999"
+                                Padding="16,7">
+                            <TextBlock x:Name="ConnectionBadgeText"
+                                       Text="Idle"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"
+                                       Foreground="White"/>
+                        </Border>
+
+                        <TextBlock x:Name="CallIdText"
+                                   Text="Call ID: -"
+                                   FontSize="12"
+                                   Foreground="#A8A8A8"
+                                   HorizontalAlignment="Right"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Main -->
+            <Grid Grid.Row="2" ColumnSpacing="18">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="330"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Stage -->
+                <Grid Grid.Column="0">
+                    <Border CornerRadius="30"
+                            Background="#12000000"
+                            BorderBrush="#26FFFFFF"
+                            BorderThickness="1">
+                        <Grid>
+                            <Grid Margin="18,18,18,120">
+                                <Border CornerRadius="28"
+                                        Background="#0D1015"
+                                        BorderBrush="#1FFFFFFF"
+                                        BorderThickness="1"/>
+
+                                <StackPanel VerticalAlignment="Center"
+                                            HorizontalAlignment="Center"
+                                            Spacing="10">
+                                    <Grid Width="124" Height="124">
+                                        <Ellipse Fill="#25282D"/>
+                                        <Ellipse Stroke="#30FFFFFF" StrokeThickness="1"/>
+                                        <TextBlock Text="Remote"
+                                                   Foreground="White"
+                                                   FontSize="18"
+                                                   FontWeight="SemiBold"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"/>
+                                    </Grid>
+
+                                    <TextBlock Text="Remote participant"
+                                               Foreground="White"
+                                               FontSize="20"
+                                               FontWeight="SemiBold"
+                                               HorizontalAlignment="Center"/>
+
+                                    <TextBlock Text="Remote media surface"
+                                               Foreground="#B8B8B8"
+                                               FontSize="13"
+                                               HorizontalAlignment="Center"/>
+                                </StackPanel>
+
+                                <Border HorizontalAlignment="Left"
+                                        VerticalAlignment="Top"
+                                        Margin="16"
+                                        Padding="12,6"
+                                        CornerRadius="999"
+                                        Background="#8C000000">
+                                    <TextBlock x:Name="MediaOverlayText"
+                                               Text="Ready"
+                                               Foreground="White"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"/>
+                                </Border>
+
+                                <Border Width="260"
+                                        Height="148"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Bottom"
+                                        Margin="18"
+                                        CornerRadius="22"
+                                        Background="#C814161A"
+                                        BorderBrush="#30FFFFFF"
+                                        BorderThickness="1">
+                                    <Grid>
+                                        <TextBlock Text="Local preview"
+                                                   Margin="14,10,14,0"
+                                                   VerticalAlignment="Top"
+                                                   FontSize="13"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="White"/>
+                                        <Grid Margin="12,36,12,12">
+                                            <Rectangle RadiusX="18"
+                                                       RadiusY="18"
+                                                       Fill="#111317"/>
+                                            <TextBlock Text="Your preview"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="#B8B8B8"
+                                                       FontSize="12"/>
+                                        </Grid>
+                                    </Grid>
+                                </Border>
+                            </Grid>
+
+                            <!-- Control dock -->
+                            <Border HorizontalAlignment="Center"
+                                    VerticalAlignment="Bottom"
+                                    Margin="0,0,0,18"
+                                    Padding="18,14"
+                                    CornerRadius="999"
+                                    Background="#D4111318"
+                                    BorderBrush="#30FFFFFF"
+                                    BorderThickness="1">
+                                <StackPanel Orientation="Horizontal" Spacing="18">
+
+                                    <StackPanel Spacing="8" HorizontalAlignment="Center">
+                                        <Button x:Name="MicToggleButton"
+                                                Width="82"
+                                                Height="82"
+                                                CornerRadius="41"
+                                                Click="MicToggleButton_Click"
+                                                Background="#171A20"
+                                                BorderBrush="#2FFFFFFF"
+                                                BorderThickness="1">
+                                            <FontIcon Glyph="&#xE720;"
+                                                      FontSize="28"
+                                                      Foreground="White"/>
+                                        </Button>
+                                        <TextBlock Text="Mic"
+                                                   Foreground="White"
+                                                   FontSize="13"
+                                                   HorizontalAlignment="Center"/>
+                                    </StackPanel>
+
+                                    <StackPanel Spacing="8" HorizontalAlignment="Center">
+                                        <Button x:Name="HeadphonesButton"
+                                                Width="82"
+                                                Height="82"
+                                                CornerRadius="41"
+                                                Click="HeadphonesButton_Click"
+                                                Background="#171A20"
+                                                BorderBrush="#2FFFFFFF"
+                                                BorderThickness="1">
+                                            <FontIcon Glyph="&#xE7F6;"
+                                                      FontSize="28"
+                                                      Foreground="White"/>
+                                        </Button>
+                                        <TextBlock Text="Headphones"
+                                                   Foreground="White"
+                                                   FontSize="13"
+                                                   HorizontalAlignment="Center"/>
+                                    </StackPanel>
+
+                                    <StackPanel Spacing="8" HorizontalAlignment="Center">
+                                        <Button x:Name="MuteToggleButton"
+                                                Width="82"
+                                                Height="82"
+                                                CornerRadius="41"
+                                                Click="MuteToggleButton_Click"
+                                                Background="#171A20"
+                                                BorderBrush="#2FFFFFFF"
+                                                BorderThickness="1">
+                                            <FontIcon x:Name="MuteIcon"
+                                                      Glyph="&#xE720;"
+                                                      FontSize="28"
+                                                      Foreground="White"/>
+                                        </Button>
+                                        <TextBlock Text="Mute"
+                                                   Foreground="White"
+                                                   FontSize="13"
+                                                   HorizontalAlignment="Center"/>
+                                    </StackPanel>
+
+                                    <StackPanel Spacing="8" HorizontalAlignment="Center">
+                                        <Button x:Name="DeafenToggleButton"
+                                                Width="82"
+                                                Height="82"
+                                                CornerRadius="41"
+                                                Click="DeafenToggleButton_Click"
+                                                Background="#171A20"
+                                                BorderBrush="#2FFFFFFF"
+                                                BorderThickness="1">
+                                            <FontIcon Glyph="&#xE7F5;"
+                                                      FontSize="28"
+                                                      Foreground="White"/>
+                                        </Button>
+                                        <TextBlock Text="Deafen"
+                                                   Foreground="White"
+                                                   FontSize="13"
+                                                   HorizontalAlignment="Center"/>
+                                    </StackPanel>
+
+                                    <StackPanel Spacing="8" HorizontalAlignment="Center">
+                                        <Button x:Name="ScreenShareToggleButton"
+                                                Width="82"
+                                                Height="82"
+                                                CornerRadius="41"
+                                                Click="ScreenShareToggleButton_Click"
+                                                Background="#171A20"
+                                                BorderBrush="#2FFFFFFF"
+                                                BorderThickness="1">
+                                            <FontIcon Glyph="&#xE714;"
+                                                      FontSize="28"
+                                                      Foreground="White"/>
+                                        </Button>
+                                        <TextBlock Text="Screen Share"
+                                                   Foreground="White"
+                                                   FontSize="13"
+                                                   HorizontalAlignment="Center"/>
+                                    </StackPanel>
+
+                                    <StackPanel Spacing="8" HorizontalAlignment="Center">
+                                        <Button x:Name="MoreButton"
+                                                Width="82"
+                                                Height="82"
+                                                CornerRadius="41"
+                                                Click="MoreButton_Click"
+                                                Background="#171A20"
+                                                BorderBrush="#2FFFFFFF"
+                                                BorderThickness="1">
+                                            <FontIcon Glyph="&#xE712;"
+                                                      FontSize="28"
+                                                      Foreground="White"/>
+                                        </Button>
+                                        <TextBlock Text="More"
+                                                   Foreground="White"
+                                                   FontSize="13"
+                                                   HorizontalAlignment="Center"/>
+                                    </StackPanel>
+
+                                    <StackPanel Spacing="8" HorizontalAlignment="Center">
+                                        <Button x:Name="EndButton"
+                                                Width="82"
+                                                Height="82"
+                                                CornerRadius="41"
+                                                Click="EndButton_Click"
+                                                Background="#F04F50"
+                                                BorderBrush="#00000000"
+                                                BorderThickness="0">
+                                            <FontIcon Glyph="&#xE717;"
+                                                      FontSize="28"
+                                                      Foreground="White"/>
+                                        </Button>
+                                        <TextBlock Text="End Call"
+                                                   Foreground="White"
+                                                   FontSize="13"
+                                                   HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </Border>
+                </Grid>
+
+                <!-- Side panel -->
+                <StackPanel Grid.Column="1" Spacing="16">
+                    <Border CornerRadius="28"
+                            Padding="18"
+                            Background="#1AFFFFFF"
+                            BorderBrush="#26FFFFFF"
+                            BorderThickness="1">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="Members"
+                                       FontSize="20"
+                                       FontWeight="SemiBold"
+                                       Foreground="White"/>
+
+                            <TextBlock x:Name="MembersSummaryText"
+                                       Text="In call - 1"
+                                       FontSize="13"
+                                       Foreground="#A8A8A8"/>
+
+                            <Border x:Name="YouMemberCard"
+                                    CornerRadius="18"
+                                    Background="#12151A"
+                                    Padding="14">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="44"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <Grid Width="44" Height="44">
+                                        <Ellipse Fill="#23262B"/>
+                                        <TextBlock Text="Y"
+                                                   Foreground="White"
+                                                   FontWeight="SemiBold"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"/>
+                                    </Grid>
+
+                                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Text="You"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="White"/>
+                                        <TextBlock x:Name="YouMemberStateText"
+                                                   Text="Ready"
+                                                   Foreground="#7EE787"
+                                                   FontSize="13"/>
+                                    </StackPanel>
+
+                                    <Border x:Name="YouSpeakingBadge"
+                                            Grid.Column="2"
+                                            Padding="10,4"
+                                            CornerRadius="999"
+                                            Background="#2D3138"
+                                            VerticalAlignment="Center">
+                                        <TextBlock x:Name="YouSpeakingBadgeText"
+                                                   Text="Idle"
+                                                   Foreground="White"
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold"/>
+                                    </Border>
+                                </Grid>
+                            </Border>
+
+                            <Border x:Name="RemoteMemberCard"
+                                    CornerRadius="18"
+                                    Background="#12151A"
+                                    Padding="14">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="44"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <Grid Width="44" Height="44">
+                                        <Ellipse Fill="#23262B"/>
+                                        <TextBlock x:Name="RemoteAvatarText"
+                                                   Text="R"
+                                                   Foreground="White"
+                                                   FontWeight="SemiBold"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"/>
+                                    </Grid>
+
+                                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock x:Name="RemoteMemberTitleText"
+                                                   Text="Remote user"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="White"/>
+                                        <TextBlock x:Name="RemoteMemberStateText"
+                                                   Text="Waiting"
+                                                   Foreground="#A8A8A8"
+                                                   FontSize="13"/>
+                                    </StackPanel>
+
+                                    <Border x:Name="RemoteSpeakingBadge"
+                                            Grid.Column="2"
+                                            Padding="10,4"
+                                            CornerRadius="999"
+                                            Background="#2D3138"
+                                            VerticalAlignment="Center">
+                                        <TextBlock x:Name="RemoteSpeakingBadgeText"
+                                                   Text="Idle"
+                                                   Foreground="White"
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold"/>
+                                    </Border>
+                                </Grid>
+                            </Border>
+
+                            <Border CornerRadius="18"
+                                    Background="#12151A"
+                                    Padding="14">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="Session"
+                                               FontWeight="SemiBold"
+                                               Foreground="White"/>
+                                    <TextBlock x:Name="CallTimerText"
+                                               Text="Duration: 00:00"
+                                               Foreground="#D0D0D0"/>
+                                    <TextBlock x:Name="TargetUserText"
+                                               Text="Target user: -"
+                                               Foreground="#D0D0D0"/>
+                                    <TextBlock x:Name="RemoteUserText"
+                                               Text="Remote user: -"
+                                               Foreground="#D0D0D0"/>
+                                    <TextBlock x:Name="TokenStateText"
+                                               Text="Token: not loaded"
+                                               Foreground="#D0D0D0"/>
+                                    <TextBlock x:Name="RealtimeStateText"
+                                               Text="Realtime: disconnected"
+                                               Foreground="#D0D0D0"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <Border CornerRadius="28"
+                            Padding="18"
+                            Background="#1AFFFFFF"
+                            BorderBrush="#26FFFFFF"
+                            BorderThickness="1">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="Actions"
+                                       FontSize="20"
+                                       FontWeight="SemiBold"
+                                       Foreground="White"/>
+
+                            <Button x:Name="StartButton"
+                                    Content="Start Call"
+                                    Height="42"
+                                    Click="StartButton_Click"/>
+
+                            <Button x:Name="AcceptButton"
+                                    Content="Accept"
+                                    Height="42"
+                                    IsEnabled="False"
+                                    Click="AcceptButton_Click"/>
+
+                            <Button x:Name="RejectButton"
+                                    Content="Decline"
+                                    Height="42"
+                                    IsEnabled="False"
+                                    Click="RejectButton_Click"/>
+
+                            <Button x:Name="BackButton"
+                                    Content="Back"
+                                    Height="42"
+                                    Click="BackButton_Click"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+
+            <Border Grid.Row="4"
+                    CornerRadius="24"
+                    Padding="16"
+                    Background="#1AFFFFFF"
+                    BorderBrush="#26FFFFFF"
+                    BorderThickness="1">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Call status"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Foreground="White"/>
+                    <TextBlock x:Name="StatusText"
+                               Text="Waiting..."
+                               TextWrapping="Wrap"
+                               FontSize="14"
+                               Foreground="#D0D0D0"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <FlyoutBase.AttachedFlyout>
+            <MenuFlyout x:Name="MoreFlyout">
+                <MenuFlyoutItem Text="Back"
+                                Click="MoreBack_Click"/>
+                <MenuFlyoutItem Text="Reconnect"
+                                Click="MoreReconnect_Click"/>
+                <MenuFlyoutItem Text="Reset call state"
+                                Click="MoreReset_Click"/>
+            </MenuFlyout>
+        </FlyoutBase.AttachedFlyout>
+    </Grid>
+</Page>

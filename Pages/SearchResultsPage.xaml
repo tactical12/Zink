@@ -1,0 +1,136 @@
+<Page
+    x:Class="Zink.Pages.SearchResultsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:services="using:Zink.Services"
+    mc:Ignorable="d"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Padding="20" Spacing="18">
+
+            <StackPanel Spacing="4">
+                <TextBlock Text="Search" FontSize="28" FontWeight="SemiBold"/>
+                <TextBlock x:Name="QueryTextBlock" Text="Search across Zink" Opacity="0.75"/>
+            </StackPanel>
+
+            <!-- ? Search box (like Home Dashboard style) -->
+            <AutoSuggestBox x:Name="SearchBox"
+                            PlaceholderText="Search songs, albums, artists, videos, stations"
+                            Width="520"
+                            HorizontalAlignment="Left"
+                            TextChanged="SearchBox_TextChanged"
+                            QuerySubmitted="SearchBox_QuerySubmitted">
+                <AutoSuggestBox.QueryIcon>
+                    <SymbolIcon Symbol="Find"/>
+                </AutoSuggestBox.QueryIcon>
+            </AutoSuggestBox>
+
+            <!-- Empty state -->
+            <Border x:Name="EmptyState"
+                    CornerRadius="16"
+                    Padding="18"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    Visibility="Collapsed">
+                <TextBlock x:Name="EmptyStateText" Text="No results found." />
+            </Border>
+
+            <!-- Songs -->
+            <StackPanel x:Name="SongsSection" Spacing="10" Visibility="Collapsed">
+                <TextBlock Text="Songs" FontSize="20" FontWeight="SemiBold"/>
+                <ListView x:Name="SongsList"
+                          ItemsSource="{x:Bind Songs}"
+                          IsItemClickEnabled="True"
+                          SelectionMode="None"
+                          ItemClick="SongsList_ItemClick">
+                    <ListView.ItemTemplate>
+                        <DataTemplate x:DataType="services:SongResult">
+                            <StackPanel Spacing="2" Padding="10">
+                                <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold"/>
+                                <TextBlock Text="{x:Bind Artist}" Opacity="0.7"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+            </StackPanel>
+
+            <!-- Albums -->
+            <StackPanel x:Name="AlbumsSection" Spacing="10" Visibility="Collapsed">
+                <TextBlock Text="Albums" FontSize="20" FontWeight="SemiBold"/>
+                <ListView x:Name="AlbumsList"
+                          ItemsSource="{x:Bind Albums}"
+                          IsItemClickEnabled="True"
+                          SelectionMode="None"
+                          ItemClick="AlbumsList_ItemClick">
+                    <ListView.ItemTemplate>
+                        <DataTemplate x:DataType="services:AlbumResult">
+                            <StackPanel Spacing="2" Padding="10">
+                                <!-- ? FIX: AlbumResult does NOT have Artist, so only show Name -->
+                                <TextBlock Text="{x:Bind Name}" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+            </StackPanel>
+
+            <!-- Artists -->
+            <StackPanel x:Name="ArtistsSection" Spacing="10" Visibility="Collapsed">
+                <TextBlock Text="Artists" FontSize="20" FontWeight="SemiBold"/>
+                <ListView x:Name="ArtistsList"
+                          ItemsSource="{x:Bind Artists}"
+                          IsItemClickEnabled="True"
+                          SelectionMode="None"
+                          ItemClick="ArtistsList_ItemClick">
+                    <ListView.ItemTemplate>
+                        <DataTemplate x:DataType="services:ArtistResult">
+                            <StackPanel Padding="10">
+                                <TextBlock Text="{x:Bind Name}" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+            </StackPanel>
+
+            <!-- Videos -->
+            <StackPanel x:Name="VideosSection" Spacing="10" Visibility="Collapsed">
+                <TextBlock Text="Videos" FontSize="20" FontWeight="SemiBold"/>
+                <ListView x:Name="VideosList"
+                          ItemsSource="{x:Bind Videos}"
+                          IsItemClickEnabled="True"
+                          SelectionMode="None"
+                          ItemClick="VideosList_ItemClick">
+                    <ListView.ItemTemplate>
+                        <DataTemplate x:DataType="services:VideoResult">
+                            <StackPanel Padding="10">
+                                <TextBlock Text="{x:Bind Name}" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+            </StackPanel>
+
+            <!-- Stations -->
+            <StackPanel x:Name="RadioSection" Spacing="10" Visibility="Collapsed">
+                <TextBlock Text="Stations" FontSize="20" FontWeight="SemiBold"/>
+                <ListView x:Name="StationsList"
+                          ItemsSource="{x:Bind Stations}"
+                          IsItemClickEnabled="True"
+                          SelectionMode="None"
+                          ItemClick="StationsList_ItemClick">
+                    <ListView.ItemTemplate>
+                        <DataTemplate x:DataType="services:StationResult">
+                            <StackPanel Padding="10">
+                                <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+            </StackPanel>
+
+        </StackPanel>
+    </ScrollViewer>
+</Page>

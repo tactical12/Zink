@@ -1,0 +1,45 @@
+<Page
+    x:Class="Zink.Pages.TwitchPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:wv2="using:Microsoft.UI.Xaml.Controls"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <Grid>
+
+        <!-- Full page web content (no header bar) -->
+        <Border
+            x:Name="HostBorder"
+            Margin="12"
+            CornerRadius="12"
+            BorderThickness="1"
+            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+
+            <Grid>
+
+                <wv2:WebView2
+                    x:Name="TwitchWebView"
+                    CoreWebView2Initialized="TwitchWebView_CoreWebView2Initialized"
+                    NavigationStarting="TwitchWebView_NavigationStarting"
+                    NavigationCompleted="TwitchWebView_NavigationCompleted" />
+
+                <!-- Loading overlay -->
+                <Grid
+                    x:Name="LoadingOverlay"
+                    Background="#66000000"
+                    Visibility="Collapsed">
+                    <StackPanel
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Spacing="10">
+                        <ProgressRing IsActive="True"/>
+                        <TextBlock Text="Loading..." Foreground="White"/>
+                    </StackPanel>
+                </Grid>
+
+            </Grid>
+        </Border>
+
+    </Grid>
+</Page>

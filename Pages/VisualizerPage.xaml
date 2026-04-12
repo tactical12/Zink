@@ -1,0 +1,72 @@
+<Page
+    x:Class="Zink.Pages.VisualizerPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Zink.Pages"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <Grid Padding="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Orientation="Vertical" Spacing="4">
+            <TextBlock Text="Visualizer"
+                       FontSize="28"
+                       FontWeight="SemiBold"/>
+            <TextBlock Text="Watch your music come to life with live visuals."
+                       Opacity="0.7"
+                       FontSize="14"/>
+        </StackPanel>
+
+        <!-- Controls -->
+        <StackPanel Grid.Row="1"
+                    Orientation="Horizontal"
+                    Spacing="16"
+                    Margin="0,24,0,16"
+                    VerticalAlignment="Center">
+            <StackPanel>
+                <TextBlock Text="Style"
+                           FontWeight="SemiBold"
+                           Margin="0,0,0,4"/>
+                <ComboBox x:Name="StyleComboBox"
+                          Width="200"
+                          SelectionChanged="StyleComboBox_SelectionChanged">
+                    <ComboBoxItem Content="Bars" Tag="Bars" IsSelected="True"/>
+                    <ComboBoxItem Content="Wave" Tag="Wave"/>
+                    <ComboBoxItem Content="Circle" Tag="Circle"/>
+                </ComboBox>
+            </StackPanel>
+
+            <ToggleButton x:Name="PauseToggle"
+                          Content="Pause animation"
+                          Checked="PauseToggle_Checked"
+                          Unchecked="PauseToggle_Unchecked"
+                          VerticalAlignment="Bottom"/>
+        </StackPanel>
+
+        <!-- Visualizer canvas -->
+        <Border Grid.Row="2"
+                CornerRadius="16"
+                Padding="0"
+                BorderThickness="1"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+            <Grid>
+                <Canvas x:Name="VisualizerCanvas"/>
+
+                <TextBlock x:Name="HintText"
+                           Text="Visualizer is currently using simulated data. When you're ready, we can hook this to the real audio levels from the Music Player."
+                           Opacity="0.5"
+                           FontSize="12"
+                           Margin="16"
+                           HorizontalAlignment="Left"
+                           VerticalAlignment="Bottom"
+                           TextWrapping="WrapWholeWords"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Page>

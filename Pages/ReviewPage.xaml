@@ -1,0 +1,84 @@
+<Page
+    x:Class="Zink.Pages.ReviewPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Zink.Pages"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <Grid Padding="40,30" RowDefinitions="Auto,*">
+
+        <!-- Header -->
+        <StackPanel Orientation="Horizontal" Spacing="12">
+            <FontIcon Glyph="&#xE8D2;" FontSize="22" Opacity="0.85" VerticalAlignment="Center"/>
+            <StackPanel Spacing="2">
+                <TextBlock Text="Leave a review"
+                           FontSize="28"
+                           FontWeight="Bold"/>
+                <TextBlock Text="Takes 10 seconds - it really helps Zink grow."
+                           Opacity="0.75"
+                           FontSize="14"/>
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Content -->
+        <StackPanel Grid.Row="1" Spacing="16" Margin="0,18,0,0" MaxWidth="720">
+
+            <Border CornerRadius="16"
+                    BorderThickness="1"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    Padding="20">
+
+                <StackPanel Spacing="14">
+
+                    <!-- Stars (visual) -->
+                    <StackPanel Orientation="Horizontal" Spacing="6" Opacity="0.8">
+                        <FontIcon Glyph="&#xE734;" FontSize="18"/>
+                        <FontIcon Glyph="&#xE734;" FontSize="18"/>
+                        <FontIcon Glyph="&#xE734;" FontSize="18"/>
+                        <FontIcon Glyph="&#xE734;" FontSize="18"/>
+                        <FontIcon Glyph="&#xE734;" FontSize="18"/>
+                    </StackPanel>
+
+                    <TextBlock
+                        Text="If you’re enjoying Zink, a quick review helps a lot. This will open the Microsoft Store review page for Zink."
+                        TextWrapping="WrapWholeWords"
+                        FontSize="16"/>
+
+                    <!-- What happens -->
+                    <StackPanel Spacing="4" Opacity="0.8">
+                        <TextBlock Text="What happens next:" FontWeight="SemiBold"/>
+                        <TextBlock Text="1) Microsoft Store opens" />
+                        <TextBlock Text="2) Choose a star rating" />
+                        <TextBlock Text="3) Leave a short comment" />
+                    </StackPanel>
+
+                    <!-- Buttons -->
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                        <Button x:Name="LeaveReviewButton"
+                                Grid.Column="0"
+                                Content="Leave a review"
+                                Height="42"
+                                Click="LeaveReview_Click"
+                                Style="{ThemeResource AccentButtonStyle}"/>
+
+                        <Button x:Name="OpenStorePageButton"
+                                Grid.Column="1"
+                                Content="Open Store page"
+                                Height="42"
+                                Click="OpenStorePage_Click"/>
+                    </Grid>
+
+                    <InfoBar x:Name="StatusBar"
+                             IsOpen="False"
+                             IsClosable="True"
+                             Severity="Informational"
+                             Title="Review"
+                             Message=""
+                             Margin="0,8,0,0"/>
+                </StackPanel>
+
+            </Border>
+        </StackPanel>
+    </Grid>
+</Page>

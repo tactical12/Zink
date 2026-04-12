@@ -1,0 +1,78 @@
+<Page
+    x:Class="Zink.Pages.PrivacyPolicyPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <ScrollViewer Padding="20">
+        <StackPanel>
+            <TextBlock Text="Privacy Policy" FontSize="24" FontWeight="Bold" Margin="0,0,0,20"/>
+
+            <TextBlock TextWrapping="Wrap">
+Privacy Policy for Zink
+
+Zink ("we", "our", or "us") is committed to protecting your privacy and ensuring transparency about how we handle your data when you use our app.
+
+1. Information We Collect
+
+- User Data:  
+  We collect minimal personal data required for basic app functionality such as user IDs and authentication tokens.
+
+- Audio and Video Data:  
+  When you use voice and video calling features, Zink accesses your device’s microphone and camera to enable communication. Audio and video streams are transmitted securely via Discord’s services.
+
+- Spotify Integration:  
+  Zink integrates with Spotify to provide music playback. Your Spotify account data and playback information are handled according to Spotify’s privacy policies. We do not store your Spotify credentials.
+
+- Discord Chat Integration:  
+  Zink uses Discord’s chat services to enable text, voice, and video communication between users. The app connects to Discord servers to facilitate messaging and calls. User data sent through Discord (messages, voice, video) is handled according to Discord’s Privacy Policy (https://discord.com/privacy). We do not store your Discord credentials; authentication happens via Discord’s official OAuth flow.
+
+- Local File Access:  
+  When using features that require selecting files (e.g., music or video library import), Zink requests access to your local files via standard file picker dialogs. We only access the files or folders you explicitly select. The app does not scan or collect data from your device without your consent. File access is limited to user-initiated actions; we do not automatically read or upload any files.
+
+- Usage Data and Diagnostics:  
+  We may collect anonymous analytics data to improve app performance and user experience.
+
+2. How We Use Your Data
+
+- To provide and maintain core app features, including media playback, calls, and user interaction.  
+- To communicate between users securely through Discord.  
+- To enable music streaming via Spotify APIs in compliance with Spotify’s terms.
+
+3. Permissions
+
+- Microphone and Camera:  
+  Access is required solely for voice and video calls. Permissions are requested explicitly at runtime.
+
+- Network Access:  
+  Necessary for streaming media, communicating with servers, and accessing third-party services.
+
+- File System Access:  
+  Access to local files and folders is only granted via user action through file picker dialogs.
+
+4. Third-Party Services
+
+- Spotify:  
+  Music playback uses Spotify’s services and APIs. For details on Spotify’s data handling, visit https://www.spotify.com/privacy/.
+
+- Discord:  
+  Used for chat and messaging features. See https://discord.com/privacy for their privacy practices.
+
+5. User Rights
+
+- You can disable microphone, camera, and file access permissions at any time via device settings.  
+- You can contact us to request access to or deletion of your personal data.  
+- We do not sell or share your personal data with third parties outside of the services needed to operate the app.
+
+6. Contact Us
+
+If you have any questions or concerns about your privacy, please contact us at:  
+[francehayle@outlook.com]
+
+
+
+                Written and Last updated: [26/06/2025]
+            </TextBlock>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

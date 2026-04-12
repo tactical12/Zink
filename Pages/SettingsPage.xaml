@@ -1,0 +1,16 @@
+<Page
+  x:Class="Zink.Pages.SettingsPage"
+  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <StackPanel Padding="20" Spacing="12">
+        <TextBlock Text="Settings" FontSize="24" FontWeight="Bold"/>
+
+        <Button x:Name="CheckForUpdatesButton"
+            Content="Check for updates"
+            Click="CheckForUpdatesButton_Click"/>
+
+        <TextBlock x:Name="StatusText" Text=""/>
+    </StackPanel>
+</Page>

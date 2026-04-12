@@ -1,0 +1,58 @@
+<Page
+    x:Class="Zink.Pages.RadioWidgetPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:Zink.ViewModels"
+    xmlns:conv="using:Zink.Converters"
+    Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
+
+    <Page.Resources>
+        <conv:TimeSpanToClockTextConverter x:Key="ClockText"/>
+    </Page.Resources>
+
+    <Page.DataContext>
+        <vm:RadioWidgetViewModel/>
+    </Page.DataContext>
+
+    <Grid Padding="20">
+        <StackPanel Spacing="16" HorizontalAlignment="Center" Width="460">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Stretch">
+                <TextBlock Text="Radio Widget" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                <Button Content="Open Widget" Click="OpenWidget_Click" Margin="16,0,0,0" HorizontalAlignment="Right"/>
+            </StackPanel>
+
+            <Grid Width="420" Height="140" Background="{ThemeResource LayerFillColorDefaultBrush}" Padding="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="108"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <Border CornerRadius="12">
+                    <Image Stretch="UniformToFill">
+                        <Image.Source>
+                            <BitmapImage UriSource="{Binding ArtworkOrLogo}"/>
+                        </Image.Source>
+                    </Image>
+                </Border>
+
+                <StackPanel Grid.Column="1" Margin="12,0,0,0" Spacing="6" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding StationTitle}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Text="{Binding ArtistName}"   Opacity="0.9" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Text="{Binding SongTitle}"    Opacity="0.8" TextTrimming="CharacterEllipsis"/>
+
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="{Binding Elapsed,  Converter={StaticResource ClockText}}"/>
+                        <TextBlock Text=" / " Opacity="0.6"/>
+                        <TextBlock Text="{Binding Duration, Converter={StaticResource ClockText}, ConverterParameter=Live}" Opacity="0.9"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,6,0,0">
+                        <Button Content="Play"  Click="Play_Click"/>
+                        <Button Content="Pause" Click="Pause_Click"/>
+                        <Button Content="Stop"  Click="Stop_Click"/>
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+        </StackPanel>
+    </Grid>
+</Page>

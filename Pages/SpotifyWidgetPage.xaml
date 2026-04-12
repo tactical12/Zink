@@ -1,0 +1,21 @@
+<Page
+    x:Class="Zink.Pages.SpotifyWidgetPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <Grid Padding="24">
+        <StackPanel Spacing="16">
+            <TextBlock Text="Spotify Widget" FontSize="28" FontWeight="SemiBold"/>
+
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <Button x:Name="OpenWidgetBtn" Content="Open Widget" Click="OpenWidgetBtn_Click"/>
+                <Button x:Name="HideWidgetBtn" Content="Hide Widget" Click="HideWidgetBtn_Click"/>
+                <Button x:Name="RefreshBtn" Content="Refresh State" Click="RefreshBtn_Click"/>
+            </StackPanel>
+
+            <TextBlock Text="Controls the floating Spotify widget window. Make sure your Spotify page is signed in so the controller can attach."
+                       Opacity="0.8" TextWrapping="Wrap"/>
+        </StackPanel>
+    </Grid>
+</Page>

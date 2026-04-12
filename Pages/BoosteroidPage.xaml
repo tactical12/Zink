@@ -1,0 +1,24 @@
+<Page
+    x:Class="Zink.Pages.BoosteroidPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    mc:Ignorable="d">
+
+    <Grid>
+        <ProgressRing x:Name="Loader" IsActive="True" Width="48" Height="48"
+                      HorizontalAlignment="Center" VerticalAlignment="Center" />
+
+        <WebView2 x:Name="BoosteroidWebView"
+                  NavigationCompleted="WebView_NavigationCompleted"/>
+
+        <TextBlock x:Name="ErrorText"
+                   Visibility="Collapsed"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Bottom"
+                   Margin="12"
+                   TextWrapping="Wrap"
+                   TextAlignment="Center"/>
+    </Grid>
+</Page>

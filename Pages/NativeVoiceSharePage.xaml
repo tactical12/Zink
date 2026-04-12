@@ -1,0 +1,147 @@
+<Page
+    x:Class="Zink.Pages.NativeVoiceSharePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <Grid Padding="20" RowSpacing="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Spacing="4">
+            <TextBlock Text="Voice Call + Native 4K Share"
+                       FontSize="28"
+                       FontWeight="SemiBold"/>
+            <TextBlock x:Name="StatusText"
+                       Text="Ready."
+                       Opacity="0.8"/>
+        </StackPanel>
+
+        <Border Grid.Row="1"
+                Padding="16"
+                CornerRadius="12"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1">
+            <Grid ColumnSpacing="14" RowSpacing="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="220"/>
+                    <ColumnDefinition Width="220"/>
+                    <ColumnDefinition Width="240"/>
+                    <ColumnDefinition Width="220"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBox x:Name="ServerUrlBox"
+                         Grid.Row="0" Grid.Column="0"
+                         Header="Server URL"
+                         Text="ws://127.0.0.1:5057/ws"/>
+
+                <TextBox x:Name="RoomIdBox"
+                         Grid.Row="0" Grid.Column="1"
+                         Header="Room ID"
+                         Text="zink-room-1"/>
+
+                <TextBox x:Name="UserIdBox"
+                         Grid.Row="0" Grid.Column="2"
+                         Header="User ID"
+                         Text="francis"/>
+
+                <CheckBox x:Name="Require4kCheckBox"
+                          Grid.Row="0" Grid.Column="3"
+                          VerticalAlignment="Bottom"
+                          Content="Hard-require 4K source"
+                          IsChecked="True"/>
+
+                <Button x:Name="JoinButton"
+                        Grid.Row="1" Grid.Column="0"
+                        Content="Join Room"
+                        Click="JoinButton_Click"/>
+
+                <Button x:Name="StartCallButton"
+                        Grid.Row="1" Grid.Column="1"
+                        Content="Start Voice Call"
+                        Click="StartCallButton_Click"/>
+
+                <Button x:Name="AnswerButton"
+                        Grid.Row="1" Grid.Column="2"
+                        Content="Answer"
+                        Click="AnswerButton_Click"/>
+
+                <Button x:Name="HangupButton"
+                        Grid.Row="1" Grid.Column="3"
+                        Content="Hang Up"
+                        Click="HangupButton_Click"/>
+
+                <Button x:Name="StartShareButton"
+                        Grid.Row="2" Grid.Column="0"
+                        Content="Start 4K Share"
+                        Click="StartShareButton_Click"/>
+
+                <Button x:Name="StopShareButton"
+                        Grid.Row="2" Grid.Column="1"
+                        Content="Stop Share"
+                        Click="StopShareButton_Click"/>
+
+                <Button x:Name="MuteButton"
+                        Grid.Row="2" Grid.Column="2"
+                        Content="Mute / Unmute"
+                        Click="MuteButton_Click"/>
+
+                <TextBlock x:Name="ShareStatsText"
+                           Grid.Row="2" Grid.Column="3"
+                           Text="No share active."
+                           VerticalAlignment="Center"
+                           TextWrapping="Wrap"/>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="2" ColumnSpacing="16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Padding="16"
+                    CornerRadius="12"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="Remote Session"
+                               FontSize="22"
+                               FontWeight="SemiBold"/>
+                    <TextBlock x:Name="CallStateText"
+                               Text="Idle"/>
+                    <TextBlock x:Name="RemoteInfoText"
+                               Text="No remote peer yet."
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="1"
+                    Padding="16"
+                    CornerRadius="12"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="Notes"
+                               FontSize="22"
+                               FontWeight="SemiBold"/>
+                    <TextBlock Text="This page is fully native WinUI 3. The actual RTC transport is handled by SIPSorcery and your own signaling server."
+                               TextWrapping="Wrap"/>
+                    <TextBlock Text="The share button only succeeds when the selected display source is 3840 x 2160 or larger if hard 4K is enabled."
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</Page>

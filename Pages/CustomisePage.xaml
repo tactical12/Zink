@@ -1,0 +1,167 @@
+<Page
+    x:Class="Zink.Pages.CustomisePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Padding="32" RowSpacing="18">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Header -->
+            <StackPanel Grid.Row="0" Spacing="6">
+                <TextBlock Text="Customise" FontSize="34" FontWeight="Bold"/>
+                <TextBlock Text="Choose what shows on your dashboard."
+                           Opacity="0.75"
+                           FontSize="14"/>
+            </StackPanel>
+
+            <!-- Sections -->
+            <Border Grid.Row="1"
+                    CornerRadius="16"
+                    BorderThickness="1"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    Padding="18">
+
+                <StackPanel Spacing="14">
+                    <TextBlock Text="Dashboard sections"
+                               FontSize="16"
+                               FontWeight="SemiBold"/>
+
+                    <Grid RowSpacing="10">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <Grid Grid.Row="0" ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Hero and Insights" FontWeight="SemiBold"/>
+                                <TextBlock Text="Shows the resume card and insights panel."
+                                           Opacity="0.7"
+                                           FontSize="12"
+                                           TextWrapping="WrapWholeWords"/>
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1"
+                                          x:Name="ToggleHeroInsights"
+                                          Toggled="ToggleHeroInsights_Toggled"/>
+                        </Grid>
+
+                        <Grid Grid.Row="1" ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Power tools" FontWeight="SemiBold"/>
+                                <TextBlock Text="Shows your main feature tiles."
+                                           Opacity="0.7"
+                                           FontSize="12"
+                                           TextWrapping="WrapWholeWords"/>
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1"
+                                          x:Name="TogglePowerTools"
+                                          Toggled="TogglePowerTools_Toggled"/>
+                        </Grid>
+
+                        <Grid Grid.Row="2" ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Recent activity" FontWeight="SemiBold"/>
+                                <TextBlock Text="Shows your recent items list."
+                                           Opacity="0.7"
+                                           FontSize="12"
+                                           TextWrapping="WrapWholeWords"/>
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1"
+                                          x:Name="ToggleRecentActivity"
+                                          Toggled="ToggleRecentActivity_Toggled"/>
+                        </Grid>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- Power tools tiles -->
+            <Border Grid.Row="2"
+                    CornerRadius="16"
+                    BorderThickness="1"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    Padding="18">
+
+                <StackPanel Spacing="14">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Text="Power tools tiles"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"/>
+
+                        <Button Grid.Column="1"
+                                Content="Reset to default"
+                                Click="ResetDefaults_Click"/>
+                    </Grid>
+
+                    <TextBlock Text="Turn individual tiles on or off. Changes apply immediately when you go back to the dashboard."
+                               Opacity="0.75"
+                               FontSize="12"
+                               TextWrapping="WrapWholeWords"/>
+
+                    <ItemsControl>
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <ItemsWrapGrid Orientation="Horizontal"
+                                               MaximumRowsOrColumns="3"
+                                               ItemWidth="420"
+                                               ItemHeight="64"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+
+                        <ItemsControl.Items>
+
+                            <ToggleSwitch x:Name="Tile_MusicPlayer" Header="Music Player" Toggled="Tile_Toggled"/>
+                            <ToggleSwitch x:Name="Tile_VideoPlayer" Header="Video Player" Toggled="Tile_Toggled"/>
+                            <ToggleSwitch x:Name="Tile_Radio" Header="Radio" Toggled="Tile_Toggled"/>
+
+                            <ToggleSwitch x:Name="Tile_VideoLibrary" Header="Video Library" Toggled="Tile_Toggled"/>
+                            <ToggleSwitch x:Name="Tile_MusicLibrary" Header="Music Library" Toggled="Tile_Toggled"/>
+
+                            <ToggleSwitch x:Name="Tile_Equalizer" Header="Equalizer" Toggled="Tile_Toggled"/>
+                            <ToggleSwitch x:Name="Tile_Visualizer" Header="Visualizer" Toggled="Tile_Toggled"/>
+
+                            <ToggleSwitch x:Name="Tile_Settings" Header="Settings" Toggled="Tile_Toggled"/>
+                            <ToggleSwitch x:Name="Tile_VersionHistory" Header="Version history" Toggled="Tile_Toggled"/>
+
+                            <ToggleSwitch x:Name="Tile_Spotify" Header="Spotify" Toggled="Tile_Toggled"/>
+                            <!-- ? THIS is what generates the Tile_Twitch field -->
+                            <ToggleSwitch x:Name="Tile_Twitch" Header="Twitch" Toggled="Tile_Toggled"/>
+                            <ToggleSwitch x:Name="Tile_Xbox" Header="Xbox" Toggled="Tile_Toggled"/>
+                            <ToggleSwitch x:Name="Tile_Discord" Header="Discord" Toggled="Tile_Toggled"/>
+                            <ToggleSwitch x:Name="Tile_YouTube" Header="YouTube" Toggled="Tile_Toggled"/>
+
+                            <ToggleSwitch x:Name="Tile_Customise" Header="Customise" Toggled="Tile_Toggled"/>
+
+                        </ItemsControl.Items>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+        </Grid>
+    </ScrollViewer>
+</Page>

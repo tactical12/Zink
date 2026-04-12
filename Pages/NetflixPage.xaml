@@ -1,0 +1,30 @@
+<Page
+    x:Class="Zink.Pages.NetflixPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="Black">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Top bar (named for code-behind) -->
+        <CommandBar x:Name="TopBar"
+                    Background="#1A1A1A"
+                    Foreground="White"
+                    DefaultLabelPosition="Right"
+                    IsDynamicOverflowEnabled="True">
+            <AppBarButton Icon="Back"    Label="Back"    Click="Back_Click"/>
+            <AppBarButton Icon="Forward" Label="Forward" Click="Forward_Click"/>
+            <AppBarButton Icon="Refresh" Label="Reload"  Click="Reload_Click"/>
+            <AppBarButton Icon="Home"    Label="Home"    Click="Home_Click"/>
+        </CommandBar>
+
+        <!-- WebView2 (named for code-behind) -->
+        <WebView2 x:Name="WebView"
+                  Grid.Row="1"
+                  DefaultBackgroundColor="Black"/>
+    </Grid>
+</Page>
