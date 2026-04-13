@@ -3,11 +3,12 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
+using Windows.Storage;
 
 namespace Zink.Services
 {
     /// <summary>
-    /// Single source of truth for now-playing. 
+    /// Single source of truth for now-playing.
     /// - Supports INotifyPropertyChanged (bindings)
     /// - Exposes legacy events + Current* properties so existing pages/widgets keep working.
     /// </summary>
@@ -23,10 +24,13 @@ namespace Zink.Services
             Radio
         }
 
+        private const string RadioVolumeSettingKey = "RadioPageVolume";
+
         private AppPlaybackService()
         {
-            // Always get the dispatcher for the current UI thread
             _dispatcher = DispatcherQueue.GetForCurrentThread();
+
+            _radioVolume = ReadSavedRadioVolume();
 
             _tick = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
             _tick.Tick += (_, __) => RaiseOnUI(() => OnPropertyChanged(nameof(Elapsed)));
@@ -48,7 +52,125 @@ namespace Zink.Services
         private DateTimeOffset _startedAt = default;
         private bool _isPlaying;
 
-        // ================= GENERIC now-playing (Music/Video/Radi) =================
+        // ================= SHARED RADIO VOLUME =================
+        private double _radioVolume = 1.0;
+        private Action<double>? _radioVolumeApplier;
+
+        public double RadioVolume
+        {
+            get
+            {
+                SyncRadioVolumeFromSettings();
+                return _radioVolume;
+            }
+            set => SetRadioVolume(value);
+        }
+
+        public event EventHandler? RadioVolumeChanged;
+
+        public void SetRadioVolume(double volume)
+            => SetRadioVolume(volume, notifyApplier: true);
+
+        public void SetRadioVolume(double volume, bool notifyApplier)
+        {
+            RaiseOnUI(() =>
+            {
+                volume = NormalizeVolume(volume);
+
+                SyncRadioVolumeFromSettings();
+                bool changed = Math.Abs(_radioVolume - volume) > 0.0001;
+
+                _radioVolume = volume;
+                SaveRadioVolume(_radioVolume);
+
+                if (changed)
+                    OnPropertyChanged(nameof(RadioVolume));
+
+                if (notifyApplier)
+                {
+                    try
+                    {
+                        _radioVolumeApplier?.Invoke(_radioVolume);
+                    }
+                    catch { }
+                }
+
+                if (changed)
+                    SafeFire(RadioVolumeChanged);
+            });
+        }
+
+        public void RegisterRadioVolumeApplier(Action<double> applier, bool pushCurrentValue = true)
+        {
+            RaiseOnUI(() =>
+            {
+                _radioVolumeApplier = applier;
+
+                if (!pushCurrentValue)
+                    return;
+
+                SyncRadioVolumeFromSettings();
+
+                try
+                {
+                    _radioVolumeApplier?.Invoke(_radioVolume);
+                }
+                catch { }
+            });
+        }
+
+        private void SyncRadioVolumeFromSettings()
+        {
+            try
+            {
+                _radioVolume = ReadSavedRadioVolume();
+            }
+            catch
+            {
+                _radioVolume = NormalizeVolume(_radioVolume);
+            }
+        }
+
+        private static double ReadSavedRadioVolume()
+        {
+            try
+            {
+                var settings = ApplicationData.Current.LocalSettings;
+                if (settings.Values.TryGetValue(RadioVolumeSettingKey, out var value) && value != null)
+                {
+                    if (value is double d)
+                        return NormalizeVolume(d);
+
+                    if (value is float f)
+                        return NormalizeVolume(f);
+
+                    if (value is int i)
+                        return NormalizeVolume(i / 100.0);
+
+                    if (double.TryParse(value.ToString(), out var parsed))
+                        return NormalizeVolume(parsed);
+                }
+            }
+            catch { }
+
+            return 1.0;
+        }
+
+        private static void SaveRadioVolume(double volume)
+        {
+            try
+            {
+                ApplicationData.Current.LocalSettings.Values[RadioVolumeSettingKey] = NormalizeVolume(volume);
+            }
+            catch { }
+        }
+
+        private static double NormalizeVolume(double volume)
+        {
+            return Math.Clamp(volume, 0.0, 1.0);
+        }
+
+        // ================= GENERIC now-playing (Music/Video/Radio) =================
         private MediaKind _currentKind = MediaKind.None;
         private string _primaryText = "";
         private string _secondaryText = "";
@@ -78,17 +200,19 @@ namespace Zink.Services
             private set { if (_genericArtworkUri != value) { _genericArtworkUri = value; OnPropertyChanged(); } }
         }
 
-        // ================= INotifyPropertyChanged model (your newer code) =================
+        // ================= INotifyPropertyChanged model =================
         public string StationTitle
         {
             get => _stationTitle;
             private set { if (!string.Equals(_stationTitle, value, StringComparison.Ordinal)) { _stationTitle = value; OnPropertyChanged(); } }
         }
+
         public string ArtistName
         {
             get => _artistName;
             private set { if (!string.Equals(_artistName, value, StringComparison.Ordinal)) { _artistName = value; OnPropertyChanged(); } }
         }
+
         public string SongTitle
         {
             get => _songTitle;
@@ -128,21 +252,16 @@ namespace Zink.Services
             }
         }
 
-        // ================= Back-compat aliases (what your pages expect) =================
+        // ================= Back-compat aliases =================
         public string CurrentStationTitle => StationTitle;
-
-        // ✅ HomeDashboardPage expects this
         public Uri? CurrentStationLogoUri => _stationLogoUri;
-
         public string CurrentArtist => ArtistName;
         public string CurrentTitle => SongTitle;
-
-        // Keep as-is (some of your code uses this)
-        public Uri CurrentArtworkUri => _artistImageUri;
+        public Uri? CurrentArtworkUri => _artistImageUri;
 
         // Events your pages/widgets subscribe to
-        public event EventHandler NowPlayingChanged;
-        public event EventHandler IsPlayingChanged;
+        public event EventHandler? NowPlayingChanged;
+        public event EventHandler? IsPlayingChanged;
 
         // ================= Public API used by RadioPage / ICY watcher =================
         public void SetStationPlaying(string stationId, string stationTitle, Uri? stationLogoUri, bool isPlaying)
@@ -155,7 +274,6 @@ namespace Zink.Services
                 OnPropertyChanged(nameof(CurrentStationLogoUri));
                 OnPropertyChanged(nameof(ArtworkOrLogo));
 
-                // ✅ set generic "now playing" for dashboard
                 CurrentKind = MediaKind.Radio;
                 PrimaryText = StationTitle;
                 SecondaryText = "";
@@ -177,9 +295,8 @@ namespace Zink.Services
                 _startedAt = DateTimeOffset.Now;
 
                 OnPropertyChanged(nameof(ArtworkOrLogo));
-                OnPropertyChanged(nameof(Elapsed)); // reset immediately
+                OnPropertyChanged(nameof(Elapsed));
 
-                // ✅ keep dashboard fields updated during radio metadata changes
                 if (CurrentKind == MediaKind.Radio)
                 {
                     PrimaryText = StationTitle;
@@ -195,7 +312,6 @@ namespace Zink.Services
 
         public void SetIsPlaying(bool isPlaying) => RaiseOnUI(() => IsPlaying = isPlaying);
 
-        // ✅ NEW: used by MusicPlayerPage + VideoPlayerPage
         public void SetGenericNowPlaying(MediaKind kind, string primary, string secondary, Uri? artworkUri, bool isPlaying)
         {
             RaiseOnUI(() =>
@@ -243,20 +359,35 @@ namespace Zink.Services
 
         // ================= INotifyPropertyChanged =================
         public event PropertyChangedEventHandler? PropertyChanged;
+
         private void OnPropertyChanged([CallerMemberName] string? name = null)
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 
         // ================= Helpers =================
-        private void SafeFire(EventHandler ev)
+        private void SafeFire(EventHandler? ev)
         {
             try { ev?.Invoke(this, EventArgs.Empty); } catch { }
         }
 
         private void RaiseOnUI(Action action)
         {
-            if (_dispatcher == null) { try { action(); } catch { } return; }
-            if (_dispatcher.HasThreadAccess) { action(); }
-            else _dispatcher.TryEnqueue(() => { try { action(); } catch { } });
+            if (_dispatcher == null)
+            {
+                try { action(); } catch { }
+                return;
+            }
+
+            if (_dispatcher.HasThreadAccess)
+            {
+                action();
+            }
+            else
+            {
+                _dispatcher.TryEnqueue(() =>
+                {
+                    try { action(); } catch { }
+                });
+            }
         }
     }
 }

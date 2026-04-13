@@ -76,6 +76,7 @@ namespace Zink.Services
             {
                 System.Diagnostics.Debug.WriteLine("Discord RPC: Shutdown()");
                 _client?.ClearPresence();
+                _client?.Invoke();
                 _client?.Dispose();
             }
             catch (Exception ex)
@@ -101,6 +102,7 @@ namespace Zink.Services
             {
                 System.Diagnostics.Debug.WriteLine("Discord RPC: Clearing presence.");
                 _client.ClearPresence();
+                _client.Invoke();
             }
             catch (Exception ex)
             {
@@ -177,6 +179,7 @@ namespace Zink.Services
                     $"Discord RPC: Setting station presence | Station='{stationName}' | Asset='{presence.Assets?.LargeImageKey}'");
 
                 _client.SetPresence(presence);
+                _client.Invoke();
             }
             catch (Exception ex)
             {
@@ -250,6 +253,7 @@ namespace Zink.Services
                     $"Discord RPC: Updating track presence | Station='{stationName}' | Artist='{artistName}' | Title='{songTitle}' | Asset='{presence.Assets?.LargeImageKey}'");
 
                 _client.SetPresence(presence);
+                _client.Invoke();
             }
             catch (Exception ex)
             {
@@ -329,6 +333,7 @@ namespace Zink.Services
                     $"Discord RPC: Setting video presence | Title='{videoTitle}' | Position='{position}' | Duration='{duration}'");
 
                 _client.SetPresence(presence);
+                _client.Invoke();
             }
             catch (Exception ex)
             {
@@ -402,6 +407,7 @@ namespace Zink.Services
                     $"Discord RPC: Setting paused video presence | Title='{videoTitle}' | Position='{position}' | Duration='{duration}'");
 
                 _client.SetPresence(presence);
+                _client.Invoke();
             }
             catch (Exception ex)
             {

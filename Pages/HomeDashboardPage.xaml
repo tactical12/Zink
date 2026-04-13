@@ -43,23 +43,16 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <StackPanel Grid.Row="0" Spacing="6">
-                <TextBlock Text="Zink" FontSize="34" FontWeight="Bold"/>
-                <TextBlock Text="Your media hub - everything connected."
-                           Opacity="0.75"
-                           FontSize="14"/>
-
-                <Border Margin="0,10,0,0"
-                        CornerRadius="14"
-                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1">
-                    <AutoSuggestBox x:Name="HomeSearchBox"
-                                    Margin="10,8"
-                                    PlaceholderText="Search songs, albums, artists, videos, stations"
-                                    QuerySubmitted="HomeSearchBox_QuerySubmitted"/>
-                </Border>
-            </StackPanel>
+            <Border Grid.Row="0"
+                    CornerRadius="14"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1">
+                <AutoSuggestBox x:Name="HomeSearchBox"
+                                Margin="10,8"
+                                PlaceholderText="Search songs, albums, artists, videos, stations"
+                                QuerySubmitted="HomeSearchBox_QuerySubmitted"/>
+            </Border>
 
             <Grid x:Name="HeroInsightsSection" Grid.Row="1" Margin="0,6,0,0">
                 <Border Style="{StaticResource ZinkCardStyle}" Padding="0">
@@ -122,6 +115,7 @@
 
                             <Grid Grid.Column="1" RowSpacing="14">
                                 <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
@@ -219,7 +213,51 @@
                                             Click="OpenFolderButton_Click"/>
                                 </StackPanel>
 
-                                <Border Grid.Row="5"
+                                <Border x:Name="HomeRadioVolumePanel"
+                                        Grid.Row="5"
+                                        Visibility="Collapsed"
+                                        CornerRadius="14"
+                                        Padding="14"
+                                        Background="{ThemeResource ControlFillColorSecondaryBrush}"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                        BorderThickness="1">
+                                    <Grid ColumnSpacing="14">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <FontIcon Glyph="&#xE15D;"
+                                                  FontSize="18"
+                                                  VerticalAlignment="Center"/>
+
+                                        <Slider x:Name="HomeRadioVolumeSlider"
+                                                Grid.Column="1"
+                                                Minimum="0"
+                                                Maximum="100"
+                                                StepFrequency="1"
+                                                Value="50"
+                                                VerticalAlignment="Center"
+                                                ValueChanged="HomeRadioVolumeSlider_ValueChanged"/>
+
+                                        <StackPanel Grid.Column="2"
+                                                    VerticalAlignment="Center"
+                                                    Spacing="2">
+                                            <TextBlock Text="Volume"
+                                                       FontSize="12"
+                                                       Opacity="0.65"
+                                                       HorizontalAlignment="Right"/>
+                                            <TextBlock x:Name="HomeRadioVolumeValueText"
+                                                       Text="50%"
+                                                       FontSize="14"
+                                                       FontWeight="SemiBold"
+                                                       HorizontalAlignment="Right"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <Border Grid.Row="6"
                                         CornerRadius="14"
                                         Padding="14"
                                         Background="{ThemeResource ControlFillColorSecondaryBrush}"

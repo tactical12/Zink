@@ -12,7 +12,6 @@
                        Foreground="White"
                        HorizontalAlignment="Center" />
 
-            <!-- Stations grid (left->right wrap) -->
             <ItemsControl ItemsSource="{x:Bind AllStationsOrdered, Mode=OneWay}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
@@ -53,7 +52,6 @@
                           Width="40"
                           HorizontalAlignment="Center" />
 
-            <!-- Now Playing card -->
             <Border Background="#222"
                     CornerRadius="12"
                     Padding="10"
@@ -81,33 +79,31 @@
                         </StackPanel>
                     </StackPanel>
 
-                    <!-- Volume row -->
-                    <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                    <StackPanel Spacing="6">
                         <TextBlock Text="Volume"
                                    Foreground="White"
-                                   VerticalAlignment="Center" />
-                        <Slider x:Name="VolumeSlider"
-                                Width="220"
-                                Minimum="0"
-                                Maximum="100"
-                                Value="100"
-                                StepFrequency="1"
-                                SmallChange="1"
-                                LargeChange="10"
-                                ValueChanged="VolumeSlider_ValueChanged"/>
-                        <TextBlock x:Name="VolumeText"
-                                   Text="100%"
-                                   Foreground="White"
-                                   VerticalAlignment="Center" />
+                                   FontSize="14" />
+                        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                            <FontIcon Glyph="&#xE992;"
+                                      Foreground="White"/>
+                            <Slider x:Name="VolumeSlider"
+                                    Minimum="0"
+                                    Maximum="100"
+                                    Value="100"
+                                    Width="260"
+                                    ValueChanged="VolumeSlider_ValueChanged" />
+                            <TextBlock x:Name="VolumeText"
+                                       Text="100%"
+                                       Foreground="White"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
                     </StackPanel>
 
-                    <!-- Controls row -->
                     <StackPanel Orientation="Horizontal" Spacing="10">
                         <Button Content="Stop"
                                 Click="Stop_Click"
                                 Width="80"/>
 
-                        <!-- Like song button -->
                         <Button x:Name="LikeSongButton"
                                 Click="LikeSongButton_Click">
                             <StackPanel Orientation="Horizontal" Spacing="6">
@@ -116,7 +112,6 @@
                             </StackPanel>
                         </Button>
 
-                        <!-- Enable background button -->
                         <Button x:Name="EnableBackgroundButton"
                                 Click="EnableBackgroundButton_Click">
                             <StackPanel Orientation="Horizontal" Spacing="6">

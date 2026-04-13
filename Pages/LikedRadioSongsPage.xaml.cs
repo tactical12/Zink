@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media.Imaging;
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -36,6 +37,49 @@ namespace Zink.Pages
         {
             List.ItemsSource = null;
             List.ItemsSource = Likes;
+        }
+
+        private void ArtworkImage_Loaded(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Image image)
+                return;
+
+            if (image.DataContext is not LikedRadioSong song)
+            {
+                image.Source = null;
+                return;
+            }
+
+            image.Source = CreateSafeImageSource(song.ArtworkUrl);
+        }
+
+        private static BitmapImage? CreateSafeImageSource(string? rawValue)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(rawValue))
+                    return null;
+
+                var value = rawValue.Trim().Replace("\\", "/");
+
+                if (value.StartsWith("/Assets/", StringComparison.OrdinalIgnoreCase))
+                {
+                    value = $"ms-appx:///{value.TrimStart('/')}";
+                }
+                else if (value.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
+                {
+                    value = $"ms-appx:///{value}";
+                }
+
+                if (!Uri.TryCreate(value, UriKind.Absolute, out var uri))
+                    return null;
+
+                return new BitmapImage(uri);
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         private async void Remove_Click(object sender, RoutedEventArgs e)

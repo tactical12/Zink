@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Navigation;
 using System;
 using System.Collections.Generic;
@@ -53,11 +54,14 @@ namespace Zink.Pages
         private const string LS_LastTitle = "HomeDash_LastTitle";
         private const string LS_LastSubtitle = "HomeDash_LastSubtitle";
         private const string LS_LastToken = "HomeDash_LastToken";
+        private const string LS_SharedRadioVolume = "RadioPageVolume";
 
         private const string K_ShowHeroInsights = "Dash_ShowHeroInsights";
         private const string K_ShowPowerTools = "Dash_ShowPowerTools";
         private const string K_ShowRecentActivity = "Dash_ShowRecentActivity";
         private static string K_Tile(string id) => $"Dash_Tile_{id}";
+
+        private bool _isUpdatingHomeRadioVolumeUi;
 
         public HomeDashboardPage()
         {
@@ -85,6 +89,7 @@ namespace Zink.Pages
 
             SetHeroEmptyState();
             RestoreHeroFromSettings();
+            InitializeHomeRadioVolumeUi();
 
             RefreshFromActivityHub();
             RefreshNowPlayingFromServices();
@@ -96,6 +101,7 @@ namespace Zink.Pages
 
             ApplyDashboardCustomisation();
             RestoreHeroFromSettings();
+            InitializeHomeRadioVolumeUi();
             RefreshFromActivityHub();
             RefreshNowPlayingFromServices();
         }
@@ -105,6 +111,7 @@ namespace Zink.Pages
             try
             {
                 _nowPlayingTimer.Start();
+                InitializeHomeRadioVolumeUi();
                 RefreshNowPlayingFromServices();
             }
             catch { }
@@ -229,6 +236,12 @@ namespace Zink.Pages
                     {
                         HeroPlaybackValue.Text = ResumeButton.IsEnabled ? "Ready" : "Stopped";
                     }
+
+                    RefreshHomeRadioVolumeUi(string.Equals(_lastPlayable.Kind, "radio", StringComparison.OrdinalIgnoreCase));
+                }
+                else
+                {
+                    RefreshHomeRadioVolumeUi(false);
                 }
             }
             catch { }
@@ -353,6 +366,7 @@ namespace Zink.Pages
                 if (_lastPlayable != null)
                     SaveHeroToSettings(_lastPlayable);
 
+                RefreshHomeRadioVolumeUi(kind == "radio");
                 return true;
             }
             catch
@@ -528,6 +542,10 @@ namespace Zink.Pages
                 ResumeButton.IsEnabled = false;
                 HeroThumb.Visibility = Visibility.Collapsed;
                 HeroThumbFallback.Visibility = Visibility.Visible;
+                if (HomeRadioVolumePanel != null)
+                    HomeRadioVolumePanel.Visibility = Visibility.Collapsed;
+                if (HomeRadioVolumeValueText != null)
+                    HomeRadioVolumeValueText.Text = "100%";
                 _lastPlayable = null;
                 _lastThumbIdentity = "";
             }
@@ -620,7 +638,408 @@ namespace Zink.Pages
             if (persist)
                 SaveHeroToSettings(item);
 
+            RefreshHomeRadioVolumeUi(string.Equals(item.Kind, "radio", StringComparison.OrdinalIgnoreCase));
             _ = RefreshHeroThumbnailIfNeededAsync(item.Kind, item.PayloadPath, item.PayloadToken);
+        }
+
+        private void InitializeHomeRadioVolumeUi()
+        {
+            try
+            {
+                var volume = ReadSharedRadioVolume();
+                ApplyVolumeToActivePlayback(volume);
+                ApplyHomeRadioVolumeToUi(volume);
+                RefreshHomeRadioVolumeUi();
+            }
+            catch
+            {
+                var volume = ReadSharedRadioVolume();
+                ApplyVolumeToActivePlayback(volume);
+                ApplyHomeRadioVolumeToUi(volume);
+            }
+        }
+
+        private void RefreshHomeRadioVolumeUi(bool? isRadioOverride = null)
+        {
+            try
+            {
+                var appPlayback = AppPlaybackService.Instance;
+                var isRadioPlaying = isRadioOverride
+                    ?? (appPlayback != null && appPlayback.CurrentKind == AppPlaybackService.MediaKind.Radio);
+
+                if (HomeRadioVolumePanel != null)
+                    HomeRadioVolumePanel.Visibility = isRadioPlaying ? Visibility.Visible : Visibility.Collapsed;
+
+                if (!isRadioPlaying)
+                    return;
+
+                var volume = ReadSharedRadioVolume();
+                ApplyVolumeToActivePlayback(volume);
+                ApplyHomeRadioVolumeToUi(volume);
+            }
+            catch
+            {
+            }
+        }
+
+        private void HomeRadioVolumeSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+        {
+            if (_isUpdatingHomeRadioVolumeUi)
+                return;
+
+            try
+            {
+                var volume = ClampVolume(e.NewValue / 100d);
+
+                SaveSharedRadioVolume(volume);
+                ApplyVolumeToActivePlayback(volume);
+                ApplyHomeRadioVolumeToUi(volume);
+            }
+            catch
+            {
+            }
+        }
+
+        private void ApplyHomeRadioVolumeToUi(double volume)
+        {
+            try
+            {
+                _isUpdatingHomeRadioVolumeUi = true;
+
+                var percent = Math.Max(0, Math.Min(100, (int)Math.Round(ClampVolume(volume) * 100d)));
+
+                if (HomeRadioVolumeSlider != null)
+                    HomeRadioVolumeSlider.Value = percent;
+
+                if (HomeRadioVolumeValueText != null)
+                    HomeRadioVolumeValueText.Text = $"{percent}%";
+            }
+            catch
+            {
+            }
+            finally
+            {
+                _isUpdatingHomeRadioVolumeUi = false;
+            }
+        }
+
+        private static double ClampVolume(double volume)
+        {
+            if (volume < 0d) return 0d;
+            if (volume > 1d) return 1d;
+            return volume;
+        }
+
+        private static double ReadSharedRadioVolume()
+        {
+            try
+            {
+                var serviceVolume = AppPlaybackService.Instance.RadioVolume;
+                return ClampVolume(serviceVolume);
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                if (Settings.Values.TryGetValue(LS_SharedRadioVolume, out var value))
+                {
+                    if (value is double d)
+                        return ClampVolume(d);
+
+                    if (value is float f)
+                        return ClampVolume(f);
+
+                    if (value is int i)
+                        return ClampVolume(i / 100d);
+
+                    if (value is string s && double.TryParse(s, out var parsed))
+                        return ClampVolume(parsed > 1d ? parsed / 100d : parsed);
+                }
+            }
+            catch
+            {
+            }
+
+            return 1.0d;
+        }
+
+        private static void SaveSharedRadioVolume(double volume)
+        {
+            try
+            {
+                volume = ClampVolume(volume);
+                Settings.Values[LS_SharedRadioVolume] = volume;
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                AppPlaybackService.Instance.SetRadioVolume(volume, notifyApplier: false);
+            }
+            catch
+            {
+            }
+        }
+
+        private void ApplyVolumeToActivePlayback(double volume)
+        {
+            try
+            {
+                volume = ClampVolume(volume);
+
+                var appPlayback = AppPlaybackService.Instance;
+                if (appPlayback != null)
+                {
+                    TrySetVolumeOnTarget(appPlayback, volume);
+
+                    var appPlaybackTarget = GetVolumeTargetFromObject(appPlayback);
+                    if (appPlaybackTarget != null)
+                        TrySetVolumeOnTarget(appPlaybackTarget, volume);
+
+                    TryInvokeVolumeMethod(appPlayback, volume);
+                }
+
+                var singletonPlayer = MediaPlayerSingleton.Instance;
+                if (singletonPlayer != null)
+                    TrySetVolumeOnTarget(singletonPlayer, volume);
+            }
+            catch
+            {
+            }
+        }
+
+        private double? TryGetActivePlaybackVolume()
+        {
+            try
+            {
+                var appPlayback = AppPlaybackService.Instance;
+                if (appPlayback != null)
+                {
+                    var serviceVolume = TryGetVolumeFromTarget(appPlayback);
+                    if (serviceVolume.HasValue)
+                        return serviceVolume.Value;
+
+                    var serviceTarget = GetVolumeTargetFromObject(appPlayback);
+                    var serviceTargetVolume = TryGetVolumeFromTarget(serviceTarget);
+                    if (serviceTargetVolume.HasValue)
+                        return serviceTargetVolume.Value;
+                }
+
+                var singletonPlayer = MediaPlayerSingleton.Instance;
+                var singletonVolume = TryGetVolumeFromTarget(singletonPlayer);
+                if (singletonVolume.HasValue)
+                    return singletonVolume.Value;
+            }
+            catch
+            {
+            }
+
+            return null;
+        }
+
+        private static object? GetVolumeTargetFromObject(object source)
+        {
+            try
+            {
+                var type = source.GetType();
+
+                foreach (var propertyName in new[]
+                {
+                    "Player",
+                    "MediaPlayer",
+                    "CurrentPlayer",
+                    "PlaybackPlayer",
+                    "SharedPlayer",
+                    "RadioPlayer",
+                    "ActivePlayer"
+                })
+                {
+                    try
+                    {
+                        var property = type.GetProperty(propertyName);
+                        if (property != null && property.CanRead)
+                        {
+                            var value = property.GetValue(source);
+                            if (value != null)
+                                return value;
+                        }
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+            catch
+            {
+            }
+
+            return null;
+        }
+
+        private static void TryInvokeVolumeMethod(object target, double volume)
+        {
+            try
+            {
+                var type = target.GetType();
+
+                foreach (var methodName in new[]
+                {
+                    "SetVolume",
+                    "ApplyVolume",
+                    "UpdateVolume",
+                    "SetPlayerVolume",
+                    "SetRadioVolume"
+                })
+                {
+                    try
+                    {
+                        var method = type.GetMethod(methodName);
+                        if (method == null)
+                            continue;
+
+                        var parameters = method.GetParameters();
+                        if (parameters.Length != 1)
+                            continue;
+
+                        var parameterType = parameters[0].ParameterType;
+
+                        if (parameterType == typeof(double))
+                            method.Invoke(target, new object[] { volume });
+                        else if (parameterType == typeof(float))
+                            method.Invoke(target, new object[] { (float)volume });
+                        else if (parameterType == typeof(int))
+                            method.Invoke(target, new object[] { (int)Math.Round(volume * 100d) });
+                        else
+                            continue;
+
+                        return;
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        private static void TrySetVolumeOnTarget(object? target, double volume)
+        {
+            try
+            {
+                if (target == null)
+                    return;
+
+                volume = ClampVolume(volume);
+
+                if (target is global::Windows.Media.Playback.MediaPlayer mediaPlayer)
+                {
+                    mediaPlayer.Volume = volume;
+                    mediaPlayer.IsMuted = volume <= 0d;
+                    return;
+                }
+
+                var type = target.GetType();
+
+                foreach (var propertyName in new[]
+                {
+                    "Volume",
+                    "CurrentVolume",
+                    "PlayerVolume",
+                    "PlaybackVolume",
+                    "RadioVolume",
+                    "LastVolume",
+                    "SavedVolume"
+                })
+                {
+                    try
+                    {
+                        var volumeProperty = type.GetProperty(propertyName);
+                        if (volumeProperty == null || !volumeProperty.CanWrite)
+                            continue;
+
+                        if (volumeProperty.PropertyType == typeof(double))
+                            volumeProperty.SetValue(target, volume);
+                        else if (volumeProperty.PropertyType == typeof(float))
+                            volumeProperty.SetValue(target, (float)volume);
+                        else if (volumeProperty.PropertyType == typeof(int))
+                            volumeProperty.SetValue(target, (int)Math.Round(volume * 100d));
+                    }
+                    catch
+                    {
+                    }
+                }
+
+                foreach (var propertyName in new[] { "IsMuted", "Muted" })
+                {
+                    try
+                    {
+                        var mutedProperty = type.GetProperty(propertyName);
+                        if (mutedProperty != null && mutedProperty.CanWrite && mutedProperty.PropertyType == typeof(bool))
+                            mutedProperty.SetValue(target, volume <= 0d);
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        private static double? TryGetVolumeFromTarget(object? target)
+        {
+            try
+            {
+                if (target == null)
+                    return null;
+
+                if (target is global::Windows.Media.Playback.MediaPlayer mediaPlayer)
+                    return ClampVolume(mediaPlayer.Volume);
+
+                var type = target.GetType();
+
+                foreach (var propertyName in new[]
+                {
+                    "Volume",
+                    "CurrentVolume",
+                    "PlayerVolume",
+                    "PlaybackVolume",
+                    "RadioVolume",
+                    "LastVolume",
+                    "SavedVolume"
+                })
+                {
+                    try
+                    {
+                        var volumeProperty = type.GetProperty(propertyName);
+                        if (volumeProperty == null || !volumeProperty.CanRead)
+                            continue;
+
+                        var value = volumeProperty.GetValue(target);
+                        if (value is double d)
+                            return ClampVolume(d);
+                        if (value is float f)
+                            return ClampVolume(f);
+                        if (value is int i)
+                            return ClampVolume(i / 100d);
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+            catch
+            {
+            }
+
+            return null;
         }
 
         private async Task RefreshHeroThumbnailIfNeededAsync(string? kind, string? path, string? token)

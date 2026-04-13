@@ -20,6 +20,7 @@ using System.Globalization;
 
 using Microsoft.UI.Windowing;
 using WinRT.Interop;
+using Windows.Storage;
 
 // alias Windows.Graphics to avoid Zink.Windows collisions
 using WinGraphics = global::Windows.Graphics;
@@ -43,7 +44,8 @@ namespace Zink
 
         private string _currentStationTitle = "—";
         private string _currentStreamQuality = "Unknown";
-        private MediaPlayer _mp;
+        private static MediaPlayer _mp;
+        private static WeakReference<RadioPage>? _lastInstance;
 
         private readonly SemaphoreSlim _stationSwitchLock = new(1, 1);
         private int _switchVersion = 0;
@@ -56,6 +58,13 @@ namespace Zink
 
         private bool _everHadMeta = false;
         private Uri? _lastImageShownUri = null;
+
+        private const string RadioVolumeSettingKey = "RadioPageVolume";
+        private static double? _sharedRadioVolume = null;
+
+        private double _currentVolume = 1.0;
+        private bool _isApplyingVolumeFromCode = false;
+        private bool _volumeReady = false;
 
         private static readonly HashSet<string> WebViewStations = new(StringComparer.OrdinalIgnoreCase)
         {
@@ -87,32 +96,37 @@ namespace Zink
         public RadioPage()
         {
             this.InitializeComponent();
+            _lastInstance = new WeakReference<RadioPage>(this);
 
-            _mp = new MediaPlayer
+            _currentVolume = LoadSavedVolume();
+
+            if (_mp == null)
             {
-                AutoPlay = false,
-                AudioCategory = MediaPlayerAudioCategory.Media,
-                Volume = 1.0
-            };
+                _mp = new MediaPlayer
+                {
+                    AutoPlay = false,
+                    AudioCategory = MediaPlayerAudioCategory.Media
+                };
+            }
+
+            _mp.Volume = _currentVolume;
+
+            try
+            {
+                AppPlaybackService.Instance.RegisterRadioVolumeApplier(ApplySharedRadioVolumeFromService, pushCurrentValue: false);
+            }
+            catch { }
 
             Loaded += (_, __) =>
             {
                 try
                 {
-                    if (Player != null && Player.MediaPlayer == null)
+                    if (Player != null && Player.MediaPlayer != _mp)
                         Player.SetMediaPlayer(_mp);
                 }
                 catch { }
 
-                try
-                {
-                    if (VolumeSlider != null)
-                    {
-                        _mp.Volume = Math.Clamp(VolumeSlider.Value / 100.0, 0.0, 1.0);
-                        UpdateVolumeText(VolumeSlider.Value);
-                    }
-                }
-                catch { }
+                RestoreSavedVolumeState();
 
                 TryWireServiceEvents();
                 RefreshUiFromService(force: true);
@@ -124,6 +138,7 @@ namespace Zink
 
             Unloaded += (_, __) =>
             {
+                SaveCurrentVolume();
                 TryUnwireServiceEvents();
                 StopElapsedTimer();
                 StopServicePollTimer();
@@ -174,17 +189,18 @@ namespace Zink
             try
             {
                 var s = AppPlaybackService.Instance;
-                s.PlayRequested += () => DispatcherQueue.TryEnqueue(() =>
+                s.PlayRequested += () => TryEnqueueOnUi(() =>
                 {
                     _mp?.Play();
+                    ApplyCurrentVolumeToAllPlayback(updateSlider: false);
                     s.SetIsPlaying(true);
                 });
-                s.PauseRequested += () => DispatcherQueue.TryEnqueue(() =>
+                s.PauseRequested += () => TryEnqueueOnUi(() =>
                 {
                     _mp?.Pause();
                     s.SetIsPlaying(false);
                 });
-                s.StopRequested += () => DispatcherQueue.TryEnqueue(() =>
+                s.StopRequested += () => TryEnqueueOnUi(() =>
                 {
                     if (_mp != null)
                     {
@@ -198,24 +214,91 @@ namespace Zink
             catch { }
         }
 
+        private static void ApplySharedRadioVolumeFromService(double volume)
+        {
+            try
+            {
+                volume = Math.Clamp(volume, 0.0, 1.0);
+                _sharedRadioVolume = volume;
+
+                try
+                {
+                    ApplicationData.Current.LocalSettings.Values[RadioVolumeSettingKey] = volume;
+                }
+                catch { }
+
+                try
+                {
+                    if (_mp != null)
+                        _mp.Volume = volume;
+                }
+                catch { }
+
+                try
+                {
+                    if (_lastInstance != null && _lastInstance.TryGetTarget(out var page) && page != null)
+                    {
+                        page.TryEnqueueOnUi(() =>
+                        {
+                            page._currentVolume = volume;
+                            page.ApplyCurrentVolumeToAllPlayback(updateSlider: true);
+                        });
+                    }
+                }
+                catch { }
+            }
+            catch { }
+        }
+
+        private void RestoreSavedVolumeState()
+        {
+            _volumeReady = false;
+            _currentVolume = LoadSavedVolume();
+            ApplyCurrentVolumeToAllPlayback(updateSlider: true);
+            SaveCurrentVolume();
+            _volumeReady = true;
+        }
+
+        private bool TryEnqueueOnUi(Action action)
+        {
+            try
+            {
+                var dispatcher = this.DispatcherQueue ?? App.MainWindow?.DispatcherQueue;
+                if (dispatcher == null)
+                    return false;
+
+                return dispatcher.TryEnqueue(() =>
+                {
+                    try
+                    {
+                        action();
+                    }
+                    catch { }
+                });
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
+
+            try
+            {
+                if (Player != null && Player.MediaPlayer != _mp)
+                    Player.SetMediaPlayer(_mp);
+            }
+            catch { }
+
+            RestoreSavedVolumeState();
             RefreshUiFromService(force: true);
             StartElapsedTimer();
             StartServicePollTimer();
             TryWireServiceEvents();
             UpdateStationAndQualityText();
-
-            try
-            {
-                if (VolumeSlider != null)
-                {
-                    _mp.Volume = Math.Clamp(VolumeSlider.Value / 100.0, 0.0, 1.0);
-                    UpdateVolumeText(VolumeSlider.Value);
-                }
-            }
-            catch { }
 
             if (e.Parameter is string stationTitle && !string.IsNullOrWhiteSpace(stationTitle))
             {
@@ -224,7 +307,7 @@ namespace Zink
 
                 if (st != null)
                 {
-                    DispatcherQueue.TryEnqueue(() =>
+                    TryEnqueueOnUi(() =>
                     {
                         PlayStation_Click(new Button { DataContext = st }, new RoutedEventArgs());
                     });
@@ -235,6 +318,7 @@ namespace Zink
         protected override void OnNavigatedFrom(NavigationEventArgs e)
         {
             base.OnNavigatedFrom(e);
+            SaveCurrentVolume();
             StopElapsedTimer();
             StopServicePollTimer();
             TryUnwireServiceEvents();
@@ -307,6 +391,7 @@ namespace Zink
                 if (result == ContentDialogResult.Primary)
                 {
                     webViewWindow = new WebViewWindow(station.Title, station.StreamUrl);
+                    ApplyCurrentVolumeToAllPlayback(updateSlider: false);
 
                     try
                     {
@@ -359,6 +444,7 @@ namespace Zink
                 if (result == ContentDialogResult.Primary)
                 {
                     webViewWindow = new WebViewWindow(station.Title, station.StreamUrl);
+                    ApplyCurrentVolumeToAllPlayback(updateSlider: false);
 
                     try
                     {
@@ -411,6 +497,7 @@ namespace Zink
                 if (result == ContentDialogResult.Primary)
                 {
                     webViewWindow = new WebViewWindow(station.Title, station.StreamUrl);
+                    ApplyCurrentVolumeToAllPlayback(updateSlider: false);
 
                     try
                     {
@@ -463,6 +550,7 @@ namespace Zink
                 if (result == ContentDialogResult.Primary)
                 {
                     webViewWindow = new WebViewWindow(station.Title, station.StreamUrl);
+                    ApplyCurrentVolumeToAllPlayback(updateSlider: false);
 
                     try
                     {
@@ -503,6 +591,7 @@ namespace Zink
                 if (myVersion != _switchVersion) return;
 
                 webViewWindow = new WebViewWindow(station.Title, station.StreamUrl);
+                ApplyCurrentVolumeToAllPlayback(updateSlider: false);
 
                 try
                 {
@@ -545,6 +634,7 @@ namespace Zink
             try { _mp.MediaOpened -= OnOpened; _mp.MediaFailed -= OnFailed; } catch { }
 
             _mp.Source = MediaSource.CreateFromUri(new Uri(url));
+            ApplyCurrentVolumeToAllPlayback(updateSlider: false);
             _mp.Play();
 
             NotificationService.Instance.Show("Radio Started", $"Now playing: {station.Title}");
@@ -554,7 +644,7 @@ namespace Zink
             {
                 if (versionGuard != _switchVersion) return;
 
-                DispatcherQueue.TryEnqueue(() =>
+                TryEnqueueOnUi(() =>
                 {
                     NowPlayingText.Text = station.Title;
                     LoadingRing.IsActive = false;
@@ -565,6 +655,7 @@ namespace Zink
 
                     TrySetImage(new Uri(station.Image));
                     UpdateLikeButtonState();
+                    ApplyCurrentVolumeToAllPlayback(updateSlider: false);
 
                     try
                     {
@@ -589,7 +680,7 @@ namespace Zink
             {
                 if (versionGuard != _switchVersion) return;
 
-                DispatcherQueue.TryEnqueue(() =>
+                TryEnqueueOnUi(() =>
                 {
                     var hr = args.ExtendedErrorCode?.HResult ?? 0;
                     NowPlayingText.Text = $"Failed: {args.Error} (0x{hr:X8})";
@@ -609,7 +700,7 @@ namespace Zink
 
             void FinalFail(string msg)
             {
-                DispatcherQueue.TryEnqueue(() =>
+                TryEnqueueOnUi(() =>
                 {
                     NowPlayingText.Text = msg;
                     LoadingRing.IsActive = false;
@@ -624,14 +715,48 @@ namespace Zink
 
         private void VolumeSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
         {
+            if (_isApplyingVolumeFromCode || !_volumeReady)
+                return;
+
+            try
+            {
+                _currentVolume = Math.Clamp(e.NewValue / 100.0, 0.0, 1.0);
+                SaveCurrentVolume();
+                ApplyCurrentVolumeToAllPlayback(updateSlider: false);
+            }
+            catch { }
+        }
+
+        private void ApplyCurrentVolumeToAllPlayback(bool updateSlider)
+        {
             try
             {
                 if (_mp != null)
-                    _mp.Volume = Math.Clamp(e.NewValue / 100.0, 0.0, 1.0);
-
-                UpdateVolumeText(e.NewValue);
+                    _mp.Volume = _currentVolume;
             }
             catch { }
+
+            try
+            {
+                webViewWindow?.SetVolume(_currentVolume);
+            }
+            catch { }
+
+            try
+            {
+                if (updateSlider && VolumeSlider != null)
+                {
+                    _isApplyingVolumeFromCode = true;
+                    VolumeSlider.Value = Math.Round(_currentVolume * 100.0);
+                    _isApplyingVolumeFromCode = false;
+                }
+            }
+            catch
+            {
+                _isApplyingVolumeFromCode = false;
+            }
+
+            UpdateVolumeText(_currentVolume * 100.0);
         }
 
         private void UpdateVolumeText(double value)
@@ -640,6 +765,84 @@ namespace Zink
             {
                 if (VolumeText != null)
                     VolumeText.Text = $"{Math.Round(value):0}%";
+            }
+            catch { }
+        }
+
+        private double LoadSavedVolume()
+        {
+            try
+            {
+                var settings = ApplicationData.Current.LocalSettings;
+                if (settings.Values.TryGetValue(RadioVolumeSettingKey, out object value) && value != null)
+                {
+                    double parsed;
+                    if (value is double d)
+                        parsed = d;
+                    else if (value is float f)
+                        parsed = f;
+                    else if (value is int i)
+                        parsed = i / 100.0;
+                    else if (!double.TryParse(value.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out parsed))
+                        parsed = 1.0;
+
+                    parsed = Math.Clamp(parsed, 0.0, 1.0);
+                    _sharedRadioVolume = parsed;
+                    return parsed;
+                }
+            }
+            catch { }
+
+            try
+            {
+                if (_mp != null)
+                {
+                    var mpVolume = Math.Clamp(_mp.Volume, 0.0, 1.0);
+                    _sharedRadioVolume = mpVolume;
+                    return mpVolume;
+                }
+            }
+            catch { }
+
+            try
+            {
+                var serviceVolume = Math.Clamp(AppPlaybackService.Instance.RadioVolume, 0.0, 1.0);
+                _sharedRadioVolume = serviceVolume;
+                return serviceVolume;
+            }
+            catch { }
+
+            try
+            {
+                if (_sharedRadioVolume.HasValue)
+                    return Math.Clamp(_sharedRadioVolume.Value, 0.0, 1.0);
+            }
+            catch { }
+
+            _sharedRadioVolume = 1.0;
+            return 1.0;
+        }
+
+        private void SaveCurrentVolume()
+        {
+            try
+            {
+                _currentVolume = Math.Clamp(_currentVolume, 0.0, 1.0);
+                _sharedRadioVolume = _currentVolume;
+                ApplicationData.Current.LocalSettings.Values[RadioVolumeSettingKey] = _currentVolume;
+            }
+            catch { }
+
+            try
+            {
+                if (_mp != null)
+                    _mp.Volume = _currentVolume;
+            }
+            catch { }
+
+            try
+            {
+                AppPlaybackService.Instance.SetRadioVolume(_currentVolume, notifyApplier: false);
             }
             catch { }
         }
@@ -891,7 +1094,6 @@ namespace Zink
             _everHadMeta = false;
             _lastImageShownUri = null;
 
-            ClearDiscordPresence();
             ResetStreamQuality();
         }
 
@@ -936,11 +1138,11 @@ namespace Zink
             string station = s.CurrentStationTitle?.Trim() ?? "—";
             string artist = s.CurrentArtist?.Trim() ?? "";
             string title = s.CurrentTitle?.Trim() ?? "";
-            Uri artUri = s.CurrentArtworkUri;
+            Uri? artUri = s.CurrentArtworkUri;
 
             bool stationChanged = !string.Equals(station, _currentStationTitle, StringComparison.OrdinalIgnoreCase);
             bool metaChanged = !string.Equals(artist, _lastArtist, StringComparison.OrdinalIgnoreCase) ||
-                                  !string.Equals(title, _lastTitle, StringComparison.OrdinalIgnoreCase);
+                               !string.Equals(title, _lastTitle, StringComparison.OrdinalIgnoreCase);
             bool artArrived = (artUri != null);
             bool artChanged = artArrived && (_lastArtworkUri == null || !_lastArtworkUri.Equals(artUri));
 
@@ -961,36 +1163,32 @@ namespace Zink
             _lastTitle = title;
             if (artArrived && artChanged) _lastArtworkUri = artUri;
 
-            DispatcherQueue.TryEnqueue(() =>
+            TryEnqueueOnUi(() =>
             {
-                try
+                if (!string.IsNullOrWhiteSpace(_lastArtist) || !string.IsNullOrWhiteSpace(_lastTitle))
+                    NowPlayingText.Text = string.IsNullOrWhiteSpace(_lastArtist) ? _lastTitle : $"{_lastArtist} - {_lastTitle}";
+                else
+                    NowPlayingText.Text = _currentStationTitle;
+
+                if (artArrived)
                 {
-                    if (!string.IsNullOrWhiteSpace(_lastArtist) || !string.IsNullOrWhiteSpace(_lastTitle))
-                        NowPlayingText.Text = string.IsNullOrWhiteSpace(_lastArtist) ? _lastTitle : $"{_lastArtist} - {_lastTitle}";
-                    else
-                        NowPlayingText.Text = _currentStationTitle;
-
-                    if (artArrived)
-                    {
-                        var target = _lastArtworkUri ?? artUri;
-                        if (target != null && (_lastImageShownUri == null || !_lastImageShownUri.Equals(target)))
-                            TrySetImage(target);
-                    }
-                    else
-                    {
-                        var st = GetStationByTitle(_currentStationTitle);
-                        if (st != null && !string.IsNullOrWhiteSpace(st.Image))
-                        {
-                            var logo = new Uri(st.Image);
-                            if (_lastImageShownUri == null || !_lastImageShownUri.Equals(logo))
-                                TrySetImage(logo);
-                        }
-                    }
-
-                    UpdateLikeButtonState();
-                    UpdateStationAndQualityText();
+                    var target = _lastArtworkUri ?? artUri;
+                    if (target != null && (_lastImageShownUri == null || !_lastImageShownUri.Equals(target)))
+                        TrySetImage(target);
                 }
-                catch { }
+                else
+                {
+                    var st = GetStationByTitle(_currentStationTitle);
+                    if (st != null && !string.IsNullOrWhiteSpace(st.Image))
+                    {
+                        var logo = new Uri(st.Image);
+                        if (_lastImageShownUri == null || !_lastImageShownUri.Equals(logo))
+                            TrySetImage(logo);
+                    }
+                }
+
+                UpdateLikeButtonState();
+                UpdateStationAndQualityText();
             });
         }
 
@@ -1031,24 +1229,20 @@ namespace Zink
                     SetDiscordStationPresence(station);
                 }
 
-                DispatcherQueue.TryEnqueue(() =>
+                TryEnqueueOnUi(() =>
                 {
-                    try
+                    if (!string.IsNullOrWhiteSpace(_lastArtist) || !string.IsNullOrWhiteSpace(_lastTitle))
+                        NowPlayingText.Text = string.IsNullOrWhiteSpace(_lastArtist) ? _lastTitle : $"{_lastArtist} - {_lastTitle}";
+                    else
+                        NowPlayingText.Text = _currentStationTitle;
+
+                    if (_lastArtworkUri != null &&
+                        (_lastImageShownUri == null || !_lastImageShownUri.Equals(_lastArtworkUri)))
                     {
-                        if (!string.IsNullOrWhiteSpace(_lastArtist) || !string.IsNullOrWhiteSpace(_lastTitle))
-                            NowPlayingText.Text = string.IsNullOrWhiteSpace(_lastArtist) ? _lastTitle : $"{_lastArtist} - {_lastTitle}";
-                        else
-                            NowPlayingText.Text = _currentStationTitle;
-
-                        if (_lastArtworkUri != null &&
-                            (_lastImageShownUri == null || !_lastImageShownUri.Equals(_lastArtworkUri)))
-                        {
-                            TrySetImage(_lastArtworkUri);
-                        }
-
-                        UpdateStationAndQualityText();
+                        TrySetImage(_lastArtworkUri);
                     }
-                    catch { }
+
+                    UpdateStationAndQualityText();
                 });
             }
             catch { }
@@ -1116,7 +1310,7 @@ namespace Zink
                 if (versionGuard != _switchVersion)
                     return;
 
-                DispatcherQueue.TryEnqueue(() =>
+                TryEnqueueOnUi(() =>
                 {
                     if (versionGuard != _switchVersion)
                         return;
@@ -1129,7 +1323,7 @@ namespace Zink
                 if (versionGuard != _switchVersion)
                     return;
 
-                DispatcherQueue.TryEnqueue(() =>
+                TryEnqueueOnUi(() =>
                 {
                     if (versionGuard != _switchVersion)
                         return;
@@ -1354,41 +1548,7 @@ namespace Zink
 
         private string GetDiscordStationAssetKey(string? stationTitle)
         {
-            if (string.IsNullOrWhiteSpace(stationTitle))
-                return "zink_1024";
-
-            return stationTitle.Trim().ToLowerInvariant() switch
-            {
-                "capital fm" => "capitalfm_1024",
-                "heart" => "heartfm_1024",
-                "kiss fm" => "kissfm_1024",
-                "smooth radio" => "smoothfm_1024",
-                "magic radio" => "magicradio_1024",
-                "bbc radio 1" => "bbcradio1_1024",
-                "bbc radio 2" => "bbcradio2_1024",
-                "bbc radio 3" => "bbcradio3_1024",
-                "bbc radio 5 live" => "bbcradio5live_1024",
-                "bbc radio 1xtra" => "bbc1xtra_1024",
-                "hits radio" => "hitsradio_1024",
-                "greatest hits radio" => "greatesthitsradio_1024",
-                "talksport" => "talksport_1024",
-                "absolute radio" => "absolute_1024",
-                "classic fm" => "classicfm_1024",
-                "radio x" => "radiox_1024",
-                "gem 106" => "gem106_1024",
-                "premier christian radio" => "premier_1024",
-                "bbc radio derby" => "radioderby_1024",
-                "jazz fm" => "jazzfm_1024",
-                "mkfm" => "mkfm_1024",
-                "bbc world service" => "bbcworld_1024",
-                "lbc" => "lbc_1024",
-                "times radio" => "timesradio_1024",
-                "capital dance" => "capitaldance_1024",
-                "capital xtra" => "capitalxtra_1024",
-                "capital extra" => "capitalxtra_1024",
-                "radio essex" => "radioessex_1024",
-                _ => "zink_1024"
-            };
+            return "zink_1024";
         }
 
         private void SetDiscordStationPresence(RadioStation station)

@@ -6,6 +6,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.Graphics;
+using System.Globalization;
 
 namespace Zink
 {
@@ -38,6 +39,33 @@ namespace Zink
         public void StopStream()
         {
             try { _coreWebView?.Navigate("about:blank"); } catch { }
+        }
+
+        public async void SetVolume(double volume)
+        {
+            try
+            {
+                volume = Math.Clamp(volume, 0.0, 1.0);
+
+                if (_coreWebView == null)
+                    return;
+
+                string script = $@"
+(() => {{
+    const v = {volume.ToString(CultureInfo.InvariantCulture)};
+    const nodes = document.querySelectorAll('audio, video');
+    for (const n of nodes) {{
+        try {{
+            n.volume = v;
+            n.muted = false;
+        }} catch {{ }}
+    }}
+}})();
+";
+
+                await _coreWebView.ExecuteScriptAsync(script);
+            }
+            catch { }
         }
 
         private async Task InitializeWindowAsync()

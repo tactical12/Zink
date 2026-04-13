@@ -35,7 +35,7 @@
                             </Grid.ColumnDefinitions>
 
                             <Border Width="56" Height="56" CornerRadius="8" Background="#2A2A2A">
-                                <Image Source="{x:Bind ArtworkUrl}" Stretch="UniformToFill"/>
+                                <Image Loaded="ArtworkImage_Loaded" Stretch="UniformToFill"/>
                             </Border>
 
                             <StackPanel Grid.Column="1" Spacing="2">

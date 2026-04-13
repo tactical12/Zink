@@ -15,6 +15,11 @@ namespace Zink.Services.NativeCalling
         private bool _audioHooked;
         private bool _realtimeHooked;
 
+        private int _sentAudioChunks;
+        private int _receivedAudioChunks;
+        private bool _reportedSending;
+        private bool _reportedReceiving;
+
         private NativeCallCoordinator()
         {
             EnsureRealtimeHooks();
@@ -26,6 +31,11 @@ namespace Zink.Services.NativeCalling
             AudioActivityService.Instance.Reset();
             AudioPlaybackService.Instance.Stop();
             _ = MicCaptureService.Instance.StopAsync();
+
+            _sentAudioChunks = 0;
+            _receivedAudioChunks = 0;
+            _reportedSending = false;
+            _reportedReceiving = false;
 
             CurrentSession.CallId = "";
             CurrentSession.TargetUserId = 0;
@@ -52,6 +62,11 @@ namespace Zink.Services.NativeCalling
 
         public void SetOutgoing(string callId, long targetUserId, bool isScreenShare)
         {
+            _sentAudioChunks = 0;
+            _receivedAudioChunks = 0;
+            _reportedSending = false;
+            _reportedReceiving = false;
+
             CurrentSession.CallId = callId;
             CurrentSession.TargetUserId = targetUserId;
             CurrentSession.RemoteUserId = targetUserId;
@@ -66,6 +81,11 @@ namespace Zink.Services.NativeCalling
 
         public void SetIncoming(string callId, long fromUserId, string displayName, bool isScreenShare)
         {
+            _sentAudioChunks = 0;
+            _receivedAudioChunks = 0;
+            _reportedSending = false;
+            _reportedReceiving = false;
+
             CurrentSession.CallId = callId;
             CurrentSession.TargetUserId = fromUserId;
             CurrentSession.RemoteUserId = fromUserId;
@@ -150,6 +170,11 @@ namespace Zink.Services.NativeCalling
             AudioPlaybackService.Instance.Stop();
             await MicCaptureService.Instance.StopAsync();
 
+            _sentAudioChunks = 0;
+            _receivedAudioChunks = 0;
+            _reportedSending = false;
+            _reportedReceiving = false;
+
             CurrentSession.State = NativeCallState.Ended;
             CurrentSession.StatusText = "Call ended.";
 
@@ -195,6 +220,11 @@ namespace Zink.Services.NativeCalling
                 AudioPlaybackService.Instance.Stop();
                 await MicCaptureService.Instance.StopAsync();
 
+                _sentAudioChunks = 0;
+                _receivedAudioChunks = 0;
+                _reportedSending = false;
+                _reportedReceiving = false;
+
                 CurrentSession.State = NativeCallState.Ended;
                 CurrentSession.StatusText = "Call ended by remote user.";
                 CurrentSession.PeerText = $"Call with user {e.FromUserId} ended";
@@ -217,6 +247,11 @@ namespace Zink.Services.NativeCalling
                 AudioActivityService.Instance.Reset();
                 AudioPlaybackService.Instance.Stop();
                 await MicCaptureService.Instance.StopAsync();
+
+                _sentAudioChunks = 0;
+                _receivedAudioChunks = 0;
+                _reportedSending = false;
+                _reportedReceiving = false;
 
                 CurrentSession.State = NativeCallState.Rejected;
                 CurrentSession.StatusText = "Call rejected.";
@@ -242,10 +277,33 @@ namespace Zink.Services.NativeCalling
                 if (CurrentSession.RemoteUserId > 0 && e.FromUserId != CurrentSession.RemoteUserId)
                     return;
 
+                AudioPlaybackService.Instance.Start();
                 AudioPlaybackService.Instance.Play(e.AudioData);
+
+                _receivedAudioChunks++;
+
+                if (!_reportedReceiving)
+                {
+                    _reportedReceiving = true;
+                    SetStatus(
+                        CurrentSession.State,
+                        $"Connected. Receiving remote audio... chunks={_receivedAudioChunks}",
+                        CurrentSession.PeerText);
+                }
+                else if (_receivedAudioChunks % 50 == 0)
+                {
+                    SetStatus(
+                        CurrentSession.State,
+                        $"Connected. Receiving remote audio... chunks={_receivedAudioChunks}",
+                        CurrentSession.PeerText);
+                }
             }
-            catch
+            catch (Exception ex)
             {
+                SetStatus(
+                    CurrentSession.State,
+                    $"Connected, but remote audio playback failed: {ex.Message}",
+                    CurrentSession.PeerText);
             }
         }
 
@@ -302,13 +360,38 @@ namespace Zink.Services.NativeCalling
                 if (CurrentSession.RemoteUserId <= 0 || string.IsNullOrWhiteSpace(CurrentSession.CallId))
                     return;
 
+                if (data == null || data.Length == 0)
+                    return;
+
                 await SocialManager.Instance.Realtime.SendAudioChunkAsync(
                     CurrentSession.RemoteUserId,
                     CurrentSession.CallId,
                     data);
+
+                _sentAudioChunks++;
+
+                if (!_reportedSending)
+                {
+                    _reportedSending = true;
+                    SetStatus(
+                        CurrentSession.State,
+                        $"Connected. Sending microphone audio... chunks={_sentAudioChunks}",
+                        CurrentSession.PeerText);
+                }
+                else if (_sentAudioChunks % 50 == 0)
+                {
+                    SetStatus(
+                        CurrentSession.State,
+                        $"Connected. Sending microphone audio... chunks={_sentAudioChunks}",
+                        CurrentSession.PeerText);
+                }
             }
-            catch
+            catch (Exception ex)
             {
+                SetStatus(
+                    CurrentSession.State,
+                    $"Connected, but sending microphone audio failed: {ex.Message}",
+                    CurrentSession.PeerText);
             }
         }
 
