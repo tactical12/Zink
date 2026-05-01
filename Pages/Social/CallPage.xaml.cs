@@ -1544,6 +1544,16 @@ namespace Zink.Pages.Social
         {
             var width = _lastRemoteBitstreamWidth;
             var height = _lastRemoteBitstreamHeight;
+            var bootstrappedFromSignaling = false;
+            if ((width <= 0 || height <= 0) &&
+                _screenShareLastWidth > 0 &&
+                _screenShareLastHeight > 0)
+            {
+                width = _screenShareLastWidth;
+                height = _screenShareLastHeight;
+                bootstrappedFromSignaling = true;
+            }
+
             var isKeyFrame = ContainsH264IdrFrame(e.FrameData);
             if (TryReadH264Dimensions(e.FrameData, out var bitstreamWidth, out var bitstreamHeight))
             {
@@ -1567,6 +1577,13 @@ namespace Zink.Pages.Social
                     _screenShareLastHeight = bitstreamHeight;
                     _screenShareLastQuality = GetResolutionTier(bitstreamHeight);
                 }
+            }
+            else if (bootstrappedFromSignaling && isKeyFrame)
+            {
+                _lastRemoteBitstreamWidth = width;
+                _lastRemoteBitstreamHeight = height;
+                _lastRemoteBitstreamResolutionAtUtc = DateTimeOffset.UtcNow;
+                Debug.WriteLine($"[ScreenShare:H264] Bootstrapped RTP bitstream size from signalled keyframe metadata: {width}x{height}; waiting for SPS to confirm.");
             }
 
             if (width <= 0 || height <= 0)
