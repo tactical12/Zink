@@ -14,30 +14,8 @@ namespace Zink.Pages.Social
 
         private async void RegisterButton_Click(object sender, RoutedEventArgs e)
         {
-            try
-            {
-                SetBusy(true);
-                StatusText.Text = "";
-
-                var auth = await SocialManager.Instance.Api.RegisterAsync(
-                    new Zink.Services.Social.RegisterRequest(
-                        EmailBox.Text.Trim(),
-                        PasswordBox.Password,
-                        UsernameBox.Text.Trim(),
-                        DisplayNameBox.Text.Trim()));
-
-                await SocialManager.Instance.Realtime.ConnectAsync();
-
-                StatusText.Text = $"Account created for {auth.Username}";
-            }
-            catch (Exception ex)
-            {
-                StatusText.Text = ex.Message;
-            }
-            finally
-            {
-                SetBusy(false);
-            }
+            SetBusy(false);
+            StatusText.Text = "This is currently under development.";
         }
 
         private void LoginButton_Click(object sender, RoutedEventArgs e)
