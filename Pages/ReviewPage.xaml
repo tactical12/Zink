@@ -2,83 +2,221 @@
     x:Class="Zink.Pages.ReviewPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:local="using:Zink.Pages"
-    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+    RequestedTheme="Dark">
 
-    <Grid Padding="40,30" RowDefinitions="Auto,*">
+    <Page.Resources>
+        <SolidColorBrush x:Key="GlassPanelBrush" Color="#B0141820"/>
+        <SolidColorBrush x:Key="GlassCardBrush" Color="#82121C26"/>
+        <SolidColorBrush x:Key="GlassBorderBrush" Color="#34FFFFFF"/>
+        <SolidColorBrush x:Key="MutedTextBrush" Color="#B8C8D2DC"/>
 
-        <!-- Header -->
-        <StackPanel Orientation="Horizontal" Spacing="12">
-            <FontIcon Glyph="&#xE8D2;" FontSize="22" Opacity="0.85" VerticalAlignment="Center"/>
-            <StackPanel Spacing="2">
-                <TextBlock Text="Leave a review"
-                           FontSize="28"
-                           FontWeight="Bold"/>
-                <TextBlock Text="Takes 10 seconds - it really helps Zink grow."
-                           Opacity="0.75"
-                           FontSize="14"/>
-            </StackPanel>
-        </StackPanel>
+        <Style x:Key="GlassButtonStyle" TargetType="Button">
+            <Setter Property="MinHeight" Value="46"/>
+            <Setter Property="Padding" Value="18,0"/>
+            <Setter Property="CornerRadius" Value="23"/>
+            <Setter Property="Background" Value="#28FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#32FFFFFF"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+    </Page.Resources>
 
-        <!-- Content -->
-        <StackPanel Grid.Row="1" Spacing="16" Margin="0,18,0,0" MaxWidth="720">
+    <Grid>
+        <Grid.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#071019" Offset="0"/>
+                <GradientStop Color="#102633" Offset="0.5"/>
+                <GradientStop Color="#070A0F" Offset="1"/>
+            </LinearGradientBrush>
+        </Grid.Background>
 
-            <Border CornerRadius="16"
-                    BorderThickness="1"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    Padding="20">
+        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <Grid Padding="32" RowSpacing="22" MaxWidth="980">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
 
-                <StackPanel Spacing="14">
+                <Grid ColumnSpacing="20">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
 
-                    <!-- Stars (visual) -->
-                    <StackPanel Orientation="Horizontal" Spacing="6" Opacity="0.8">
-                        <FontIcon Glyph="&#xE734;" FontSize="18"/>
-                        <FontIcon Glyph="&#xE734;" FontSize="18"/>
-                        <FontIcon Glyph="&#xE734;" FontSize="18"/>
-                        <FontIcon Glyph="&#xE734;" FontSize="18"/>
-                        <FontIcon Glyph="&#xE734;" FontSize="18"/>
+                    <Border Width="70"
+                            Height="70"
+                            CornerRadius="22"
+                            Background="#2AFFFFFF"
+                            BorderBrush="{StaticResource GlassBorderBrush}"
+                            BorderThickness="1">
+                        <FontIcon Glyph="&#xE734;"
+                                  FontSize="30"
+                                  Foreground="#FFE88A"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"/>
+                    </Border>
+
+                    <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center">
+                        <TextBlock Text="Leave a review"
+                                   FontSize="38"
+                                   FontWeight="SemiBold"
+                                   Foreground="White"/>
+                        <TextBlock Text="A quick Store review helps Zink get discovered and keeps the project moving."
+                                   Foreground="{StaticResource MutedTextBrush}"
+                                   FontSize="15"
+                                   TextWrapping="Wrap"/>
                     </StackPanel>
+                </Grid>
 
-                    <TextBlock
-                        Text="If you’re enjoying Zink, a quick review helps a lot. This will open the Microsoft Store review page for Zink."
-                        TextWrapping="WrapWholeWords"
-                        FontSize="16"/>
+                <Border Grid.Row="1"
+                        Padding="26"
+                        CornerRadius="30"
+                        Background="{StaticResource GlassPanelBrush}"
+                        BorderBrush="{StaticResource GlassBorderBrush}"
+                        BorderThickness="1">
+                    <Grid ColumnSpacing="24">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="1.1*"/>
+                            <ColumnDefinition Width="0.9*"/>
+                        </Grid.ColumnDefinitions>
 
-                    <!-- What happens -->
-                    <StackPanel Spacing="4" Opacity="0.8">
-                        <TextBlock Text="What happens next:" FontWeight="SemiBold"/>
-                        <TextBlock Text="1) Microsoft Store opens" />
-                        <TextBlock Text="2) Choose a star rating" />
-                        <TextBlock Text="3) Leave a short comment" />
-                    </StackPanel>
+                        <StackPanel Spacing="18">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon Glyph="&#xE734;" FontSize="22" Foreground="#FFE88A"/>
+                                <FontIcon Glyph="&#xE734;" FontSize="22" Foreground="#FFE88A"/>
+                                <FontIcon Glyph="&#xE734;" FontSize="22" Foreground="#FFE88A"/>
+                                <FontIcon Glyph="&#xE734;" FontSize="22" Foreground="#FFE88A"/>
+                                <FontIcon Glyph="&#xE734;" FontSize="22" Foreground="#FFE88A"/>
+                            </StackPanel>
 
-                    <!-- Buttons -->
-                    <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
-                        <Button x:Name="LeaveReviewButton"
-                                Grid.Column="0"
-                                Content="Leave a review"
-                                Height="42"
-                                Click="LeaveReview_Click"
-                                Style="{ThemeResource AccentButtonStyle}"/>
+                            <TextBlock Text="Open the Microsoft Store review page and leave a rating when you have a minute."
+                                       FontSize="20"
+                                       FontWeight="SemiBold"
+                                       Foreground="White"
+                                       TextWrapping="Wrap"/>
 
-                        <Button x:Name="OpenStorePageButton"
-                                Grid.Column="1"
-                                Content="Open Store page"
-                                Height="42"
-                                Click="OpenStorePage_Click"/>
+                            <TextBlock Text="The Store handles the rating and comment. Zink only opens the right page."
+                                       FontSize="15"
+                                       Foreground="{StaticResource MutedTextBrush}"
+                                       TextWrapping="Wrap"/>
+
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <Button x:Name="LeaveReviewButton"
+                                        Grid.Column="0"
+                                        Style="{StaticResource AccentButtonStyle}"
+                                        MinHeight="46"
+                                        CornerRadius="23"
+                                        Click="LeaveReview_Click">
+                                    <StackPanel Orientation="Horizontal"
+                                                HorizontalAlignment="Center"
+                                                Spacing="8">
+                                        <FontIcon Glyph="&#xE8D2;" FontSize="15"/>
+                                        <TextBlock Text="Leave a review"/>
+                                    </StackPanel>
+                                </Button>
+
+                                <Button x:Name="OpenStorePageButton"
+                                        Grid.Column="1"
+                                        Style="{StaticResource GlassButtonStyle}"
+                                        Click="OpenStorePage_Click">
+                                    <StackPanel Orientation="Horizontal"
+                                                HorizontalAlignment="Center"
+                                                Spacing="8">
+                                        <FontIcon Glyph="&#xE8A7;" FontSize="15"/>
+                                        <TextBlock Text="Open Store page"/>
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+
+                            <InfoBar x:Name="StatusBar"
+                                     IsOpen="False"
+                                     IsClosable="True"
+                                     Severity="Informational"
+                                     Title="Review"
+                                     Message=""
+                                     Margin="0,2,0,0"/>
+                        </StackPanel>
+
+                        <Border Grid.Column="1"
+                                Padding="20"
+                                CornerRadius="24"
+                                Background="{StaticResource GlassCardBrush}"
+                                BorderBrush="#26FFFFFF"
+                                BorderThickness="1">
+                            <StackPanel Spacing="14">
+                                <TextBlock Text="What opens"
+                                           FontSize="18"
+                                           FontWeight="SemiBold"
+                                           Foreground="White"/>
+
+                                <Grid RowSpacing="12">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <TextBlock Text="1. Microsoft Store opens"
+                                               Foreground="{StaticResource MutedTextBrush}"/>
+                                    <TextBlock Grid.Row="1"
+                                               Text="2. Choose a star rating"
+                                               Foreground="{StaticResource MutedTextBrush}"/>
+                                    <TextBlock Grid.Row="2"
+                                               Text="3. Add a short comment"
+                                               Foreground="{StaticResource MutedTextBrush}"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
                     </Grid>
+                </Border>
 
-                    <InfoBar x:Name="StatusBar"
-                             IsOpen="False"
-                             IsClosable="True"
-                             Severity="Informational"
-                             Title="Review"
-                             Message=""
-                             Margin="0,8,0,0"/>
-                </StackPanel>
+                <Grid Grid.Row="2" ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
 
-            </Border>
-        </StackPanel>
+                    <Border Padding="18"
+                            CornerRadius="22"
+                            Background="{StaticResource GlassCardBrush}"
+                            BorderBrush="#22FFFFFF"
+                            BorderThickness="1">
+                        <StackPanel Spacing="8">
+                            <FontIcon Glyph="&#xE8FB;" Foreground="#8CEBFF" HorizontalAlignment="Left"/>
+                            <TextBlock Text="Store friendly"
+                                       FontWeight="SemiBold"
+                                       Foreground="White"/>
+                            <TextBlock Text="Uses the official Store review link with a browser fallback."
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource MutedTextBrush}"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Grid.Column="1"
+                            Padding="18"
+                            CornerRadius="22"
+                            Background="{StaticResource GlassCardBrush}"
+                            BorderBrush="#22FFFFFF"
+                            BorderThickness="1">
+                        <StackPanel Spacing="8">
+                            <FontIcon Glyph="&#xE777;" Foreground="#A7FFC8" HorizontalAlignment="Left"/>
+                            <TextBlock Text="Fast feedback"
+                                       FontWeight="SemiBold"
+                                       Foreground="White"/>
+                            <TextBlock Text="The page stays light and only launches the Store when you choose."
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource MutedTextBrush}"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Grid>
+        </ScrollViewer>
     </Grid>
 </Page>

@@ -23,6 +23,8 @@ namespace Zink.Services.NativeCalling
         private static readonly TimeSpan AdaptationWarmup = TimeSpan.FromSeconds(2);
         private static readonly TimeSpan AdaptationCooldown = TimeSpan.FromSeconds(1);
         private static readonly TimeSpan ReceiverPressurePacingWindow = TimeSpan.FromSeconds(30);
+        private static readonly TimeSpan StartupRecoveryKeyFrameThrottle = TimeSpan.FromMilliseconds(2200);
+        private static readonly TimeSpan RecoveryKeyFrameThrottle = TimeSpan.FromMilliseconds(900);
         private const int ReceiverPressureSignalsBeforeResolutionDrop = 2;
 
         private readonly object _qualitySync = new();
@@ -40,6 +42,7 @@ namespace Zink.Services.NativeCalling
         private DateTimeOffset _receiverPressurePacingUntilUtc = DateTimeOffset.MinValue;
         private DateTimeOffset _lastReceiverPacingLogUtc = DateTimeOffset.MinValue;
         private DateTimeOffset _lastReceiverPressureKeyFrameQueuedUtc = DateTimeOffset.MinValue;
+        private DateTimeOffset _lastRecoveryKeyFrameQueuedUtc = DateTimeOffset.MinValue;
         private int _healthyWindows;
         private int _pendingRecoveryKeyFrame;
         private int _receiverPressureSignals;
@@ -110,6 +113,7 @@ namespace Zink.Services.NativeCalling
                 _receiverPressurePacingUntilUtc = DateTimeOffset.MinValue;
                 _lastReceiverPacingLogUtc = DateTimeOffset.MinValue;
                 _lastReceiverPressureKeyFrameQueuedUtc = DateTimeOffset.MinValue;
+                _lastRecoveryKeyFrameQueuedUtc = _streamStartedAtUtc;
                 EncoderMode = "Starting";
                 EncoderInputFormat = "Unknown";
                 EncoderGpuDeviceMode = RequireHardwareEncoder
@@ -211,9 +215,24 @@ namespace Zink.Services.NativeCalling
             if (!IsRunning)
                 return;
 
+            var now = DateTimeOffset.UtcNow;
+            var bypassThrottle = IsQualityChangeReason(reason);
+            var startupKeyFrameRequest = IsStartupKeyFrameRequest(reason);
+            if (!bypassThrottle)
+            {
+                var throttle = startupKeyFrameRequest && now - _streamStartedAtUtc < TimeSpan.FromSeconds(8)
+                    ? StartupRecoveryKeyFrameThrottle
+                    : RecoveryKeyFrameThrottle;
+
+                if (now - _lastRecoveryKeyFrameQueuedUtc < throttle)
+                {
+                    Debug.WriteLine($"[ScreenShare:H264] Recovery keyframe request throttled during warmup/pacing: {reason}");
+                    return;
+                }
+            }
+
             if (IsReceiverPlaybackPressureReason(reason))
             {
-                var now = DateTimeOffset.UtcNow;
                 if (now - _lastReceiverPressureKeyFrameQueuedUtc < TimeSpan.FromSeconds(3))
                 {
                     Debug.WriteLine($"[ScreenShare:H264] Receiver pressure keyframe request throttled to avoid repeated NVENC restarts: {reason}");
@@ -223,6 +242,7 @@ namespace Zink.Services.NativeCalling
                 _lastReceiverPressureKeyFrameQueuedUtc = now;
             }
 
+            _lastRecoveryKeyFrameQueuedUtc = now;
             RecoveryKeyFrameRequests++;
             Interlocked.Exchange(ref _pendingRecoveryKeyFrame, 1);
             Debug.WriteLine($"[ScreenShare:H264] Recovery keyframe queued: {reason}");
@@ -646,6 +666,11 @@ namespace Zink.Services.NativeCalling
                 reason.Contains("waiting for keyframe", StringComparison.OrdinalIgnoreCase) ||
                 reason.Contains("waiting for IDR", StringComparison.OrdinalIgnoreCase) ||
                 reason.Contains("needs an IDR to start", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsQualityChangeReason(string reason)
+        {
+            return reason.Contains("quality changed", StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool IsReceiverPlaybackPressureReason(string reason)

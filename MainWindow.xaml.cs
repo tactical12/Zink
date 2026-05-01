@@ -987,6 +987,7 @@ Version 2.4.1.0
                 "Reddit" => typeof(RedditPage),
                 "SocialLogin" => typeof(LoginPage),
                 "SocialRegister" => typeof(RegisterPage),
+                "SocialDeveloperSettings" => typeof(DeveloperSettingsPage),
                 "SocialFriends" => typeof(FriendsPage),
                 "SocialMessages" => typeof(MessagesPage),
                 "SocialFriendRequests" => typeof(FriendRequestsPage),
@@ -1208,7 +1209,7 @@ Version 2.4.1.0
 
         private static bool IsSocialPresenceTag(string tag)
         {
-            return tag is "Discord" or "TikTok" or "Instagram" or "X" or "Facebook" or "Telegram" or "WhatsApp" or "Messenger" or "LinkedIn" or "Threads" or "Bluesky" or "Mastodon" or "Pinterest" or "Tumblr" or "Reddit" or "SocialLogin" or "SocialRegister" or "SocialFriends" or "SocialMessages" or "SocialFriendRequests" or "SocialProfile";
+            return tag is "Discord" or "TikTok" or "Instagram" or "X" or "Facebook" or "Telegram" or "WhatsApp" or "Messenger" or "LinkedIn" or "Threads" or "Bluesky" or "Mastodon" or "Pinterest" or "Tumblr" or "Reddit" or "SocialLogin" or "SocialRegister" or "SocialDeveloperSettings" or "SocialFriends" or "SocialMessages" or "SocialFriendRequests" or "SocialProfile";
         }
 
         private static bool IsGamingPresenceTag(string tag)
@@ -1242,6 +1243,7 @@ Version 2.4.1.0
                 "RadioWidget" => "Radio widget",
                 "SocialLogin" => "Zink Social login",
                 "SocialRegister" => "Zink Social signup",
+                "SocialDeveloperSettings" => "Developer settings",
                 "SocialFriends" => "Friends",
                 "SocialMessages" => "Messages",
                 "SocialFriendRequests" => "Friend requests",
@@ -1330,6 +1332,7 @@ Version 2.4.1.0
                 if (t == typeof(RedditPage)) return "Reddit";
                 if (t == typeof(LoginPage)) return "SocialLogin";
                 if (t == typeof(RegisterPage)) return "SocialRegister";
+                if (t == typeof(DeveloperSettingsPage)) return "SocialDeveloperSettings";
                 if (t == typeof(FriendsPage)) return "SocialFriends";
                 if (t == typeof(MessagesPage)) return "SocialMessages";
                 if (t == typeof(FriendRequestsPage)) return "SocialFriendRequests";

@@ -1,0 +1,175 @@
+<Page
+    x:Class="Zink.Pages.Social.DeveloperSettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <Page.Resources>
+        <SolidColorBrush x:Key="GlassPanelBrush" Color="#B0141820"/>
+        <SolidColorBrush x:Key="GlassCardBrush" Color="#88121C26"/>
+        <SolidColorBrush x:Key="GlassBorderBrush" Color="#36FFFFFF"/>
+        <SolidColorBrush x:Key="MutedTextBrush" Color="#B8C8D2DC"/>
+
+        <Style x:Key="GlassTextBoxStyle" TargetType="TextBox">
+            <Setter Property="MinHeight" Value="44"/>
+            <Setter Property="CornerRadius" Value="14"/>
+        </Style>
+    </Page.Resources>
+
+    <Grid RequestedTheme="Dark">
+        <Grid.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#071019" Offset="0"/>
+                <GradientStop Color="#142B37" Offset="0.42"/>
+                <GradientStop Color="#07090D" Offset="1"/>
+            </LinearGradientBrush>
+        </Grid.Background>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <Grid Padding="32" RowSpacing="20" MaxWidth="980">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <StackPanel Spacing="8">
+                    <Button Click="BackButton_Click"
+                            Padding="12,6"
+                            CornerRadius="18"
+                            HorizontalAlignment="Left"
+                            Background="#1FFFFFFF"
+                            BorderBrush="{StaticResource GlassBorderBrush}"
+                            BorderThickness="1">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE72B;" FontSize="14"/>
+                            <TextBlock Text="Register"/>
+                        </StackPanel>
+                    </Button>
+
+                    <TextBlock Text="Developer settings"
+                               FontSize="36"
+                               FontWeight="SemiBold"
+                               Foreground="White"/>
+                    <TextBlock Text="Offline testing controls for Zink Social while real email and password auth is being prepared."
+                               FontSize="15"
+                               Foreground="{StaticResource MutedTextBrush}"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+
+                <Border Grid.Row="1"
+                        Padding="24"
+                        CornerRadius="28"
+                        Background="{StaticResource GlassPanelBrush}"
+                        BorderBrush="{StaticResource GlassBorderBrush}"
+                        BorderThickness="1">
+                    <Grid ColumnSpacing="22" RowSpacing="18">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <ToggleSwitch x:Name="OfflineModeToggle"
+                                      Header="Offline testing mode"
+                                      OffContent="Use live services"
+                                      OnContent="Use local test identity"
+                                      Toggled="SettingChanged"/>
+
+                        <ToggleSwitch x:Name="MockCallsToggle"
+                                      Grid.Column="1"
+                                      Header="Mock call environment"
+                                      OffContent="Live call server"
+                                      OnContent="Local test call flow"
+                                      Toggled="SettingChanged"/>
+
+                        <StackPanel Grid.Row="1" Spacing="8">
+                            <TextBlock Text="Test display name"
+                                       Foreground="White"
+                                       FontWeight="SemiBold"/>
+                            <TextBox x:Name="DisplayNameBox"
+                                     Style="{StaticResource GlassTextBoxStyle}"
+                                     PlaceholderText="Local tester"
+                                     TextChanged="TextSettingChanged"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="1" Grid.Column="1" Spacing="8">
+                            <TextBlock Text="Test username"
+                                       Foreground="White"
+                                       FontWeight="SemiBold"/>
+                            <TextBox x:Name="UsernameBox"
+                                     Style="{StaticResource GlassTextBoxStyle}"
+                                     PlaceholderText="zink.local"
+                                     TextChanged="TextSettingChanged"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="2" Grid.ColumnSpan="2" Spacing="8">
+                            <TextBlock Text="Call server endpoint"
+                                       Foreground="White"
+                                       FontWeight="SemiBold"/>
+                            <TextBox x:Name="CallServerBox"
+                                     Style="{StaticResource GlassTextBoxStyle}"
+                                     PlaceholderText="http://localhost:5000"
+                                     TextChanged="TextSettingChanged"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <Grid Grid.Row="2" ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border Padding="20"
+                            CornerRadius="24"
+                            Background="{StaticResource GlassCardBrush}"
+                            BorderBrush="#28FFFFFF"
+                            BorderThickness="1">
+                        <StackPanel Spacing="10">
+                            <FontIcon Glyph="&#xE9D9;"
+                                      FontSize="24"
+                                      Foreground="#8CEBFF"
+                                      HorizontalAlignment="Left"/>
+                            <TextBlock Text="Diagnostics first"
+                                       FontSize="18"
+                                       FontWeight="SemiBold"
+                                       Foreground="White"/>
+                            <TextBlock Text="These values are saved locally and can be used by the social pages for test accounts, local endpoints, and call setup experiments."
+                                       Foreground="{StaticResource MutedTextBrush}"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Grid.Column="1"
+                            Padding="20"
+                            CornerRadius="24"
+                            Background="{StaticResource GlassCardBrush}"
+                            BorderBrush="#28FFFFFF"
+                            BorderThickness="1">
+                        <StackPanel Spacing="10">
+                            <FontIcon Glyph="&#xE895;"
+                                      FontSize="24"
+                                      Foreground="#A7FFC8"
+                                      HorizontalAlignment="Left"/>
+                            <TextBlock Text="Safe by default"
+                                       FontSize="18"
+                                       FontWeight="SemiBold"
+                                       Foreground="White"/>
+                            <TextBlock Text="The page does not replace real auth. It gives you a clean place for offline testing switches while the production account flow changes."
+                                       Foreground="{StaticResource MutedTextBrush}"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Grid>
+        </ScrollViewer>
+    </Grid>
+</Page>

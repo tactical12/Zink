@@ -125,6 +125,17 @@
                             </StackPanel>
                         </Button>
 
+                        <Button Style="{StaticResource GlassButtonStyle}"
+                                Click="DeveloperSettingsButton_Click"
+                                HorizontalAlignment="Stretch">
+                            <StackPanel Orientation="Horizontal"
+                                        HorizontalAlignment="Center"
+                                        Spacing="8">
+                                <FontIcon Glyph="&#xE713;" FontSize="15"/>
+                                <TextBlock Text="Developer settings"/>
+                            </StackPanel>
+                        </Button>
+
                         <Grid ColumnSpacing="10">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>

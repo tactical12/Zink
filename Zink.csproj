@@ -172,6 +172,7 @@
     <None Remove="Pages\SettingsPage.xaml" />
     <None Remove="Pages\ShadowPCPage.xaml" />
     <None Remove="Pages\Social\CallPage.xaml" />
+    <None Remove="Pages\Social\DeveloperSettingsPage.xaml" />
     <None Remove="Pages\Social\FriendRequestsPage.xaml" />
     <None Remove="Pages\Social\FriendsPage.xaml" />
     <None Remove="Pages\Social\LoginPage.xaml" />
@@ -255,6 +256,9 @@
       <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Update="Pages\Social\RegisterPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Update="Pages\Social\DeveloperSettingsPage.xaml">
       <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Update="Pages\Social\FriendsPage.xaml">

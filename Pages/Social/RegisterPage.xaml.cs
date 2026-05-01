@@ -45,6 +45,11 @@ namespace Zink.Pages.Social
             Frame.Navigate(typeof(LoginPage));
         }
 
+        private void DeveloperSettingsButton_Click(object sender, RoutedEventArgs e)
+        {
+            Frame.Navigate(typeof(DeveloperSettingsPage));
+        }
+
         private void SetBusy(bool isBusy)
         {
             BusyRing.IsActive = isBusy;
