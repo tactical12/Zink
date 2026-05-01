@@ -48,6 +48,7 @@ namespace Zink.Services.NativeCalling
         private Transform _encoder = null!;
         private readonly int _width;
         private readonly int _height;
+        private int _bitrate;
         private bool _useRgb32Input;
         private bool _useDxgiSurfaceInput;
         private byte[]? _nv12Buffer;
@@ -84,6 +85,7 @@ namespace Zink.Services.NativeCalling
         private bool _loggedHardwareInputBackPressure;
         private bool _loggedUnreadableHardwareOutput;
         private bool _gpuTextureInputDisabled;
+        private DateTimeOffset _lastOutputStreamChangeLogUtc = DateTimeOffset.MinValue;
 
         static MediaFoundationH264Encoder()
         {
@@ -106,6 +108,7 @@ namespace Zink.Services.NativeCalling
         {
             _width = width;
             _height = height;
+            _bitrate = bitrate;
             _preferredMediaFoundationDevice = preferredMediaFoundationDevice;
             Debug.WriteLine($"[ScreenShare:H264] Creating encoder {width}x{height} @ {bitrate}bps.");
             InitializeEncoder(bitrate, preferHardware, requireHardware);
@@ -207,6 +210,7 @@ namespace Zink.Services.NativeCalling
 
         private void ConfigureEncoder(int bitrate, bool enableHardwareAsyncMode)
         {
+            _bitrate = bitrate;
             RealtimeModeEnabled = false;
             LowLatencyOutputEnabled = false;
             _useRgb32Input = false;
@@ -580,6 +584,7 @@ namespace Zink.Services.NativeCalling
                     }
                     catch (SharpDXException ex) when (ex.ResultCode.Code == MfEStreamChange)
                     {
+                        TryHandleOutputStreamChange("synchronous ProcessOutput");
                         break;
                     }
 
@@ -675,6 +680,7 @@ namespace Zink.Services.NativeCalling
                 }
                 catch (SharpDXException ex) when (ex.ResultCode.Code == MfEStreamChange)
                 {
+                    TryHandleOutputStreamChange("hardware async ProcessOutput");
                     return frames;
                 }
 
@@ -768,6 +774,96 @@ namespace Zink.Services.NativeCalling
                 IntPtr.Size * ImfTransformProcessOutputVtableSlot);
             _processOutputNative = Marshal.GetDelegateForFunctionPointer<ProcessOutputNativeDelegate>(processOutputPtr);
             return _processOutputNative;
+        }
+
+        private bool TryHandleOutputStreamChange(string reason)
+        {
+            var now = DateTimeOffset.UtcNow;
+            if (now - _lastOutputStreamChangeLogUtc >= TimeSpan.FromSeconds(1))
+            {
+                _lastOutputStreamChangeLogUtc = now;
+                Debug.WriteLine($"[ScreenShare:H264] Encoder requested output stream renegotiation after {reason}; refreshing H.264 output type.");
+            }
+
+            _loggedOutputStreamMode = false;
+            _loggedUnreadableHardwareOutput = false;
+
+            if (TrySetExplicitH264OutputType($"{reason} stream change"))
+                return true;
+
+            if (TrySelectAvailableH264OutputType($"{reason} stream change"))
+                return true;
+
+            Debug.WriteLine($"[ScreenShare:H264] Encoder output stream renegotiation failed after {reason}; no compatible H.264 output type was accepted.");
+            return false;
+        }
+
+        private bool TrySetExplicitH264OutputType(string reason)
+        {
+            try
+            {
+                using var outputType = CreateH264OutputType(_bitrate);
+                LowLatencyOutputEnabled = TrySetLowLatencyOutputTypeAttributes(outputType);
+                _encoder.SetOutputType(0, outputType, 0);
+                Debug.WriteLine($"[ScreenShare:H264] Encoder output type refreshed after {reason}: H.264 {_width}x{_height} @ {_bitrate}bps.");
+                return true;
+            }
+            catch (SharpDXException ex)
+            {
+                Debug.WriteLine($"[ScreenShare:H264] Encoder rejected explicit output type after {reason}: 0x{ex.ResultCode.Code:X8} {ex.Message}");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ScreenShare:H264] Encoder explicit output type refresh failed after {reason}: {ex.Message}");
+                return false;
+            }
+        }
+
+        private bool TrySelectAvailableH264OutputType(string reason)
+        {
+            for (var index = 0; index < 32; index++)
+            {
+                MediaType? candidate = null;
+                try
+                {
+                    if (!_encoder.TryGetOutputAvailableType(0, index, out candidate) ||
+                        candidate == null)
+                        continue;
+
+                    var subtype = candidate.Get(MediaTypeAttributeKeys.Subtype);
+                    if (subtype != VideoFormatGuids.H264)
+                        continue;
+
+                    candidate.Set(MediaTypeAttributeKeys.AvgBitrate, _bitrate);
+                    candidate.Set(MediaTypeAttributeKeys.FrameSize, PackRatio(_width, _height));
+                    candidate.Set(MediaTypeAttributeKeys.FrameRate, PackRatio(NativeScreenShareStreamingService.TargetFps, 1));
+                    candidate.Set(MediaTypeAttributeKeys.PixelAspectRatio, PackRatio(1, 1));
+                    candidate.Set(MediaTypeAttributeKeys.InterlaceMode, (int)VideoInterlaceMode.Progressive);
+                    candidate.Set(MediaTypeAttributeKeys.MaxKeyframeSpacing, RecoveryKeyFrameIntervalFrames);
+                    LowLatencyOutputEnabled = TrySetLowLatencyOutputTypeAttributes(candidate);
+                    _encoder.SetOutputType(0, candidate, 0);
+                    Debug.WriteLine($"[ScreenShare:H264] Encoder selected available output type {index} after {reason}: H.264 {_width}x{_height} @ {_bitrate}bps.");
+                    return true;
+                }
+                catch (SharpDXException ex)
+                {
+                    if (index == 0 || index == 31)
+                        Debug.WriteLine($"[ScreenShare:H264] Encoder output candidate {index} rejected after {reason}: 0x{ex.ResultCode.Code:X8} {ex.Message}");
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[ScreenShare:H264] Encoder output type candidate refresh failed after {reason}: {ex.Message}");
+                    return false;
+                }
+                finally
+                {
+                    candidate?.Dispose();
+                }
+            }
+
+            Debug.WriteLine($"[ScreenShare:H264] Encoder did not expose a usable H.264 output type after {reason}.");
+            return false;
         }
 
         private void AddEncodedFrame(List<H264EncodedFrame> frames, byte[] data)

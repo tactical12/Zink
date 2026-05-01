@@ -406,10 +406,15 @@
   </ItemGroup>
 
   <Target Name="CopyZinkInstallTrustFiles" AfterTargets="Build;_GenerateAppxPackage;GenerateAppxPackage">
+    <ItemGroup>
+      <ZinkPackageTestDirectories Include="$(AppxPackageDir)Zink_*_Test\" />
+    </ItemGroup>
+
     <Copy SourceFiles="@(ZinkInstallTrustFiles)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" Condition="'$(OutDir)'!='' And Exists('%(ZinkInstallTrustFiles.FullPath)')" />
     <Copy SourceFiles="@(ZinkInstallTrustFiles)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" Condition="'$(PublishDir)'!='' And Exists('$(PublishDir)') And Exists('%(ZinkInstallTrustFiles.FullPath)')" />
     <MakeDir Directories="$(AppxPackageDir)" Condition="'$(AppxPackageDir)'!=''" />
     <Copy SourceFiles="@(ZinkInstallTrustFiles)" DestinationFolder="$(AppxPackageDir)" SkipUnchangedFiles="true" Condition="'$(AppxPackageDir)'!='' And Exists('%(ZinkInstallTrustFiles.FullPath)')" />
+    <Copy SourceFiles="@(ZinkInstallTrustFiles)" DestinationFolder="%(ZinkPackageTestDirectories.Identity)" SkipUnchangedFiles="true" Condition="Exists('%(ZinkPackageTestDirectories.Identity)') And Exists('%(ZinkInstallTrustFiles.FullPath)')" />
     <MakeDir Directories="$(MSBuildProjectDirectory)\BundleArtifacts" />
     <Copy SourceFiles="@(ZinkInstallTrustFiles)" DestinationFolder="$(MSBuildProjectDirectory)\BundleArtifacts" SkipUnchangedFiles="true" Condition="Exists('%(ZinkInstallTrustFiles.FullPath)')" />
   </Target>
