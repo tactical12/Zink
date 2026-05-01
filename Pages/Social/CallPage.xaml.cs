@@ -135,7 +135,7 @@ namespace Zink.Pages.Social
         private const int FallbackMaxFps = 6;
         private const int PreviewFallbackMaxFps = 2;
         private const int WebSocketFallbackMaxDeltaBytes = 48 * 1024;
-        private static readonly TimeSpan WebSocketFallbackWarmupDuration = TimeSpan.FromSeconds(3);
+        private static readonly TimeSpan WebSocketFallbackWarmupDuration = TimeSpan.FromSeconds(2);
         private const int MaxRemoteH264DecodeQueue = 12;
         private const int RemoteGpuBacklogKeyFrameRequestQueue = 18;
         private const int MaxRemoteGpuPlaybackQueue = 36;
@@ -751,8 +751,12 @@ namespace Zink.Pages.Social
                 return true;
 
             var now = DateTimeOffset.UtcNow;
-            if (!e.IsKeyFrame && now - _fallbackFrameLastSentUtc < TimeSpan.FromMilliseconds(1000.0 / FallbackMaxFps))
+            var fallbackInterval = TimeSpan.FromMilliseconds(1000.0 / FallbackMaxFps);
+            if (_fallbackFrameLastSentUtc != DateTimeOffset.MinValue &&
+                now - _fallbackFrameLastSentUtc < fallbackInterval)
+            {
                 return false;
+            }
 
             _fallbackFrameLastSentUtc = now;
             return true;

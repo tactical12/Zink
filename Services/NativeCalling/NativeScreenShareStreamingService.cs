@@ -18,7 +18,6 @@ namespace Zink.Services.NativeCalling
 
         public const int TargetFps = 60;
         public const long JpegQuality = 62L;
-        private const int PreviewFallbackFps = 1;
         private const int ReceiverSafe1080pFps = 24;
         internal const bool EnableDirectGpuTexturePath = false;
         private static readonly TimeSpan AdaptationWarmup = TimeSpan.FromSeconds(2);
@@ -60,7 +59,7 @@ namespace Zink.Services.NativeCalling
         }
 
         public bool IsAdaptiveLatencyModeEnabled { get; private set; } = false;
-        public int CurrentBitrate { get; private set; } = GetBitrate(ScreenShareQualityProfile.FromPreset(ScreenShareQualityPreset.Hd720p));
+        public int CurrentBitrate { get; private set; } = ScreenShareQualityProfile.FromPreset(ScreenShareQualityPreset.Hd720p).Bitrate;
         public int AutoDowngradeCount { get; private set; }
         public int CongestionSignals { get; private set; }
         public string AdaptiveState { get; private set; } = "Locked realtime mode ready";
@@ -101,7 +100,7 @@ namespace Zink.Services.NativeCalling
             {
                 _effectiveQualityPreset = _qualityPreset;
                 _bitrateScalePercent = 100;
-                CurrentBitrate = GetBitrate(ScreenShareQualityProfile.FromPreset(_effectiveQualityPreset));
+                CurrentBitrate = ScreenShareQualityProfile.FromPreset(_effectiveQualityPreset).Bitrate;
                 AdaptiveState = $"Locked {ScreenShareQualityProfile.FromPreset(_effectiveQualityPreset).Name} @ {TargetFps} FPS";
                 AutoDowngradeCount = 0;
                 CongestionSignals = 0;
@@ -145,7 +144,7 @@ namespace Zink.Services.NativeCalling
                 _qualityPreset = preset;
                 _effectiveQualityPreset = preset;
                 _bitrateScalePercent = 100;
-                CurrentBitrate = GetBitrate(ScreenShareQualityProfile.FromPreset(_effectiveQualityPreset));
+                CurrentBitrate = ScreenShareQualityProfile.FromPreset(_effectiveQualityPreset).Bitrate;
                 AdaptiveState = $"Locked {ScreenShareQualityProfile.FromPreset(preset).Name} @ {TargetFps} FPS";
                 _healthyWindows = 0;
                 _receiverPressureSignals = 0;
@@ -790,12 +789,7 @@ namespace Zink.Services.NativeCalling
 
         private static int GetPreviewFrameInterval(ScreenShareQualityProfile quality)
         {
-            if (quality.Height >= 2160)
-                return TargetFps * 10;
-            if (quality.Height >= 1440)
-                return TargetFps * 6;
-
-            return Math.Max(1, TargetFps / PreviewFallbackFps);
+            return Math.Max(1, quality.PreviewFrameInterval);
         }
 
         private static bool ShouldGeneratePreview(
@@ -815,10 +809,10 @@ namespace Zink.Services.NativeCalling
 
         private static byte[] EncodePreviewJpeg(Bitmap bitmap, ScreenShareQualityProfile quality)
         {
-            var jpegQuality = GetPreviewJpegQuality(quality);
+            var jpegQuality = quality.PreviewJpegQuality;
             var previewBitmap = bitmap;
             Bitmap? scaledPreview = null;
-            var maxPreviewWidth = GetPreviewMaxWidth(quality);
+            var maxPreviewWidth = quality.PreviewMaxWidth;
             if (bitmap.Width > maxPreviewWidth)
             {
                 var scale = (double)maxPreviewWidth / bitmap.Width;
@@ -843,30 +837,6 @@ namespace Zink.Services.NativeCalling
             }
         }
 
-        private static long GetPreviewJpegQuality(ScreenShareQualityProfile quality)
-        {
-            if (quality.Height >= 2160)
-                return 68L;
-            if (quality.Height >= 1440)
-                return 68L;
-            if (quality.Height >= 1080)
-                return 70L;
-            if (quality.Height >= 720)
-                return 66L;
-
-            return JpegQuality;
-        }
-
-        private static int GetPreviewMaxWidth(ScreenShareQualityProfile quality)
-        {
-            if (quality.Height >= 2160)
-                return 1280;
-            if (quality.Height >= 1440)
-                return 1280;
-
-            return quality.Width;
-        }
-
         private static byte[] EncodeJpeg(Bitmap bitmap, long quality)
         {
             using var ms = new MemoryStream();
@@ -879,30 +849,12 @@ namespace Zink.Services.NativeCalling
 
         private static int GetBitrate(ScreenShareQualityProfile quality)
         {
-            if (quality.Height >= 2160)
-                return 36_000_000;
-            if (quality.Height >= 1440)
-                return 22_000_000;
-            if (quality.Height >= 1080)
-                return 14_000_000;
-            if (quality.Height >= 720)
-                return 6_000_000;
-
-            return 3_500_000;
+            return quality.Bitrate;
         }
 
         private static int GetMinimumBitrate(ScreenShareQualityProfile quality)
         {
-            if (quality.Height >= 2160)
-                return 24_000_000;
-            if (quality.Height >= 1440)
-                return 14_000_000;
-            if (quality.Height >= 1080)
-                return 9_000_000;
-            if (quality.Height >= 720)
-                return 4_500_000;
-
-            return 2_500_000;
+            return quality.MinimumBitrate;
         }
 
         private static int GetAdaptiveBitrate(ScreenShareQualityProfile quality, int scalePercent)
@@ -1083,28 +1035,92 @@ namespace Zink.Services.NativeCalling
 
     public sealed class ScreenShareQualityProfile
     {
-        private ScreenShareQualityProfile(ScreenShareQualityPreset preset, string name, int width, int height)
+        private ScreenShareQualityProfile(
+            ScreenShareQualityPreset preset,
+            string name,
+            int width,
+            int height,
+            int bitrate,
+            int minimumBitrate,
+            int previewFrameInterval,
+            int previewMaxWidth,
+            long previewJpegQuality)
         {
             Preset = preset;
             Name = name;
             Width = width;
             Height = height;
+            Bitrate = bitrate;
+            MinimumBitrate = minimumBitrate;
+            PreviewFrameInterval = previewFrameInterval;
+            PreviewMaxWidth = previewMaxWidth;
+            PreviewJpegQuality = previewJpegQuality;
         }
 
         public ScreenShareQualityPreset Preset { get; }
         public string Name { get; }
         public int Width { get; }
         public int Height { get; }
+        public int Bitrate { get; }
+        public int MinimumBitrate { get; }
+        public int PreviewFrameInterval { get; }
+        public int PreviewMaxWidth { get; }
+        public long PreviewJpegQuality { get; }
 
         public static ScreenShareQualityProfile FromPreset(ScreenShareQualityPreset preset)
         {
             return preset switch
             {
-                ScreenShareQualityPreset.Performance540p => new ScreenShareQualityProfile(preset, "540p realtime", 960, 540),
-                ScreenShareQualityPreset.Hd720p => new ScreenShareQualityProfile(preset, "720p", 1280, 720),
-                ScreenShareQualityPreset.QuadHd2K => new ScreenShareQualityProfile(preset, "1440p", 2560, 1440),
-                ScreenShareQualityPreset.UltraHd4K => new ScreenShareQualityProfile(preset, "4K", 3840, 2160),
-                _ => new ScreenShareQualityProfile(ScreenShareQualityPreset.FullHd1080p, "1080p", 1920, 1080)
+                ScreenShareQualityPreset.Performance540p => new ScreenShareQualityProfile(
+                    preset,
+                    "540p realtime",
+                    960,
+                    540,
+                    bitrate: 3_500_000,
+                    minimumBitrate: 2_500_000,
+                    previewFrameInterval: NativeScreenShareStreamingService.TargetFps,
+                    previewMaxWidth: 960,
+                    previewJpegQuality: NativeScreenShareStreamingService.JpegQuality),
+                ScreenShareQualityPreset.Hd720p => new ScreenShareQualityProfile(
+                    preset,
+                    "720p",
+                    1280,
+                    720,
+                    bitrate: 6_000_000,
+                    minimumBitrate: 4_500_000,
+                    previewFrameInterval: NativeScreenShareStreamingService.TargetFps,
+                    previewMaxWidth: 1280,
+                    previewJpegQuality: 66L),
+                ScreenShareQualityPreset.QuadHd2K => new ScreenShareQualityProfile(
+                    preset,
+                    "1440p",
+                    2560,
+                    1440,
+                    bitrate: 22_000_000,
+                    minimumBitrate: 14_000_000,
+                    previewFrameInterval: NativeScreenShareStreamingService.TargetFps * 6,
+                    previewMaxWidth: 1280,
+                    previewJpegQuality: 68L),
+                ScreenShareQualityPreset.UltraHd4K => new ScreenShareQualityProfile(
+                    preset,
+                    "4K",
+                    3840,
+                    2160,
+                    bitrate: 36_000_000,
+                    minimumBitrate: 24_000_000,
+                    previewFrameInterval: NativeScreenShareStreamingService.TargetFps * 10,
+                    previewMaxWidth: 1280,
+                    previewJpegQuality: 68L),
+                _ => new ScreenShareQualityProfile(
+                    ScreenShareQualityPreset.FullHd1080p,
+                    "1080p",
+                    1920,
+                    1080,
+                    bitrate: 14_000_000,
+                    minimumBitrate: 9_000_000,
+                    previewFrameInterval: NativeScreenShareStreamingService.TargetFps,
+                    previewMaxWidth: 1920,
+                    previewJpegQuality: 70L)
             };
         }
     }
