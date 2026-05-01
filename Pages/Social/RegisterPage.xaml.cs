@@ -1,7 +1,5 @@
-using System;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Zink.Services.Social;
 
 namespace Zink.Pages.Social
 {
@@ -12,7 +10,7 @@ namespace Zink.Pages.Social
             this.InitializeComponent();
         }
 
-        private async void RegisterButton_Click(object sender, RoutedEventArgs e)
+        private void RegisterButton_Click(object sender, RoutedEventArgs e)
         {
             SetBusy(false);
             StatusText.Text = "This is currently under development.";
