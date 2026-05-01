@@ -143,7 +143,7 @@ namespace Zink
             if (_incomingCallDialogShowing)
                 return;
 
-            if (ContentFrame?.XamlRoot == null)
+            if (RootGrid == null)
                 return;
 
             _incomingCallDialogShowing = true;
@@ -155,32 +155,31 @@ namespace Zink
                     ? e.FromDisplayName
                     : (!string.IsNullOrWhiteSpace(e.FromUsername) ? e.FromUsername : $"User {e.FromUserId}");
 
-                var acceptedCall = false;
-                ContentDialog? dialog = null;
+                var completion = new TaskCompletionSource<bool>();
                 var body = CreateIncomingCallGlassContent(
                     callerName,
                     () =>
                     {
-                        acceptedCall = true;
-                        dialog?.Hide();
+                        completion.TrySetResult(true);
                     },
                     () =>
                     {
-                        acceptedCall = false;
-                        dialog?.Hide();
+                        completion.TrySetResult(false);
                     });
 
-                dialog = new ContentDialog
-                {
-                    Title = null,
-                    Content = body,
-                    XamlRoot = ContentFrame.XamlRoot,
-                    Background = new SolidColorBrush(global::Windows.UI.Color.FromArgb(0, 0, 0, 0)),
-                    BorderBrush = new SolidColorBrush(global::Windows.UI.Color.FromArgb(0, 0, 0, 0))
-                };
-                ApplyBorderlessGlassDialogResources(dialog);
+                var overlay = CreateIncomingCallOverlay(body);
+                RootGrid.Children.Add(overlay);
 
-                await dialog.ShowAsync();
+                bool acceptedCall;
+                try
+                {
+                    acceptedCall = await completion.Task;
+                }
+                finally
+                {
+                    RootGrid.Children.Remove(overlay);
+                }
+
                 IncomingCallRingtoneService.TryStop();
 
                 if (acceptedCall)
@@ -214,14 +213,24 @@ namespace Zink
             }
         }
 
-        private static void ApplyBorderlessGlassDialogResources(ContentDialog dialog)
+        private static Grid CreateIncomingCallOverlay(FrameworkElement body)
         {
-            var transparent = new SolidColorBrush(global::Windows.UI.Color.FromArgb(0, 0, 0, 0));
-            dialog.Resources["ContentDialogBackground"] = transparent;
-            dialog.Resources["ContentDialogBorderBrush"] = transparent;
-            dialog.Resources["ContentDialogBorderThickness"] = new Thickness(0);
-            dialog.Resources["ContentDialogContentMargin"] = new Thickness(0);
-            dialog.Resources["ContentDialogPadding"] = new Thickness(0);
+            var overlay = new Grid
+            {
+                Background = new SolidColorBrush(global::Windows.UI.Color.FromArgb(92, 0, 0, 0)),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Stretch,
+                Padding = new Thickness(24)
+            };
+
+            Grid.SetColumnSpan(overlay, 2);
+            Canvas.SetZIndex(overlay, 10000);
+
+            body.HorizontalAlignment = HorizontalAlignment.Center;
+            body.VerticalAlignment = VerticalAlignment.Center;
+            overlay.Children.Add(body);
+
+            return overlay;
         }
 
         private static FrameworkElement CreateIncomingCallGlassContent(
@@ -243,11 +252,12 @@ namespace Zink
 
             var card = new Border
             {
-                Width = 390,
-                Padding = new Thickness(22),
-                CornerRadius = new CornerRadius(24),
+                Width = 420,
+                MaxWidth = 460,
+                Padding = new Thickness(24),
+                CornerRadius = new CornerRadius(28),
                 Background = acrylicBrush,
-                BorderBrush = new SolidColorBrush(global::Windows.UI.Color.FromArgb(36, 255, 255, 255)),
+                BorderBrush = new SolidColorBrush(global::Windows.UI.Color.FromArgb(24, 255, 255, 255)),
                 BorderThickness = new Thickness(1)
             };
 

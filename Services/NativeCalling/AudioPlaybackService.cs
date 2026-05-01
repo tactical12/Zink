@@ -37,15 +37,17 @@ namespace Zink.Services.NativeCalling
         private const int MediaChannels = 2;
         private const int MediaFrameSize = 960;
         private const int MaxBufferedPackets = 12;
-        private const int MaxBufferedMediaPackets = 18;
+        private const int MaxBufferedMediaPackets = 42;
         private const int StartPlaybackPacketThreshold = 2;
-        private const int MediaDesiredLatencyMs = 90;
-        private const int MediaTargetBufferedMs = 180;
-        private const int MediaHardTrimBufferedMs = 420;
+        private const int MediaStartPlaybackPacketThreshold = 8;
+        private const int MediaDesiredLatencyMs = 120;
+        private const int MediaTargetBufferedMs = 240;
+        private const int MediaHardTrimBufferedMs = 640;
         private static readonly byte[] ScreenShareAudioHeader = { (byte)'Z', (byte)'S', (byte)'A', (byte)'1' };
 
         private int _selectedOutputDeviceNumber = -1;
         private bool _isPrimed;
+        private bool _isMediaPrimed;
         private long _mediaPacketsReceived;
         private long _mediaPacketsDropped;
         private long _mediaPacketsDecoded;
@@ -177,6 +179,7 @@ namespace Zink.Services.NativeCalling
             _packetQueue.Clear();
             _mediaPacketQueue.Clear();
             _isPrimed = false;
+            _isMediaPrimed = false;
             _mediaPacketsReceived = 0;
             _mediaPacketsDropped = 0;
             _mediaPacketsDecoded = 0;
@@ -199,6 +202,7 @@ namespace Zink.Services.NativeCalling
                 _packetQueue.Clear();
                 _mediaPacketQueue.Clear();
                 _isPrimed = false;
+                _isMediaPrimed = false;
                 _lastMediaPlaybackLogUtc = DateTimeOffset.MinValue;
             }
             finally
@@ -277,14 +281,24 @@ namespace Zink.Services.NativeCalling
                 _mediaPacketsDropped++;
             }
 
+            if (!_isMediaPrimed)
+            {
+                if (_mediaPacketQueue.Count < MediaStartPlaybackPacketThreshold)
+                    return;
+
+                _isMediaPrimed = true;
+            }
+
             if (_mediaBuffer.BufferedDuration.TotalMilliseconds > MediaHardTrimBufferedMs)
             {
                 _mediaBuffer.ClearBuffer();
-                while (_mediaPacketQueue.Count > StartPlaybackPacketThreshold)
+                while (_mediaPacketQueue.Count > MediaStartPlaybackPacketThreshold)
                 {
                     _mediaPacketQueue.Dequeue();
                     _mediaPacketsDropped++;
                 }
+
+                _isMediaPrimed = _mediaPacketQueue.Count >= MediaStartPlaybackPacketThreshold;
             }
 
             while (_mediaPacketQueue.Count > 0 && _mediaBuffer.BufferedDuration.TotalMilliseconds < MediaTargetBufferedMs)
