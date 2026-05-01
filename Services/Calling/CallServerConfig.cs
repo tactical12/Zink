@@ -12,6 +12,7 @@ namespace Zink.Services.Calling
         public static string FriendsUrl => $"{BaseHttpUrl}/api/friends";
         public static string AddFriendUrl => $"{BaseHttpUrl}/api/friends/add";
         public static string RtcConfigUrl => $"{BaseHttpUrl}/api/rtc-config";
+        public static string DiagnosticsUploadUrl => $"{BaseHttpUrl}/api/diagnostics/upload";
 
         public static string GetWebSocketUrl(string token)
         {

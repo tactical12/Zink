@@ -20,6 +20,7 @@ namespace Zink.Pages
         private bool _isLoadingReplayState;
         private bool _isLoadingDiagnosticLogState;
         private string? _latestHealthReportPath;
+        private string? _latestSupportBundlePath;
 
         private const string BackgroundRunSettingKey = "ZinkBackgroundRunEnabled";
 
@@ -322,6 +323,7 @@ namespace Zink.Pages
                 _latestHealthReportPath = Path.Combine(
                     DiagnosticLogService.LogDirectoryPath,
                     $"zink-health-{DiagnosticLogService.DeviceName}-latest.txt");
+                _latestSupportBundlePath = FindLatestSupportBundlePath();
 
                 if (File.Exists(_latestHealthReportPath))
                     HealthCheckStatusText.Text = $"Latest report: {_latestHealthReportPath}";
@@ -390,6 +392,7 @@ namespace Zink.Pages
             {
                 var report = await ZinkHealthCheckService.RunAsync();
                 _latestHealthReportPath = report.ReportPath;
+                _latestSupportBundlePath = report.BundlePath;
                 HealthCheckStatusText.Text = $"Health check complete: {report.Summary}. Report: {report.ReportPath}. Bundle: {report.BundlePath}";
                 StatusText.Text = report.Failed == 0
                     ? "Health check complete."
@@ -438,6 +441,69 @@ namespace Zink.Pages
             finally
             {
                 OpenHealthReportButton.IsEnabled = true;
+            }
+        }
+
+        private async void UploadHealthReportButton_Click(object sender, RoutedEventArgs e)
+        {
+            UploadHealthReportButton.IsEnabled = false;
+            HealthCheckStatusText.Text = "Uploading diagnostics support bundle...";
+            StatusText.Text = "Uploading diagnostics support bundle...";
+
+            try
+            {
+                if (string.IsNullOrWhiteSpace(_latestSupportBundlePath) || !File.Exists(_latestSupportBundlePath))
+                    _latestSupportBundlePath = FindLatestSupportBundlePath();
+
+                if (string.IsNullOrWhiteSpace(_latestSupportBundlePath) || !File.Exists(_latestSupportBundlePath))
+                {
+                    var report = await ZinkHealthCheckService.RunAsync();
+                    _latestHealthReportPath = report.ReportPath;
+                    _latestSupportBundlePath = report.BundlePath;
+                }
+
+                var result = await DiagnosticsUploadService.UploadSupportBundleAsync(_latestSupportBundlePath);
+                HealthCheckStatusText.Text = $"Diagnostics uploaded. Report id: {result.ReportId}. Download: {result.DownloadUrl}";
+                StatusText.Text = "Diagnostics uploaded.";
+            }
+            catch (Exception ex)
+            {
+                HealthCheckStatusText.Text = $"Diagnostics upload failed: {ex.Message}";
+                StatusText.Text = $"Diagnostics upload failed: {ex.Message}";
+            }
+            finally
+            {
+                UploadHealthReportButton.IsEnabled = true;
+            }
+        }
+
+        private static string? FindLatestSupportBundlePath()
+        {
+            try
+            {
+                var directory = DiagnosticLogService.LogDirectoryPath;
+                if (!Directory.Exists(directory))
+                    return null;
+
+                var pattern = $"zink-support-{DiagnosticLogService.DeviceName}-*.zip";
+                string? latestPath = null;
+                DateTime latestWrite = DateTime.MinValue;
+
+                foreach (var path in Directory.EnumerateFiles(directory, pattern))
+                {
+                    var write = File.GetLastWriteTimeUtc(path);
+                    if (write <= latestWrite)
+                        continue;
+
+                    latestWrite = write;
+                    latestPath = path;
+                }
+
+                return latestPath;
+            }
+            catch
+            {
+                return null;
             }
         }
 
