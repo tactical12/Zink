@@ -155,31 +155,35 @@ namespace Zink
                     ? e.FromDisplayName
                     : (!string.IsNullOrWhiteSpace(e.FromUsername) ? e.FromUsername : $"User {e.FromUserId}");
 
-                var body = CreateIncomingCallGlassContent(callerName);
+                var acceptedCall = false;
+                ContentDialog? dialog = null;
+                var body = CreateIncomingCallGlassContent(
+                    callerName,
+                    () =>
+                    {
+                        acceptedCall = true;
+                        dialog?.Hide();
+                    },
+                    () =>
+                    {
+                        acceptedCall = false;
+                        dialog?.Hide();
+                    });
 
-                var dialog = new ContentDialog
+                dialog = new ContentDialog
                 {
                     Title = null,
                     Content = body,
-                    PrimaryButtonText = "Answer",
-                    CloseButtonText = "Decline",
-                    DefaultButton = ContentDialogButton.Primary,
                     XamlRoot = ContentFrame.XamlRoot,
                     Background = new SolidColorBrush(global::Windows.UI.Color.FromArgb(0, 0, 0, 0)),
                     BorderBrush = new SolidColorBrush(global::Windows.UI.Color.FromArgb(0, 0, 0, 0))
                 };
                 ApplyBorderlessGlassDialogResources(dialog);
 
-                if (Microsoft.UI.Xaml.Application.Current.Resources.TryGetValue("AccentButtonStyle", out var styleObj) &&
-                    styleObj is Style accentButtonStyle)
-                {
-                    dialog.PrimaryButtonStyle = accentButtonStyle;
-                }
-
-                var result = await dialog.ShowAsync();
+                await dialog.ShowAsync();
                 IncomingCallRingtoneService.TryStop();
 
-                if (result == ContentDialogResult.Primary)
+                if (acceptedCall)
                 {
                     try
                     {
@@ -220,7 +224,10 @@ namespace Zink
             dialog.Resources["ContentDialogPadding"] = new Thickness(0);
         }
 
-        private static FrameworkElement CreateIncomingCallGlassContent(string callerName)
+        private static FrameworkElement CreateIncomingCallGlassContent(
+            string callerName,
+            Action accept,
+            Action decline)
         {
             var callerInitial = string.IsNullOrWhiteSpace(callerName)
                 ? "Z"
@@ -236,17 +243,17 @@ namespace Zink
 
             var card = new Border
             {
-                Width = 420,
-                Padding = new Thickness(24),
-                CornerRadius = new CornerRadius(28),
+                Width = 390,
+                Padding = new Thickness(22),
+                CornerRadius = new CornerRadius(24),
                 Background = acrylicBrush,
-                BorderBrush = new SolidColorBrush(global::Windows.UI.Color.FromArgb(0, 255, 255, 255)),
-                BorderThickness = new Thickness(0)
+                BorderBrush = new SolidColorBrush(global::Windows.UI.Color.FromArgb(36, 255, 255, 255)),
+                BorderThickness = new Thickness(1)
             };
 
             var root = new Grid
             {
-                RowSpacing = 18
+                RowSpacing = 16
             };
             root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -261,8 +268,8 @@ namespace Zink
 
             var avatar = new Grid
             {
-                Width = 72,
-                Height = 72
+                Width = 58,
+                Height = 58
             };
 
             avatar.Children.Add(new Microsoft.UI.Xaml.Shapes.Ellipse
@@ -285,7 +292,7 @@ namespace Zink
             avatar.Children.Add(new TextBlock
             {
                 Text = callerInitial,
-                FontSize = 28,
+                FontSize = 24,
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
                 Foreground = new SolidColorBrush(global::Windows.UI.Color.FromArgb(255, 255, 255, 255)),
                 HorizontalAlignment = HorizontalAlignment.Center,
@@ -300,8 +307,8 @@ namespace Zink
 
             titleStack.Children.Add(new TextBlock
             {
-                Text = "Incoming Zink call",
-                FontSize = 14,
+                Text = "Incoming call",
+                FontSize = 13,
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
                 Foreground = new SolidColorBrush(global::Windows.UI.Color.FromArgb(210, 188, 245, 255))
             });
@@ -309,7 +316,7 @@ namespace Zink
             titleStack.Children.Add(new TextBlock
             {
                 Text = callerName,
-                FontSize = 28,
+                FontSize = 26,
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 Foreground = new SolidColorBrush(global::Windows.UI.Color.FromArgb(255, 255, 255, 255))
@@ -321,10 +328,10 @@ namespace Zink
 
             var statusPill = new Border
             {
-                Padding = new Thickness(14, 10, 14, 10),
-                CornerRadius = new CornerRadius(18),
-                Background = new SolidColorBrush(global::Windows.UI.Color.FromArgb(44, 255, 255, 255)),
-                BorderBrush = new SolidColorBrush(global::Windows.UI.Color.FromArgb(44, 255, 255, 255)),
+                Padding = new Thickness(14, 9, 14, 9),
+                CornerRadius = new CornerRadius(16),
+                Background = new SolidColorBrush(global::Windows.UI.Color.FromArgb(28, 255, 255, 255)),
+                BorderBrush = new SolidColorBrush(global::Windows.UI.Color.FromArgb(30, 255, 255, 255)),
                 BorderThickness = new Thickness(1)
             };
 
@@ -347,7 +354,7 @@ namespace Zink
 
             statusRow.Children.Add(new TextBlock
             {
-                Text = "Ringing now",
+                Text = "Ringing now on Zink",
                 FontSize = 15,
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
                 Foreground = new SolidColorBrush(global::Windows.UI.Color.FromArgb(235, 255, 255, 255)),
@@ -356,24 +363,85 @@ namespace Zink
 
             statusPill.Child = statusRow;
 
-            var message = new TextBlock
+            var actionGrid = new Grid
             {
-                Text = "Answer to join the call page, or decline to let them know you are unavailable.",
-                TextWrapping = TextWrapping.Wrap,
-                LineHeight = 22,
-                Foreground = new SolidColorBrush(global::Windows.UI.Color.FromArgb(210, 232, 239, 245))
+                ColumnSpacing = 12
             };
+            actionGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            actionGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            var answerButton = CreateIncomingCallActionButton(
+                "\uE717",
+                "Answer",
+                new SolidColorBrush(global::Windows.UI.Color.FromArgb(255, 21, 132, 151)),
+                new SolidColorBrush(global::Windows.UI.Color.FromArgb(255, 255, 255, 255)));
+            answerButton.Click += (_, _) => accept();
+
+            var declineButton = CreateIncomingCallActionButton(
+                "\uE711",
+                "Decline",
+                new SolidColorBrush(global::Windows.UI.Color.FromArgb(48, 255, 255, 255)),
+                new SolidColorBrush(global::Windows.UI.Color.FromArgb(238, 255, 255, 255)));
+            declineButton.Click += (_, _) => decline();
+
+            Grid.SetColumn(declineButton, 1);
+            actionGrid.Children.Add(answerButton);
+            actionGrid.Children.Add(declineButton);
 
             Grid.SetRow(header, 0);
             Grid.SetRow(statusPill, 1);
-            Grid.SetRow(message, 2);
+            Grid.SetRow(actionGrid, 2);
 
             root.Children.Add(header);
             root.Children.Add(statusPill);
-            root.Children.Add(message);
+            root.Children.Add(actionGrid);
             card.Child = root;
 
             return card;
+        }
+
+        private static Button CreateIncomingCallActionButton(
+            string glyph,
+            string text,
+            Brush background,
+            Brush foreground)
+        {
+            var content = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 8,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            content.Children.Add(new FontIcon
+            {
+                Glyph = glyph,
+                FontFamily = new FontFamily("Segoe Fluent Icons"),
+                FontSize = 17,
+                Foreground = foreground
+            });
+
+            content.Children.Add(new TextBlock
+            {
+                Text = text,
+                FontSize = 15,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                Foreground = foreground
+            });
+
+            return new Button
+            {
+                Height = 48,
+                Padding = new Thickness(16, 0, 16, 0),
+                CornerRadius = new CornerRadius(16),
+                Background = background,
+                BorderBrush = new SolidColorBrush(global::Windows.UI.Color.FromArgb(28, 255, 255, 255)),
+                BorderThickness = new Thickness(1),
+                Foreground = foreground,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                Content = content
+            };
         }
 
         public void ApplyAppTheme(ElementTheme theme)

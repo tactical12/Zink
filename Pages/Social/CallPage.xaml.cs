@@ -135,6 +135,7 @@ namespace Zink.Pages.Social
         private const int FallbackMaxFps = 6;
         private const int PreviewFallbackMaxFps = 2;
         private const int WebSocketFallbackMaxDeltaBytes = 48 * 1024;
+        private static readonly TimeSpan WebSocketFallbackWarmupDuration = TimeSpan.FromSeconds(3);
         private const int MaxRemoteH264DecodeQueue = 12;
         private const int RemoteGpuBacklogKeyFrameRequestQueue = 18;
         private const int MaxRemoteGpuPlaybackQueue = 36;
@@ -611,14 +612,14 @@ namespace Zink.Pages.Social
                 }
 
                 var rtpFailedTargets = fallbackParticipantIds.Distinct().ToList();
-                var websocketFallbackTargets = ShouldSendFallbackFrame(e)
-                    ? participantIds.Distinct().ToList()
-                    : new List<long>();
-
-                foreach (var participantId in rtpFailedTargets)
+                var shouldSendWebSocketFallback = ShouldSendFallbackFrame(e);
+                var websocketFallbackTargets = new List<long>();
+                if (shouldSendWebSocketFallback)
                 {
-                    if (!websocketFallbackTargets.Contains(participantId))
-                        websocketFallbackTargets.Add(participantId);
+                    var useStartupRecoveryLane = IsWebSocketFallbackWarmupActive() || !sentToAnyPeer;
+                    websocketFallbackTargets = useStartupRecoveryLane
+                        ? participantIds.Distinct().ToList()
+                        : rtpFailedTargets.ToList();
                 }
 
                 var shouldSendRtpMetadata = sentToAnyPeer && ShouldSendRtpMetadataFrame(e);
@@ -755,6 +756,12 @@ namespace Zink.Pages.Social
 
             _fallbackFrameLastSentUtc = now;
             return true;
+        }
+
+        private bool IsWebSocketFallbackWarmupActive()
+        {
+            return _screenShareStartedAtUtc.HasValue &&
+                DateTimeOffset.UtcNow - _screenShareStartedAtUtc.Value <= WebSocketFallbackWarmupDuration;
         }
 
         private bool ShouldSendPreviewFallbackFrame(NativeScreenFrameEventArgs e)
@@ -1938,9 +1945,18 @@ namespace Zink.Pages.Social
 
         private TimeSpan EstimateRemoteGpuSampleDuration(DateTimeOffset queuedAtUtc)
         {
+            if (_remoteGpuLastQueuedAtUtc.HasValue)
+            {
+                var observed = queuedAtUtc - _remoteGpuLastQueuedAtUtc.Value;
+                if (observed >= RemoteGpuMinFrameDuration && observed <= RemoteGpuMaxFrameDuration)
+                {
+                    var smoothedTicks = (long)((_remoteGpuEstimatedFrameDuration.Ticks * 0.82) + (observed.Ticks * 0.18));
+                    _remoteGpuEstimatedFrameDuration = TimeSpan.FromTicks(smoothedTicks);
+                }
+            }
+
             _remoteGpuLastQueuedAtUtc = queuedAtUtc;
-            _remoteGpuEstimatedFrameDuration = RemoteGpuFrameDuration;
-            return RemoteGpuFrameDuration;
+            return _remoteGpuEstimatedFrameDuration;
         }
 
         private void StartRemoteGpuPlayback(int width, int height)
@@ -2042,7 +2058,7 @@ namespace Zink.Pages.Social
                             : TimeSpan.MaxValue;
                         if (!requestedRecoveryForCurrentUnderrun &&
                             _remoteGpuFirstSampleSubmitted &&
-                            lastReceiveAge >= TimeSpan.FromMilliseconds(350))
+                            lastReceiveAge >= TimeSpan.FromMilliseconds(900))
                         {
                             requestedRecoveryForCurrentUnderrun = true;
                             _screenShareDroppedReceiveFrames++;
