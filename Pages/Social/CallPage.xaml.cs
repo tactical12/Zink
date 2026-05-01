@@ -86,6 +86,7 @@ namespace Zink.Pages.Social
         private DateTimeOffset _lastRemoteReceiveStallRecoveryUtc = DateTimeOffset.MinValue;
         private DateTimeOffset _lastRemoteBitstreamResolutionAtUtc = DateTimeOffset.MinValue;
         private DateTimeOffset _remoteFallbackLastReceivedAtUtc = DateTimeOffset.MinValue;
+        private DateTimeOffset _remoteFallbackFirstReceivedAtUtc = DateTimeOffset.MinValue;
         private long _remoteRtpFrameCount;
         private long _remoteFallbackFrameCount;
         private long _remotePreviewFrameCount;
@@ -113,6 +114,7 @@ namespace Zink.Pages.Social
         private DateTimeOffset _lastRemoteRenderFlowLogUtc = DateTimeOffset.MinValue;
         private DateTimeOffset _lastRemoteRenderCoalescedLogUtc = DateTimeOffset.MinValue;
         private DateTimeOffset _lastRemotePreviewFlowLogUtc = DateTimeOffset.MinValue;
+        private DateTimeOffset _lastRemoteFallbackHoldLogUtc = DateTimeOffset.MinValue;
         private DateTimeOffset _lastRemoteKeyFrameRequestAtUtc = DateTimeOffset.MinValue;
         private DateTimeOffset _lastRemoteBacklogTrimLogUtc = DateTimeOffset.MinValue;
         private DateTimeOffset _lastRemoteBacklogJumpLogUtc = DateTimeOffset.MinValue;
@@ -136,6 +138,7 @@ namespace Zink.Pages.Social
         private const int PreviewFallbackMaxFps = 2;
         private const int WebSocketFallbackMaxDeltaBytes = 48 * 1024;
         private static readonly TimeSpan WebSocketFallbackWarmupDuration = TimeSpan.FromSeconds(2);
+        private static readonly TimeSpan WebSocketFallbackGpuStartDelay = TimeSpan.FromMilliseconds(1600);
         private const int MaxRemoteH264DecodeQueue = 12;
         private const int RemoteGpuBacklogKeyFrameRequestQueue = 18;
         private const int MaxRemoteGpuPlaybackQueue = 36;
@@ -905,6 +908,7 @@ namespace Zink.Pages.Social
             _lastRemoteDecoderResetAtUtc = DateTimeOffset.MinValue;
             _lastRemoteReceiveStallRecoveryUtc = DateTimeOffset.MinValue;
             _remoteFallbackLastReceivedAtUtc = DateTimeOffset.MinValue;
+            _remoteFallbackFirstReceivedAtUtc = DateTimeOffset.MinValue;
             Interlocked.Exchange(ref _remoteRtpFrameCount, 0);
             Interlocked.Exchange(ref _remoteFallbackFrameCount, 0);
             Interlocked.Exchange(ref _remotePreviewFrameCount, 0);
@@ -942,6 +946,7 @@ namespace Zink.Pages.Social
             _lastRemoteDecodeFlowLogUtc = DateTimeOffset.MinValue;
             _lastRemoteRenderFlowLogUtc = DateTimeOffset.MinValue;
             _lastRemotePreviewFlowLogUtc = DateTimeOffset.MinValue;
+            _lastRemoteFallbackHoldLogUtc = DateTimeOffset.MinValue;
             _lastRemoteBacklogTrimLogUtc = DateTimeOffset.MinValue;
             _lastRemoteBacklogJumpLogUtc = DateTimeOffset.MinValue;
             _remoteBacklogTrimmedSinceLastLog = 0;
@@ -981,6 +986,7 @@ namespace Zink.Pages.Social
             _remoteScreenLastReceivedAtUtc = null;
             _remoteScreenLastRenderedAtUtc = null;
             _remoteFallbackLastReceivedAtUtc = DateTimeOffset.MinValue;
+            _remoteFallbackFirstReceivedAtUtc = DateTimeOffset.MinValue;
             _lastRemoteBitstreamWidth = 0;
             _lastRemoteBitstreamHeight = 0;
             _lastRemoteBitstreamResolutionAtUtc = DateTimeOffset.MinValue;
@@ -1126,7 +1132,9 @@ namespace Zink.Pages.Social
                     return;
                 }
 
-                var resolutionChanged = _screenShareLastWidth != e.Width || _screenShareLastHeight != e.Height;
+                var hadPreviousResolution = _screenShareLastWidth > 0 && _screenShareLastHeight > 0;
+                var resolutionChanged = hadPreviousResolution &&
+                    (_screenShareLastWidth != e.Width || _screenShareLastHeight != e.Height);
                 _remoteScreenShareSenderId = e.FromUserId;
                 _screenShareLastWidth = e.Width;
                 _screenShareLastHeight = e.Height;
@@ -1249,7 +1257,11 @@ namespace Zink.Pages.Social
             {
                 var hasIdr = ContainsH264IdrFrame(e.FrameData);
                 var isKeyFrame = hasIdr;
-                _remoteFallbackLastReceivedAtUtc = DateTimeOffset.UtcNow;
+                var now = DateTimeOffset.UtcNow;
+                _remoteFallbackLastReceivedAtUtc = now;
+                if (_remoteFallbackFirstReceivedAtUtc == DateTimeOffset.MinValue)
+                    _remoteFallbackFirstReceivedAtUtc = now;
+
                 var receivedFallbackFrames = Interlocked.Increment(ref _remoteFallbackFrameCount);
                 LogRemoteEncodedReceiveFlow("websocket", e.FromUserId, e.FrameData, e.Width, e.Height, e.IsKeyFrame, hasIdr, receivedFallbackFrames);
                 if (receivedFallbackFrames == 1 || receivedFallbackFrames % (NativeScreenShareStreamingService.TargetFps * 2) == 0)
@@ -1258,10 +1270,23 @@ namespace Zink.Pages.Social
                         $"[ScreenShare:FALLBACK] Received {receivedFallbackFrames} WebSocket H.264 frames from {e.FromUserId}; bytes={e.FrameData.Length}; {e.Width}x{e.Height}; keyFlag={e.IsKeyFrame}; idr={hasIdr}.");
                 }
 
-                if (receivedFallbackFrames == 1 &&
-                    Volatile.Read(ref _remoteRtpFrameCount) == 0)
+                var noRtpFrames = Volatile.Read(ref _remoteRtpFrameCount) == 0;
+                var fallbackWarmupElapsed = now - _remoteFallbackFirstReceivedAtUtc;
+                if (noRtpFrames && fallbackWarmupElapsed < WebSocketFallbackGpuStartDelay)
                 {
-                    ResetRemoteH264Decoder("receiver switched to websocket H.264 stream");
+                    if (receivedFallbackFrames == 1 ||
+                        ShouldLogFlow(ref _lastRemoteFallbackHoldLogUtc, TimeSpan.FromSeconds(1)))
+                    {
+                        Debug.WriteLine(
+                            $"[ScreenShare:FALLBACK] Holding WebSocket H.264 warmup frame until RTP starts; elapsedMs={fallbackWarmupElapsed.TotalMilliseconds:0}; bytes={e.FrameData.Length}; key={hasIdr}.");
+                    }
+
+                    return;
+                }
+
+                if (noRtpFrames)
+                {
+                    ResetRemoteH264Decoder("receiver switched to websocket H.264 stream after RTP startup timeout");
                 }
                 else if (receivedFallbackFrames == 1)
                 {
@@ -1584,6 +1609,9 @@ namespace Zink.Pages.Social
             }
 
             var receivedRtpFrames = Interlocked.Increment(ref _remoteRtpFrameCount);
+            if (receivedRtpFrames == 1)
+                _remoteFallbackFirstReceivedAtUtc = DateTimeOffset.MinValue;
+
             LogRemoteEncodedReceiveFlow("rtp", _remoteScreenShareSenderId, e.FrameData, width, height, isKeyFrame, isKeyFrame, receivedRtpFrames);
             if (receivedRtpFrames == 1 || receivedRtpFrames % (NativeScreenShareStreamingService.TargetFps * 2) == 0)
             {
