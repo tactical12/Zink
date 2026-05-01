@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <TargetFramework>net8.0-windows10.0.22621.0</TargetFramework>
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
     <RootNamespace>Zink</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -31,6 +31,8 @@
     <UseWinUI>true</UseWinUI>
     <EnableMsixTooling>true</EnableMsixTooling>
     <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <NoWarn>$(NoWarn);CA1416;CS0108;CS0162;CS0169;CS0414;CS0618;CS0067;CS4014;CS8600;CS8601;CS8602;CS8603;CS8604;CS8612;CS8618;CS8622;CS8625;CS8767</NoWarn>
   </PropertyGroup>
 
   <!-- Make output architecture match selected Platform -->
@@ -55,27 +57,58 @@
     <Content Remove="Assets\BadgeLogo.scale-150.png" />
     <Content Remove="Assets\BadgeLogo.scale-200.png" />
     <Content Remove="Assets\BadgeLogo.scale-400.png" />
-    <Content Remove="Assets\splashScreen.png" />
+    <Content Remove="Assets\Square44x44Logo.altform-*_targetsize-*.png" />
+    <Content Remove="Assets\Square150x150Logo.scale-100.png" />
+    <Content Remove="Assets\Wide310x150Logo.scale-100.png" />
   </ItemGroup>
 
   <ItemGroup>
+    <ZinkSquare44PackageIcon Include="Assets\Square44x44Logo*.png" Exclude="Assets\Square44x44Logo.altform-*_targetsize-*.png" />
+    <AppxPackagePayload Include="@(ZinkSquare44PackageIcon)">
+      <TargetPath>Assets\%(Filename)%(Extension)</TargetPath>
+    </AppxPackagePayload>
+  </ItemGroup>
+
+  <Target Name="CopyZinkSquare44IconsToAppxLayouts" AfterTargets="Build;_CreatePackageLayout">
+    <MakeDir Directories="$(OutDir)AppX\Assets" Condition="Exists('$(OutDir)AppX')" />
+    <Copy
+      SourceFiles="@(ZinkSquare44PackageIcon)"
+      DestinationFiles="@(ZinkSquare44PackageIcon->'$(OutDir)AppX\Assets\%(Filename)%(Extension)')"
+      SkipUnchangedFiles="true"
+      Condition="Exists('$(OutDir)AppX')" />
+    <MakeDir Directories="$(AppxLayoutDir)Assets" Condition="'$(AppxLayoutDir)' != '' And Exists('$(AppxLayoutDir)')" />
+    <Copy
+      SourceFiles="@(ZinkSquare44PackageIcon)"
+      DestinationFiles="@(ZinkSquare44PackageIcon->'$(AppxLayoutDir)Assets\%(Filename)%(Extension)')"
+      SkipUnchangedFiles="true"
+      Condition="'$(AppxLayoutDir)' != '' And Exists('$(AppxLayoutDir)')" />
+  </Target>
+
+  <ItemGroup>
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Concentus" Version="2.2.2" />
     <PackageReference Include="DiscordRichPresence" Version="1.6.1.70" />
     <PackageReference Include="Microsoft.AspNetCore.WebSockets" Version="2.3.9" />
     <PackageReference Include="Microsoft.Graphics.Win2D" Version="1.4.0" />
     <PackageReference Include="Microsoft.Identity.Client" Version="4.81.0" />
-    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3856.49" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3912.50" />
     <PackageReference Include="Microsoft.Windows.CsWinRT" Version="2.2.0" />
-    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260317003" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260416003" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.1721" />
     <PackageReference Include="NAudio" Version="2.3.0" />
+    <PackageReference Include="NAudio.Core" Version="2.3.0" />
+    <PackageReference Include="NAudio.WinMM" Version="2.3.0" />
     <PackageReference Include="SharpDX" Version="4.2.0" />
     <PackageReference Include="SharpDX.Direct3D11" Version="4.2.0" />
     <PackageReference Include="SharpDX.DXGI" Version="4.2.0" />
+    <PackageReference Include="SharpDX.MediaFoundation" Version="4.2.0" />
     <PackageReference Include="SIPSorcery" Version="10.0.3" />
     <PackageReference Include="SIPSorceryMedia.Encoders" Version="10.0.4" />
     <PackageReference Include="SIPSorceryMedia.Windows" Version="8.0.14" />
+    <PackageReference Include="System.Drawing.Common" Version="8.0.10" />
     <PackageReference Include="TagLibSharp" Version="2.3.0" />
+    <PackageReference Include="Vortice.Direct3D12" Version="3.8.3" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(Platform)'=='x64'">
@@ -124,12 +157,10 @@
     <None Remove="Pages\MessengerPage.xaml" />
     <None Remove="Pages\MusicLibraryPage.xaml" />
     <None Remove="Pages\My5Page.xaml" />
-    <None Remove="Pages\NativeVoiceSharePage.xaml" />
     <None Remove="Pages\NetflixPage.xaml" />
     <None Remove="Pages\NotificationsPage.xaml" />
     <None Remove="Pages\NowTVPage.xaml" />
     <None Remove="Pages\ParamountPlusPage.xaml" />
-    <None Remove="Pages\PhotoViewerPage.xaml" />
     <None Remove="Pages\PinterestPage.xaml" />
     <None Remove="Pages\PrimeVideoPage.xaml" />
     <None Remove="Pages\PrivacyPolicyPage.xaml" />
@@ -144,6 +175,7 @@
     <None Remove="Pages\Social\FriendRequestsPage.xaml" />
     <None Remove="Pages\Social\FriendsPage.xaml" />
     <None Remove="Pages\Social\LoginPage.xaml" />
+    <None Remove="Pages\Social\MessagesPage.xaml" />
     <None Remove="Pages\Social\ProfilePage.xaml" />
     <None Remove="Pages\Social\RegisterPage.xaml" />
     <None Remove="Pages\SpotifyHomePage.xaml" />
@@ -189,6 +221,24 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Update="Assets\Discord\zink_1024.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Update="Assets\StoreLogo.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Update="Assets\splashScreen.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Update="Assets\ZinkLogo.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Update="Assets\incoming-call.wav">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Update="Assets\QuickAccess\*.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Update="Assets\Radio\bbcradio1.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
@@ -198,10 +248,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Page Update="Pages\NativeVoiceSharePage.xaml">
+    <Page Update="Pages\Social\LoginPage.xaml">
       <Generator>MSBuild:Compile</Generator>
     </Page>
-    <Page Update="Pages\Social\LoginPage.xaml">
+    <Page Update="Pages\Social\MessagesPage.xaml">
       <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Update="Pages\Social\RegisterPage.xaml">
@@ -232,12 +282,6 @@
 
   <ItemGroup>
     <Page Update="Pages\AppThemePage.xaml">
-      <Generator>MSBuild:Compile</Generator>
-    </Page>
-  </ItemGroup>
-
-  <ItemGroup>
-    <Page Update="Pages\PhotoViewerPage.xaml">
       <Generator>MSBuild:Compile</Generator>
     </Page>
   </ItemGroup>
@@ -330,6 +374,26 @@
 
     <MakeDir Directories="$(OutDir)AppX" Condition="!Exists('$(OutDir)AppX')" />
     <Copy SourceFiles="$(_MuxSource)" DestinationFiles="$(_AppXPath)" SkipUnchangedFiles="true" Condition="Exists('$(_MuxSource)')" />
+  </Target>
+
+  <Target Name="CopyBouncyCastleToAppXLayouts" AfterTargets="Build;_CreatePackageLayout">
+    <ItemGroup>
+      <_BouncyCastleRuntime Include="@(ReferenceCopyLocalPaths)" Condition="'%(ReferenceCopyLocalPaths.Filename)%(ReferenceCopyLocalPaths.Extension)'=='BouncyCastle.Cryptography.dll'" />
+      <_BouncyCastleRuntime Include="$(NuGetPackageRoot)bouncycastle.cryptography\2.6.2\lib\net6.0\BouncyCastle.Cryptography.dll" Condition="'@(_BouncyCastleRuntime)'=='' And Exists('$(NuGetPackageRoot)bouncycastle.cryptography\2.6.2\lib\net6.0\BouncyCastle.Cryptography.dll')" />
+    </ItemGroup>
+
+    <MakeDir Directories="$(OutDir)AppX" Condition="'@(_BouncyCastleRuntime)'!='' And !Exists('$(OutDir)AppX')" />
+    <Copy
+      SourceFiles="@(_BouncyCastleRuntime)"
+      DestinationFiles="@(_BouncyCastleRuntime->'$(OutDir)AppX\%(Filename)%(Extension)')"
+      SkipUnchangedFiles="true"
+      Condition="'@(_BouncyCastleRuntime)'!='' And Exists('$(OutDir)AppX')" />
+
+    <Copy
+      SourceFiles="@(_BouncyCastleRuntime)"
+      DestinationFiles="@(_BouncyCastleRuntime->'$(AppxLayoutDir)%(Filename)%(Extension)')"
+      SkipUnchangedFiles="true"
+      Condition="'@(_BouncyCastleRuntime)'!='' And '$(AppxLayoutDir)'!='' And Exists('$(AppxLayoutDir)')" />
   </Target>
 
 </Project>

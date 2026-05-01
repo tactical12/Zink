@@ -4,55 +4,190 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:vm="using:Zink.ViewModels"
     xmlns:conv="using:Zink.Converters"
-    Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
+    Background="Transparent">
 
     <Page.Resources>
         <conv:TimeSpanToClockTextConverter x:Key="ClockText"/>
+
+        <SolidColorBrush x:Key="RadioGlassBrush" Color="#B3131B24"/>
+        <SolidColorBrush x:Key="RadioGlassStrongBrush" Color="#D0182430"/>
+        <SolidColorBrush x:Key="RadioGlassBorderBrush" Color="#36FFFFFF"/>
+        <SolidColorBrush x:Key="RadioMutedTextBrush" Color="#B8C9D4DE"/>
+
+        <Style x:Key="RadioGlassButtonStyle" TargetType="Button">
+            <Setter Property="MinHeight" Value="44"/>
+            <Setter Property="Padding" Value="16,0"/>
+            <Setter Property="CornerRadius" Value="22"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#30FFFFFF"/>
+            <Setter Property="Background" Value="#2DFFFFFF"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+
+        <Style x:Key="RadioPrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource RadioGlassButtonStyle}">
+            <Setter Property="Background" Value="#D72E8DFF"/>
+            <Setter Property="BorderBrush" Value="#80D8F0FF"/>
+        </Style>
     </Page.Resources>
 
     <Page.DataContext>
         <vm:RadioWidgetViewModel/>
     </Page.DataContext>
 
-    <Grid Padding="20">
-        <StackPanel Spacing="16" HorizontalAlignment="Center" Width="460">
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Stretch">
-                <TextBlock Text="Radio Widget" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                <Button Content="Open Widget" Click="OpenWidget_Click" Margin="16,0,0,0" HorizontalAlignment="Right"/>
-            </StackPanel>
+    <Grid RequestedTheme="Dark">
+        <Grid.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#0A1017" Offset="0"/>
+                <GradientStop Color="#142A35" Offset="0.48"/>
+                <GradientStop Color="#06080C" Offset="1"/>
+            </LinearGradientBrush>
+        </Grid.Background>
 
-            <Grid Width="420" Height="140" Background="{ThemeResource LayerFillColorDefaultBrush}" Padding="12">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="108"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
+        <Grid Padding="34">
+            <Border MaxWidth="720"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Padding="26"
+                    CornerRadius="30"
+                    Background="{StaticResource RadioGlassBrush}"
+                    BorderBrush="{StaticResource RadioGlassBorderBrush}"
+                    BorderThickness="1">
+                <Grid RowSpacing="22">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
 
-                <Border CornerRadius="12">
-                    <Image Stretch="UniformToFill">
-                        <Image.Source>
-                            <BitmapImage UriSource="{Binding ArtworkOrLogo}"/>
-                        </Image.Source>
-                    </Image>
-                </Border>
+                    <Grid ColumnSpacing="14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="1" Margin="12,0,0,0" Spacing="6" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding StationTitle}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                    <TextBlock Text="{Binding ArtistName}"   Opacity="0.9" TextTrimming="CharacterEllipsis"/>
-                    <TextBlock Text="{Binding SongTitle}"    Opacity="0.8" TextTrimming="CharacterEllipsis"/>
+                        <StackPanel Spacing="5">
+                            <TextBlock Text="Radio Widget"
+                                       FontSize="28"
+                                       FontWeight="SemiBold"
+                                       Foreground="White"/>
+                            <TextBlock Text="Floating live radio controls"
+                                       FontSize="13"
+                                       Foreground="{StaticResource RadioMutedTextBrush}"/>
+                        </StackPanel>
 
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <TextBlock Text="{Binding Elapsed,  Converter={StaticResource ClockText}}"/>
-                        <TextBlock Text=" / " Opacity="0.6"/>
-                        <TextBlock Text="{Binding Duration, Converter={StaticResource ClockText}, ConverterParameter=Live}" Opacity="0.9"/>
-                    </StackPanel>
+                        <Button Grid.Column="1"
+                                Style="{StaticResource RadioGlassButtonStyle}"
+                                Click="OpenWidget_Click"
+                                VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" Spacing="9">
+                                <FontIcon Glyph="&#xE8A7;" FontSize="15"/>
+                                <TextBlock Text="Open Widget"/>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
 
-                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,6,0,0">
-                        <Button Content="Play"  Click="Play_Click"/>
-                        <Button Content="Pause" Click="Pause_Click"/>
-                        <Button Content="Stop"  Click="Stop_Click"/>
-                    </StackPanel>
-                </StackPanel>
-            </Grid>
-        </StackPanel>
+                    <Border Grid.Row="1"
+                            Padding="18"
+                            CornerRadius="28"
+                            Background="{StaticResource RadioGlassStrongBrush}"
+                            BorderBrush="#28FFFFFF"
+                            BorderThickness="1">
+                        <Grid ColumnSpacing="20">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="168"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Border CornerRadius="24"
+                                    Width="168"
+                                    Height="168"
+                                    Background="#263846"
+                                    BorderBrush="#26FFFFFF"
+                                    BorderThickness="1">
+                                <Image Stretch="UniformToFill">
+                                    <Image.Source>
+                                        <BitmapImage UriSource="{Binding ArtworkOrLogo}"/>
+                                    </Image.Source>
+                                </Image>
+                            </Border>
+
+                            <Grid Grid.Column="1"
+                                  RowSpacing="14"
+                                  VerticalAlignment="Center">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="{Binding StationTitle}"
+                                               FontSize="24"
+                                               FontWeight="SemiBold"
+                                               Foreground="White"
+                                               TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="{Binding ArtistName}"
+                                               FontSize="14"
+                                               Foreground="{StaticResource RadioMutedTextBrush}"
+                                               TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="{Binding SongTitle}"
+                                               FontSize="14"
+                                               Foreground="#DCF3FAFF"
+                                               TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="1"
+                                            Orientation="Horizontal"
+                                            Spacing="8">
+                                    <Border CornerRadius="999"
+                                            Padding="12,6"
+                                            Background="#302E8DFF"
+                                            BorderBrush="#4C7CC7FF"
+                                            BorderThickness="1">
+                                        <TextBlock Text="{Binding Elapsed, Converter={StaticResource ClockText}}"
+                                                   Foreground="White"
+                                                   FontWeight="SemiBold"/>
+                                    </Border>
+                                    <Border CornerRadius="999"
+                                            Padding="12,6"
+                                            Background="#24FFFFFF"
+                                            BorderBrush="#22FFFFFF"
+                                            BorderThickness="1">
+                                        <TextBlock Text="{Binding Duration, Converter={StaticResource ClockText}, ConverterParameter=Live}"
+                                                   Foreground="{StaticResource RadioMutedTextBrush}"/>
+                                    </Border>
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="2"
+                                            Orientation="Horizontal"
+                                            Spacing="10">
+                                    <Button Style="{StaticResource RadioPrimaryButtonStyle}"
+                                            Click="Play_Click">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <FontIcon Glyph="&#xE768;" FontSize="15"/>
+                                            <TextBlock Text="Play"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Style="{StaticResource RadioGlassButtonStyle}"
+                                            Click="Pause_Click">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <FontIcon Glyph="&#xE769;" FontSize="15"/>
+                                            <TextBlock Text="Pause"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Style="{StaticResource RadioGlassButtonStyle}"
+                                            Click="Stop_Click">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <FontIcon Glyph="&#xE71A;" FontSize="15"/>
+                                            <TextBlock Text="Stop"/>
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
     </Grid>
 </Page>

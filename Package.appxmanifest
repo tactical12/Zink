@@ -4,8 +4,10 @@
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
   xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
   xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
+  xmlns:uap6="http://schemas.microsoft.com/appx/manifest/uap/windows10/6"
+  xmlns:uap11="http://schemas.microsoft.com/appx/manifest/uap/windows10/11"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  IgnorableNamespaces="uap uap3 uap5 rescap">
+  IgnorableNamespaces="uap uap3 uap5 uap6 uap11 rescap">
 
   <Identity
     Name="FrancisHayle.Zink-MusicVideoPlayer"
@@ -13,7 +15,7 @@
     Version="2.3.10.0" />
 
   <Properties>
-    <DisplayName>Zink - Music &amp; Video Player</DisplayName>
+    <DisplayName>Zink</DisplayName>
     <PublisherDisplayName>Francis Hayle</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
@@ -36,7 +38,7 @@
       EntryPoint="$targetentrypoint$">
 
       <uap:VisualElements
-        DisplayName="Zink Music &amp; Video Player"
+        DisplayName="Zink"
         Description="Zink - Your all-in-one media hub"
         BackgroundColor="transparent"
         Square150x150Logo="Assets\Square150x150Logo.png"
@@ -57,7 +59,7 @@
           EntryPoint="Windows.FullTrustApplication">
           <uap5:StartupTask
             TaskId="ZinkStartupTask"
-            Enabled="true"
+            Enabled="false"
             DisplayName="Zink" />
         </uap5:Extension>
       </Extensions>
@@ -67,8 +69,11 @@
 
   <Capabilities>
     <rescap:Capability Name="runFullTrust" />
+    <rescap:Capability Name="globalMediaControl" />
     <Capability Name="internetClient" />
     <uap3:Capability Name="backgroundMediaPlayback" />
+    <uap6:Capability Name="graphicsCapture" />
+    <uap11:Capability Name="graphicsCaptureWithoutBorder" />
     <DeviceCapability Name="microphone" />
   </Capabilities>
 </Package>

@@ -104,7 +104,7 @@ namespace Zink.Services.Recording
             await _manualRecordingService.StopAsync();
             ManualRecordingStateChanged?.Invoke(this, _manualRecordingService.IsManualRecording);
 
-            if (_captureItem is not null)
+            if (_captureItem is not null && RecordingPreferences.IsGamingBackgroundReplayEnabled)
             {
                 _manualRecordingService.SetCaptureItem(_captureItem, _options);
                 await _manualRecordingService.StartReplayAsync(_captureItem, _options);
@@ -119,12 +119,25 @@ namespace Zink.Services.Recording
             }
             else
             {
+                if (Microsoft.UI.Xaml.Application.Current is App app)
+                {
+                    app.NotifyReplayBufferStopped();
+                }
+
+                BackgroundRecordingStateChanged?.Invoke(this, false);
                 PublishStatus("Manual recording stopped.");
             }
         }
 
         public async Task StartBackgroundClippingAsync(bool includeSystemAudio, bool includeMicrophone, string? renderDeviceId, string? micDeviceId)
         {
+            if (!RecordingPreferences.IsGamingBackgroundReplayEnabled)
+            {
+                BackgroundRecordingStateChanged?.Invoke(this, false);
+                PublishStatus("Background replay for gaming is turned off in Settings.");
+                return;
+            }
+
             if (_captureItem is null)
             {
                 PublishStatus("Pick a display or window first.");

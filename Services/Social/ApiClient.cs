@@ -18,7 +18,7 @@ namespace Zink.Services.Social
         {
             _http = new HttpClient
             {
-                BaseAddress = new Uri("https://calls.zinkapp.net/"),
+                BaseAddress = new Uri("https://calls.zinkapp.net/"), // ✅ ONLY CHANGE
                 Timeout = TimeSpan.FromSeconds(30)
             };
 

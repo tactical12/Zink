@@ -29,7 +29,7 @@ using Zink.Services;
 
 namespace Zink
 {
-    public sealed class SecondsToTimeConverter : IValueConverter
+    public sealed partial class SecondsToTimeConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, string language)
         {

@@ -472,7 +472,9 @@ namespace Zink.Services.Recording
             }
             finally
             {
-                if (restartReplayAfterManual && replayOptionsToResume != null)
+                if (restartReplayAfterManual &&
+                    replayOptionsToResume != null &&
+                    RecordingPreferences.IsGamingBackgroundReplayEnabled)
                 {
                     try
                     {

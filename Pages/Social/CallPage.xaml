@@ -17,22 +17,24 @@
             </LinearGradientBrush>
         </Grid.Background>
 
-        <Grid Padding="24">
+        <Grid x:Name="CallLayoutRoot" Padding="24">
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="16"/>
+                <RowDefinition Height="0"/>
+                <RowDefinition Height="0"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="16"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
             <!-- Header -->
-            <Border Grid.Row="0"
-                    CornerRadius="28"
-                    Padding="22"
-                    Background="#1AFFFFFF"
-                    BorderBrush="#26FFFFFF"
-                    BorderThickness="1">
+            <Border x:Name="CallHeaderPanel"
+              Grid.Row="0"
+              Visibility="Collapsed"
+              CornerRadius="28"
+              Padding="22"
+              Background="#1AFFFFFF"
+              BorderBrush="#26FFFFFF"
+              BorderThickness="1">
                 <Grid ColumnSpacing="16">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
@@ -44,316 +46,559 @@
                         <Ellipse Fill="#23262B"/>
                         <Ellipse Stroke="#30FFFFFF" StrokeThickness="1"/>
                         <TextBlock x:Name="AvatarInitialText"
-                                   Text="V"
-                                   FontSize="34"
-                                   FontWeight="SemiBold"
-                                   Foreground="White"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"/>
+                       Text="V"
+                       FontSize="34"
+                       FontWeight="SemiBold"
+                       Foreground="White"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"/>
                     </Grid>
 
                     <StackPanel Grid.Column="1"
-                                VerticalAlignment="Center"
-                                Spacing="5">
+                      VerticalAlignment="Center"
+                      Spacing="5">
                         <TextBlock Text="Zink Call"
-                                   FontSize="36"
-                                   FontWeight="SemiBold"
-                                   Foreground="White"/>
+                       FontSize="36"
+                       FontWeight="SemiBold"
+                       Foreground="White"/>
                         <TextBlock x:Name="PeerText"
-                                   Text="Preparing call..."
-                                   FontSize="16"
-                                   Foreground="#D4D4D4"/>
+                       Text="Preparing call..."
+                       FontSize="16"
+                       Foreground="#D4D4D4"/>
                         <TextBlock x:Name="ModeText"
-                                   Text="Mode: Voice Call"
-                                   FontSize="14"
-                                   Foreground="#A8A8A8"/>
+                       Text="Mode: Voice Call"
+                       FontSize="14"
+                       Foreground="#A8A8A8"/>
                     </StackPanel>
 
                     <StackPanel Grid.Column="2"
-                                HorizontalAlignment="Right"
-                                VerticalAlignment="Center"
-                                Spacing="8">
+                      HorizontalAlignment="Right"
+                      VerticalAlignment="Center"
+                      Spacing="8">
                         <Border x:Name="ConnectionBadge"
-                                Background="#2D3138"
-                                CornerRadius="999"
-                                Padding="16,7">
+                    Background="#2D3138"
+                    CornerRadius="999"
+                    Padding="16,7">
                             <TextBlock x:Name="ConnectionBadgeText"
-                                       Text="Idle"
-                                       FontSize="13"
-                                       FontWeight="SemiBold"
-                                       Foreground="White"/>
+                         Text="Idle"
+                         FontSize="13"
+                         FontWeight="SemiBold"
+                         Foreground="White"/>
                         </Border>
 
                         <TextBlock x:Name="CallIdText"
-                                   Text="Call ID: -"
-                                   FontSize="12"
-                                   Foreground="#A8A8A8"
-                                   HorizontalAlignment="Right"/>
+                       Text="Call ID: -"
+                       FontSize="12"
+                       Foreground="#A8A8A8"
+                       HorizontalAlignment="Right"/>
                     </StackPanel>
                 </Grid>
             </Border>
 
             <!-- Main -->
-            <Grid Grid.Row="2" ColumnSpacing="18">
+            <Grid x:Name="CallMainContentGrid" Grid.Row="2" ColumnSpacing="18">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="330"/>
+                    <ColumnDefinition x:Name="CallStageColumn" Width="*"/>
+                    <ColumnDefinition x:Name="CallSideColumn" Width="330"/>
                 </Grid.ColumnDefinitions>
 
                 <!-- Stage -->
                 <Grid Grid.Column="0">
-                    <Border CornerRadius="30"
-                            Background="#12000000"
-                            BorderBrush="#26FFFFFF"
-                            BorderThickness="1">
+                    <Border x:Name="CallStageBorder"
+                  CornerRadius="30"
+                  Background="#12000000"
+                  BorderBrush="#26FFFFFF"
+                  BorderThickness="1">
                         <Grid>
-                            <Grid Margin="18,18,18,120">
+                            <Grid x:Name="CallMediaStage" Margin="18,18,18,120">
                                 <Border CornerRadius="28"
-                                        Background="#0D1015"
-                                        BorderBrush="#1FFFFFFF"
-                                        BorderThickness="1"/>
+                        Background="#0D1015"
+                        BorderBrush="#1FFFFFFF"
+                        BorderThickness="1"/>
 
-                                <StackPanel VerticalAlignment="Center"
-                                            HorizontalAlignment="Center"
-                                            Spacing="10">
+                                <Image x:Name="RemoteScreenImage"
+                       Margin="12"
+                       Stretch="Uniform"/>
+
+                                <MediaPlayerElement x:Name="RemoteScreenPlayer"
+                       Margin="12"
+                       Stretch="Uniform"
+                       AreTransportControlsEnabled="False"
+                       AutoPlay="True"
+                       Visibility="Collapsed"/>
+
+                                <StackPanel x:Name="RemotePlaceholderPanel"
+                            VerticalAlignment="Center"
+                            HorizontalAlignment="Center"
+                            Spacing="10">
                                     <Grid Width="124" Height="124">
                                         <Ellipse Fill="#25282D"/>
                                         <Ellipse Stroke="#30FFFFFF" StrokeThickness="1"/>
                                         <TextBlock Text="Remote"
-                                                   Foreground="White"
-                                                   FontSize="18"
-                                                   FontWeight="SemiBold"
-                                                   HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center"/>
+                               Foreground="White"
+                               FontSize="18"
+                               FontWeight="SemiBold"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"/>
                                     </Grid>
 
-                                    <TextBlock Text="Remote participant"
-                                               Foreground="White"
-                                               FontSize="20"
-                                               FontWeight="SemiBold"
-                                               HorizontalAlignment="Center"/>
+                                    <TextBlock x:Name="RemotePlaceholderTitleText"
+                             Text="Remote participant"
+                             Foreground="White"
+                             FontSize="20"
+                             FontWeight="SemiBold"
+                             HorizontalAlignment="Center"/>
 
-                                    <TextBlock Text="Remote media surface"
-                                               Foreground="#B8B8B8"
-                                               FontSize="13"
-                                               HorizontalAlignment="Center"/>
+                                    <TextBlock x:Name="RemotePlaceholderSubtitleText"
+                                     Text="Remote media surface"
+                             Foreground="#B8B8B8"
+                             FontSize="13"
+                             HorizontalAlignment="Center"/>
                                 </StackPanel>
 
-                                <Border HorizontalAlignment="Left"
-                                        VerticalAlignment="Top"
-                                        Margin="16"
-                                        Padding="12,6"
-                                        CornerRadius="999"
-                                        Background="#8C000000">
-                                    <TextBlock x:Name="MediaOverlayText"
-                                               Text="Ready"
-                                               Foreground="White"
-                                               FontSize="12"
-                                               FontWeight="SemiBold"/>
+                                <Border x:Name="RemoteScreenLoadingPanel"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        MinWidth="320"
+                        MaxWidth="460"
+                        Padding="26,24"
+                        CornerRadius="26"
+                        Background="#D4111318"
+                        BorderBrush="#36FFFFFF"
+                        BorderThickness="1"
+                        Visibility="Collapsed"
+                        Canvas.ZIndex="80">
+                                    <StackPanel Spacing="12"
+                                  HorizontalAlignment="Center">
+                                        <ProgressRing x:Name="RemoteScreenLoadingRing"
+                                      Width="42"
+                                      Height="42"
+                                      IsActive="False"
+                                      Foreground="#7ED7FF"/>
+                                        <TextBlock x:Name="RemoteScreenLoadingTitle"
+                                   Text="Screen share is loading"
+                                   Foreground="White"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   TextAlignment="Center"/>
+                                        <TextBlock x:Name="RemoteScreenLoadingSubtitle"
+                                   Text="Waiting for the live stream..."
+                                   Foreground="#C9CDD4"
+                                   FontSize="13"
+                                   TextWrapping="Wrap"
+                                   TextAlignment="Center"/>
+                                    </StackPanel>
                                 </Border>
 
-                                <Border Width="260"
-                                        Height="148"
-                                        HorizontalAlignment="Right"
-                                        VerticalAlignment="Bottom"
-                                        Margin="18"
-                                        CornerRadius="22"
-                                        Background="#C814161A"
-                                        BorderBrush="#30FFFFFF"
-                                        BorderThickness="1">
+                                <Border HorizontalAlignment="Left"
+                        VerticalAlignment="Top"
+                        Margin="16"
+                        Padding="12,6"
+                        CornerRadius="999"
+                        Background="#8C000000">
+                                    <TextBlock x:Name="MediaOverlayText"
+                             Text="Ready"
+                             Foreground="White"
+                             FontSize="12"
+                             FontWeight="SemiBold"/>
+                                </Border>
+
+                                <Button x:Name="StreamInformationButton"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Top"
+                        Margin="16"
+                        Height="44"
+                        Padding="14,0"
+                        CornerRadius="22"
+                        Click="StreamInformationButton_Click"
+                        Background="#B0111318"
+                        BorderBrush="#40FFFFFF"
+                        BorderThickness="1"
+                        ToolTipService.ToolTip="Stream information">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <FontIcon Glyph="&#xE946;"
+                                  FontSize="16"
+                                  Foreground="White"/>
+                                        <TextBlock Text="Stream information"
+                                   VerticalAlignment="Center"
+                                   FontSize="13"
+                                   FontWeight="SemiBold"
+                                   Foreground="White"/>
+                                    </StackPanel>
+                                </Button>
+
+                                <Border x:Name="LocalPreviewBorder"
+                        Width="240"
+                        Height="136"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Margin="18"
+                        CornerRadius="22"
+                        Background="#C814161A"
+                        BorderBrush="#30FFFFFF"
+                        BorderThickness="1">
                                     <Grid>
-                                        <TextBlock Text="Local preview"
-                                                   Margin="14,10,14,0"
-                                                   VerticalAlignment="Top"
-                                                   FontSize="13"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="White"/>
+                                        <Grid Margin="14,8,10,0"
+                              VerticalAlignment="Top">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Text="Local preview"
+                               Margin="14,10,14,0"
+                               VerticalAlignment="Top"
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               Foreground="White"/>
+                                            <Button x:Name="LocalPreviewHideButton"
+                                Grid.Column="1"
+                                Width="34"
+                                Height="28"
+                                Padding="0"
+                                CornerRadius="14"
+                                Click="LocalPreviewHideButton_Click"
+                                Background="#66111318"
+                                BorderBrush="#30FFFFFF"
+                                BorderThickness="1">
+                                                <FontIcon Glyph="&#xE8F5;"
+                                    FontSize="14"
+                                    Foreground="White"/>
+                                            </Button>
+                                        </Grid>
                                         <Grid Margin="12,36,12,12">
                                             <Rectangle RadiusX="18"
-                                                       RadiusY="18"
-                                                       Fill="#111317"/>
-                                            <TextBlock Text="Your preview"
-                                                       HorizontalAlignment="Center"
-                                                       VerticalAlignment="Center"
-                                                       Foreground="#B8B8B8"
-                                                       FontSize="12"/>
+                                 RadiusY="18"
+                                 Fill="#111317"/>
+                                            <Image x:Name="LocalPreviewImage"
+                                 Stretch="Uniform"/>
+                                            <TextBlock x:Name="LocalPreviewPlaceholder"
+                                 Text="Your preview"
+                                 HorizontalAlignment="Center"
+                                 VerticalAlignment="Center"
+                                 Foreground="#B8B8B8"
+                                 FontSize="12"/>
                                         </Grid>
                                     </Grid>
                                 </Border>
+
+                                <Border x:Name="FullscreenPointerSurface"
+                                        HorizontalAlignment="Stretch"
+                                        VerticalAlignment="Stretch"
+                                        Background="Transparent"
+                                        Visibility="Collapsed"
+                                        Canvas.ZIndex="150"/>
+
+                                <Button x:Name="FullscreenButton"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Margin="18"
+                        Width="48"
+                        Height="48"
+                        Padding="0"
+                        CornerRadius="24"
+                        Click="FullscreenButton_Click"
+                        Background="#D4111318"
+                        BorderBrush="#66FFFFFF"
+                        BorderThickness="1"
+                        Canvas.ZIndex="100"
+                        ToolTipService.ToolTip="Fullscreen screen share">
+                                    <FontIcon x:Name="FullscreenIcon"
+                                Glyph="&#xE740;"
+                                FontSize="20"
+                                Foreground="White"/>
+                                </Button>
                             </Grid>
 
-                            <!-- Control dock -->
-                            <Border HorizontalAlignment="Center"
+                            <Button x:Name="FullscreenExitButton"
+                                    HorizontalAlignment="Right"
                                     VerticalAlignment="Bottom"
-                                    Margin="0,0,0,18"
-                                    Padding="18,14"
-                                    CornerRadius="999"
+                                    Margin="18"
+                                    Width="52"
+                                    Height="52"
+                                    Padding="0"
+                                    CornerRadius="26"
+                                    Click="FullscreenButton_Click"
+                                    Visibility="Collapsed"
                                     Background="#D4111318"
-                                    BorderBrush="#30FFFFFF"
-                                    BorderThickness="1">
-                                <StackPanel Orientation="Horizontal" Spacing="18">
+                                    BorderBrush="#66FFFFFF"
+                                    BorderThickness="1"
+                                    Canvas.ZIndex="5000"
+                                    IsHitTestVisible="True"
+                                    ToolTipService.ToolTip="Exit fullscreen">
+                                <FontIcon Glyph="&#xE73F;"
+                                          FontSize="20"
+                                          Foreground="White"/>
+                            </Button>
 
-                                    <StackPanel Spacing="8" HorizontalAlignment="Center">
-                                        <Button x:Name="MicToggleButton"
-                                                Width="82"
-                                                Height="82"
-                                                CornerRadius="41"
-                                                Click="MicToggleButton_Click"
-                                                Background="#171A20"
-                                                BorderBrush="#2FFFFFFF"
-                                                BorderThickness="1">
-                                            <FontIcon Glyph="&#xE720;"
-                                                      FontSize="28"
-                                                      Foreground="White"/>
-                                        </Button>
-                                        <TextBlock Text="Mic"
-                                                   Foreground="White"
-                                                   FontSize="13"
-                                                   HorizontalAlignment="Center"/>
-                                    </StackPanel>
+                            <!-- Control dock -->
+                            <Border x:Name="CallControlDock"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Bottom"
+                      Margin="0,0,0,18"
+                      Padding="12,10,12,12"
+                      CornerRadius="34"
+                      Background="#D4111318"
+                      BorderBrush="#30FFFFFF"
+                      BorderThickness="1"
+                      MaxWidth="900"
+                      MinHeight="96">
+                                <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                              HorizontalScrollMode="Auto"
+                              VerticalScrollBarVisibility="Disabled"
+                              VerticalScrollMode="Disabled"
+                              VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
 
-                                    <StackPanel Spacing="8" HorizontalAlignment="Center">
+                                    <StackPanel Width="80" Spacing="6" HorizontalAlignment="Center">
                                         <Button x:Name="HeadphonesButton"
-                                                Width="82"
-                                                Height="82"
-                                                CornerRadius="41"
-                                                Click="HeadphonesButton_Click"
-                                                Background="#171A20"
-                                                BorderBrush="#2FFFFFFF"
-                                                BorderThickness="1">
+                            Width="56"
+                            Height="56"
+                            CornerRadius="28"
+                            Click="HeadphonesButton_Click"
+                            Background="#171A20"
+                            BorderBrush="#2FFFFFFF"
+                            BorderThickness="1">
                                             <FontIcon Glyph="&#xE7F6;"
-                                                      FontSize="28"
-                                                      Foreground="White"/>
+                                FontSize="24"
+                                Foreground="White"/>
                                         </Button>
                                         <TextBlock Text="Headphones"
-                                                   Foreground="White"
-                                                   FontSize="13"
-                                                   HorizontalAlignment="Center"/>
+                               Foreground="White"
+                               FontSize="11"
+                               TextTrimming="CharacterEllipsis"
+                               HorizontalAlignment="Center"/>
                                     </StackPanel>
 
-                                    <StackPanel Spacing="8" HorizontalAlignment="Center">
+                                    <StackPanel Width="80" Spacing="6" HorizontalAlignment="Center">
                                         <Button x:Name="MuteToggleButton"
-                                                Width="82"
-                                                Height="82"
-                                                CornerRadius="41"
-                                                Click="MuteToggleButton_Click"
-                                                Background="#171A20"
-                                                BorderBrush="#2FFFFFFF"
-                                                BorderThickness="1">
+                            Width="56"
+                            Height="56"
+                            CornerRadius="28"
+                            Click="MuteToggleButton_Click"
+                            Background="#171A20"
+                            BorderBrush="#2FFFFFFF"
+                            BorderThickness="1">
                                             <FontIcon x:Name="MuteIcon"
-                                                      Glyph="&#xE720;"
-                                                      FontSize="28"
-                                                      Foreground="White"/>
+                                Glyph="&#xE720;"
+                                FontSize="24"
+                                Foreground="White"/>
                                         </Button>
                                         <TextBlock Text="Mute"
-                                                   Foreground="White"
-                                                   FontSize="13"
-                                                   HorizontalAlignment="Center"/>
+                               Foreground="White"
+                               FontSize="11"
+                               TextTrimming="CharacterEllipsis"
+                               HorizontalAlignment="Center"/>
                                     </StackPanel>
 
-                                    <StackPanel Spacing="8" HorizontalAlignment="Center">
+                                    <StackPanel Width="80" Spacing="6" HorizontalAlignment="Center">
                                         <Button x:Name="DeafenToggleButton"
-                                                Width="82"
-                                                Height="82"
-                                                CornerRadius="41"
-                                                Click="DeafenToggleButton_Click"
-                                                Background="#171A20"
-                                                BorderBrush="#2FFFFFFF"
-                                                BorderThickness="1">
+                            Width="56"
+                            Height="56"
+                            CornerRadius="28"
+                            Click="DeafenToggleButton_Click"
+                            Background="#171A20"
+                            BorderBrush="#2FFFFFFF"
+                            BorderThickness="1">
                                             <FontIcon Glyph="&#xE7F5;"
-                                                      FontSize="28"
-                                                      Foreground="White"/>
+                                FontSize="24"
+                                Foreground="White"/>
                                         </Button>
                                         <TextBlock Text="Deafen"
-                                                   Foreground="White"
-                                                   FontSize="13"
-                                                   HorizontalAlignment="Center"/>
+                               Foreground="White"
+                               FontSize="11"
+                               TextTrimming="CharacterEllipsis"
+                               HorizontalAlignment="Center"/>
                                     </StackPanel>
 
-                                    <StackPanel Spacing="8" HorizontalAlignment="Center">
+                                    <StackPanel Width="80" Spacing="6" HorizontalAlignment="Center">
                                         <Button x:Name="ScreenShareToggleButton"
-                                                Width="82"
-                                                Height="82"
-                                                CornerRadius="41"
-                                                Click="ScreenShareToggleButton_Click"
-                                                Background="#171A20"
-                                                BorderBrush="#2FFFFFFF"
-                                                BorderThickness="1">
+                            Width="56"
+                            Height="56"
+                            CornerRadius="28"
+                            Click="ScreenShareToggleButton_Click"
+                            Background="#171A20"
+                            BorderBrush="#2FFFFFFF"
+                            BorderThickness="1">
                                             <FontIcon Glyph="&#xE714;"
-                                                      FontSize="28"
-                                                      Foreground="White"/>
+                                FontSize="24"
+                                Foreground="White"/>
                                         </Button>
                                         <TextBlock Text="Screen Share"
-                                                   Foreground="White"
-                                                   FontSize="13"
-                                                   HorizontalAlignment="Center"/>
+                               Foreground="White"
+                               FontSize="11"
+                               TextWrapping="Wrap"
+                               MaxLines="2"
+                               TextAlignment="Center"
+                               TextTrimming="CharacterEllipsis"
+                               HorizontalAlignment="Center"/>
                                     </StackPanel>
 
-                                    <StackPanel Spacing="8" HorizontalAlignment="Center">
+                                    <StackPanel Width="80" Spacing="6" HorizontalAlignment="Center">
+                                        <Button x:Name="ScreenShareQualityButton"
+                            Width="56"
+                            Height="56"
+                            CornerRadius="28"
+                            Click="ScreenShareQualityButton_Click"
+                            Background="#171A20"
+                            BorderBrush="#2FFFFFFF"
+                            BorderThickness="1">
+                                            <FontIcon Glyph="&#xE771;"
+                                FontSize="24"
+                                Foreground="White"/>
+                                        </Button>
+                                        <TextBlock x:Name="ScreenShareQualityLabel"
+                               Text="720p"
+                               Foreground="White"
+                               FontSize="11"
+                               TextTrimming="CharacterEllipsis"
+                               HorizontalAlignment="Center"/>
+                                    </StackPanel>
+
+                                    <StackPanel Width="80" Spacing="6" HorizontalAlignment="Center">
+                                        <Button x:Name="ScreenShareSoundButton"
+                            Width="56"
+                            Height="56"
+                            CornerRadius="28"
+                            Click="ScreenShareSoundButton_Click"
+                            Background="#171A20"
+                            BorderBrush="#2FFFFFFF"
+                            BorderThickness="1">
+                                            <FontIcon Glyph="&#xE767;"
+                                FontSize="24"
+                                Foreground="White"/>
+                                        </Button>
+                                        <TextBlock Text="Sound"
+                               Foreground="White"
+                               FontSize="11"
+                               TextTrimming="CharacterEllipsis"
+                               HorizontalAlignment="Center"/>
+                                    </StackPanel>
+
+                                    <StackPanel Width="80" Spacing="6" HorizontalAlignment="Center">
+                                        <Button x:Name="ScreenShareDetailsButton"
+                            Width="56"
+                            Height="56"
+                            CornerRadius="28"
+                            Click="ScreenShareDetailsButton_Click"
+                            Background="#171A20"
+                            BorderBrush="#2FFFFFFF"
+                            BorderThickness="1">
+                                            <FontIcon Glyph="&#xE946;"
+                                FontSize="24"
+                                Foreground="White"/>
+                                        </Button>
+                                        <TextBlock Text="Details"
+                               Foreground="White"
+                               FontSize="11"
+                               TextTrimming="CharacterEllipsis"
+                               HorizontalAlignment="Center"/>
+                                    </StackPanel>
+
+                                    <StackPanel x:Name="LocalPreviewRestorePanel" Width="80" Spacing="6" HorizontalAlignment="Center" Visibility="Collapsed">
+                                        <Button x:Name="LocalPreviewRestoreButton"
+                            Width="56"
+                            Height="56"
+                            CornerRadius="28"
+                            Click="LocalPreviewRestoreButton_Click"
+                            Background="#171A20"
+                            BorderBrush="#2FFFFFFF"
+                            BorderThickness="1">
+                                            <FontIcon Glyph="&#xE890;"
+                                FontSize="24"
+                                Foreground="White"/>
+                                        </Button>
+                                        <TextBlock Text="Preview"
+                               Foreground="White"
+                               FontSize="11"
+                               TextTrimming="CharacterEllipsis"
+                               HorizontalAlignment="Center"/>
+                                    </StackPanel>
+
+                                    <StackPanel Width="80" Spacing="6" HorizontalAlignment="Center">
                                         <Button x:Name="MoreButton"
-                                                Width="82"
-                                                Height="82"
-                                                CornerRadius="41"
-                                                Click="MoreButton_Click"
-                                                Background="#171A20"
-                                                BorderBrush="#2FFFFFFF"
-                                                BorderThickness="1">
+                            Width="56"
+                            Height="56"
+                            CornerRadius="28"
+                            Click="MoreButton_Click"
+                            Background="#171A20"
+                            BorderBrush="#2FFFFFFF"
+                            BorderThickness="1">
                                             <FontIcon Glyph="&#xE712;"
-                                                      FontSize="28"
-                                                      Foreground="White"/>
+                                FontSize="24"
+                                Foreground="White"/>
                                         </Button>
                                         <TextBlock Text="More"
-                                                   Foreground="White"
-                                                   FontSize="13"
-                                                   HorizontalAlignment="Center"/>
+                               Foreground="White"
+                               FontSize="11"
+                               TextTrimming="CharacterEllipsis"
+                               HorizontalAlignment="Center"/>
                                     </StackPanel>
 
-                                    <StackPanel Spacing="8" HorizontalAlignment="Center">
+                                    <StackPanel Width="80" Spacing="6" HorizontalAlignment="Center">
                                         <Button x:Name="EndButton"
-                                                Width="82"
-                                                Height="82"
-                                                CornerRadius="41"
-                                                Click="EndButton_Click"
-                                                Background="#F04F50"
-                                                BorderBrush="#00000000"
-                                                BorderThickness="0">
+                            Width="56"
+                            Height="56"
+                            CornerRadius="28"
+                            Click="EndButton_Click"
+                            Background="#F04F50"
+                            BorderBrush="#00000000"
+                            BorderThickness="0">
                                             <FontIcon Glyph="&#xE717;"
-                                                      FontSize="28"
-                                                      Foreground="White"/>
+                                FontSize="24"
+                                Foreground="White"/>
                                         </Button>
                                         <TextBlock Text="End Call"
-                                                   Foreground="White"
-                                                   FontSize="13"
-                                                   HorizontalAlignment="Center"/>
+                               Foreground="White"
+                               FontSize="11"
+                               TextTrimming="CharacterEllipsis"
+                               HorizontalAlignment="Center"/>
                                     </StackPanel>
-                                </StackPanel>
+                                    </StackPanel>
+                                </ScrollViewer>
                             </Border>
                         </Grid>
                     </Border>
                 </Grid>
 
                 <!-- Side panel -->
-                <StackPanel Grid.Column="1" Spacing="16">
+                <StackPanel x:Name="CallSidePanel" Grid.Column="1" Spacing="16">
                     <Border CornerRadius="28"
-                            Padding="18"
-                            Background="#1AFFFFFF"
-                            BorderBrush="#26FFFFFF"
-                            BorderThickness="1">
+                  Padding="18"
+                  Background="#1AFFFFFF"
+                  BorderBrush="#26FFFFFF"
+                  BorderThickness="1">
                         <StackPanel Spacing="12">
                             <TextBlock Text="Members"
-                                       FontSize="20"
-                                       FontWeight="SemiBold"
-                                       Foreground="White"/>
+                         FontSize="20"
+                         FontWeight="SemiBold"
+                         Foreground="White"/>
 
                             <TextBlock x:Name="MembersSummaryText"
-                                       Text="In call - 1"
-                                       FontSize="13"
-                                       Foreground="#A8A8A8"/>
+                         Text="In call - 1"
+                         FontSize="13"
+                         Foreground="#A8A8A8"/>
+
+                            <Button x:Name="AddFriendToCallButton"
+                      HorizontalAlignment="Stretch"
+                      Click="AddFriendToCallButton_Click"
+                      Background="#171A20"
+                      BorderBrush="#2FFFFFFF"
+                      BorderThickness="1"
+                      CornerRadius="14"
+                      Padding="12,8">
+                                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                                    <FontIcon Glyph="&#xE710;" FontSize="16" Foreground="White"/>
+                                    <TextBlock Text="Add Friend"
+                               Foreground="White"
+                               FontWeight="SemiBold"/>
+                                </StackPanel>
+                            </Button>
 
                             <Border x:Name="YouMemberCard"
-                                    CornerRadius="18"
-                                    Background="#12151A"
-                                    Padding="14">
+                      CornerRadius="18"
+                      Background="#12151A"
+                      Padding="14">
                                 <Grid ColumnSpacing="12">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="44"/>
@@ -364,41 +609,41 @@
                                     <Grid Width="44" Height="44">
                                         <Ellipse Fill="#23262B"/>
                                         <TextBlock Text="Y"
-                                                   Foreground="White"
-                                                   FontWeight="SemiBold"
-                                                   HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center"/>
+                               Foreground="White"
+                               FontWeight="SemiBold"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"/>
                                     </Grid>
 
                                     <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                                         <TextBlock Text="You"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="White"/>
+                               FontWeight="SemiBold"
+                               Foreground="White"/>
                                         <TextBlock x:Name="YouMemberStateText"
-                                                   Text="Ready"
-                                                   Foreground="#7EE787"
-                                                   FontSize="13"/>
+                               Text="Ready"
+                               Foreground="#7EE787"
+                               FontSize="13"/>
                                     </StackPanel>
 
                                     <Border x:Name="YouSpeakingBadge"
-                                            Grid.Column="2"
-                                            Padding="10,4"
-                                            CornerRadius="999"
-                                            Background="#2D3138"
-                                            VerticalAlignment="Center">
+                          Grid.Column="2"
+                          Padding="10,4"
+                          CornerRadius="999"
+                          Background="#2D3138"
+                          VerticalAlignment="Center">
                                         <TextBlock x:Name="YouSpeakingBadgeText"
-                                                   Text="Idle"
-                                                   Foreground="White"
-                                                   FontSize="12"
-                                                   FontWeight="SemiBold"/>
+                               Text="Idle"
+                               Foreground="White"
+                               FontSize="12"
+                               FontWeight="SemiBold"/>
                                     </Border>
                                 </Grid>
                             </Border>
 
                             <Border x:Name="RemoteMemberCard"
-                                    CornerRadius="18"
-                                    Background="#12151A"
-                                    Padding="14">
+                      CornerRadius="18"
+                      Background="#12151A"
+                      Padding="14">
                                 <Grid ColumnSpacing="12">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="44"/>
@@ -409,119 +654,90 @@
                                     <Grid Width="44" Height="44">
                                         <Ellipse Fill="#23262B"/>
                                         <TextBlock x:Name="RemoteAvatarText"
-                                                   Text="R"
-                                                   Foreground="White"
-                                                   FontWeight="SemiBold"
-                                                   HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center"/>
+                               Text="R"
+                               Foreground="White"
+                               FontWeight="SemiBold"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"/>
                                     </Grid>
 
                                     <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                                         <TextBlock x:Name="RemoteMemberTitleText"
-                                                   Text="Remote user"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="White"/>
+                               Text="Remote user"
+                               FontWeight="SemiBold"
+                               Foreground="White"/>
                                         <TextBlock x:Name="RemoteMemberStateText"
-                                                   Text="Waiting"
-                                                   Foreground="#A8A8A8"
-                                                   FontSize="13"/>
+                               Text="Waiting"
+                               Foreground="#A8A8A8"
+                               FontSize="13"/>
                                     </StackPanel>
 
                                     <Border x:Name="RemoteSpeakingBadge"
-                                            Grid.Column="2"
-                                            Padding="10,4"
-                                            CornerRadius="999"
-                                            Background="#2D3138"
-                                            VerticalAlignment="Center">
+                          Grid.Column="2"
+                          Padding="10,4"
+                          CornerRadius="999"
+                          Background="#2D3138"
+                          VerticalAlignment="Center">
                                         <TextBlock x:Name="RemoteSpeakingBadgeText"
-                                                   Text="Idle"
-                                                   Foreground="White"
-                                                   FontSize="12"
-                                                   FontWeight="SemiBold"/>
+                               Text="Idle"
+                               Foreground="White"
+                               FontSize="12"
+                               FontWeight="SemiBold"/>
                                     </Border>
                                 </Grid>
                             </Border>
 
+                            <StackPanel x:Name="AdditionalMembersPanel" Spacing="8"/>
+
                             <Border CornerRadius="18"
-                                    Background="#12151A"
-                                    Padding="14">
+                      Background="#12151A"
+                      Padding="14">
                                 <StackPanel Spacing="8">
-                                    <TextBlock Text="Session"
-                                               FontWeight="SemiBold"
-                                               Foreground="White"/>
                                     <TextBlock x:Name="CallTimerText"
-                                               Text="Duration: 00:00"
-                                               Foreground="#D0D0D0"/>
+                             Text="Duration: 00:00"
+                             Foreground="#D0D0D0"/>
                                     <TextBlock x:Name="TargetUserText"
-                                               Text="Target user: -"
-                                               Foreground="#D0D0D0"/>
+                             Text="Target user: -"
+                             Visibility="Collapsed"
+                             Foreground="#D0D0D0"/>
                                     <TextBlock x:Name="RemoteUserText"
-                                               Text="Remote user: -"
-                                               Foreground="#D0D0D0"/>
+                             Text="Remote user: -"
+                             Visibility="Collapsed"
+                             Foreground="#D0D0D0"/>
                                     <TextBlock x:Name="TokenStateText"
-                                               Text="Token: not loaded"
-                                               Foreground="#D0D0D0"/>
+                             Text="Token: not loaded"
+                             Visibility="Collapsed"
+                             Foreground="#D0D0D0"/>
                                     <TextBlock x:Name="RealtimeStateText"
-                                               Text="Realtime: disconnected"
-                                               Foreground="#D0D0D0"/>
+                             Text="Realtime: disconnected"
+                             Visibility="Collapsed"
+                             Foreground="#D0D0D0"/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
                     </Border>
 
-                    <Border CornerRadius="28"
-                            Padding="18"
-                            Background="#1AFFFFFF"
-                            BorderBrush="#26FFFFFF"
-                            BorderThickness="1">
-                        <StackPanel Spacing="12">
-                            <TextBlock Text="Actions"
-                                       FontSize="20"
-                                       FontWeight="SemiBold"
-                                       Foreground="White"/>
-
-                            <Button x:Name="StartButton"
-                                    Content="Start Call"
-                                    Height="42"
-                                    Click="StartButton_Click"/>
-
-                            <Button x:Name="AcceptButton"
-                                    Content="Accept"
-                                    Height="42"
-                                    IsEnabled="False"
-                                    Click="AcceptButton_Click"/>
-
-                            <Button x:Name="RejectButton"
-                                    Content="Decline"
-                                    Height="42"
-                                    IsEnabled="False"
-                                    Click="RejectButton_Click"/>
-
-                            <Button x:Name="BackButton"
-                                    Content="Back"
-                                    Height="42"
-                                    Click="BackButton_Click"/>
-                        </StackPanel>
-                    </Border>
                 </StackPanel>
             </Grid>
 
-            <Border Grid.Row="4"
-                    CornerRadius="24"
-                    Padding="16"
-                    Background="#1AFFFFFF"
-                    BorderBrush="#26FFFFFF"
-                    BorderThickness="1">
+            <Border x:Name="CallStatusPanel"
+              Grid.Row="4"
+              Visibility="Collapsed"
+              CornerRadius="24"
+              Padding="16"
+              Background="#1AFFFFFF"
+              BorderBrush="#26FFFFFF"
+              BorderThickness="1">
                 <StackPanel Spacing="6">
                     <TextBlock Text="Call status"
-                               FontSize="16"
-                               FontWeight="SemiBold"
-                               Foreground="White"/>
+                     FontSize="16"
+                     FontWeight="SemiBold"
+                     Foreground="White"/>
                     <TextBlock x:Name="StatusText"
-                               Text="Waiting..."
-                               TextWrapping="Wrap"
-                               FontSize="14"
-                               Foreground="#D0D0D0"/>
+                     Text="Waiting..."
+                     TextWrapping="Wrap"
+                     FontSize="14"
+                     Foreground="#D0D0D0"/>
                 </StackPanel>
             </Border>
         </Grid>
@@ -529,11 +745,11 @@
         <FlyoutBase.AttachedFlyout>
             <MenuFlyout x:Name="MoreFlyout">
                 <MenuFlyoutItem Text="Back"
-                                Click="MoreBack_Click"/>
+                        Click="MoreBack_Click"/>
                 <MenuFlyoutItem Text="Reconnect"
-                                Click="MoreReconnect_Click"/>
+                        Click="MoreReconnect_Click"/>
                 <MenuFlyoutItem Text="Reset call state"
-                                Click="MoreReset_Click"/>
+                        Click="MoreReset_Click"/>
             </MenuFlyout>
         </FlyoutBase.AttachedFlyout>
     </Grid>

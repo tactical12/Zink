@@ -3,7 +3,7 @@ using Microsoft.UI.Xaml.Data;
 
 namespace Zink.Converters
 {
-    public sealed class TimeSpanToClockTextConverter : IValueConverter
+    public sealed partial class TimeSpanToClockTextConverter : IValueConverter
     {
         // ConverterParameter "Live" => show "Live" for null.
         public object Convert(object value, Type targetType, object parameter, string language)

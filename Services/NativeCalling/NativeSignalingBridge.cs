@@ -8,9 +8,9 @@ namespace Zink.Services.NativeCalling
         public static NativeSignalingBridge Instance { get; } = new NativeSignalingBridge();
 
         public event EventHandler<IncomingCallEventArgs>? IncomingCallReceived;
-        public event EventHandler<(string CallId, long FromUserId)>? CallAnsweredReceived;
-        public event EventHandler<(string CallId, long FromUserId)>? CallRejectedReceived;
-        public event EventHandler<(string CallId, long FromUserId)>? CallEndedReceived;
+        public event EventHandler<CallSignalEventArgs>? CallAnsweredReceived;
+        public event EventHandler<CallSignalEventArgs>? CallRejectedReceived;
+        public event EventHandler<CallSignalEventArgs>? CallEndedReceived;
 
         private bool _isHooked;
 

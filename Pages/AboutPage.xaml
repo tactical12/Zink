@@ -3,90 +3,235 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:Zink.Pages"
-    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+    Background="Transparent">
 
-    <Grid Padding="40,30">
-        <StackPanel Spacing="20">
-            <TextBlock Text="About Zink" FontSize="28" FontWeight="Bold"/>
+    <Page.Resources>
+        <SolidColorBrush x:Key="GlassPanelBrush" Color="#B0141820"/>
+        <SolidColorBrush x:Key="GlassPanelStrongBrush" Color="#C2182530"/>
+        <SolidColorBrush x:Key="GlassTileBrush" Color="#8F101820"/>
+        <SolidColorBrush x:Key="GlassPanelBorderBrush" Color="#33FFFFFF"/>
+        <SolidColorBrush x:Key="MutedTextBrush" Color="#B7C8D2DC"/>
 
-            <!-- Version 2.4.1.0 Row (NEW) -->
-            <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                <TextBlock Text="Version 2.4.1.0" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                <Button x:Name="LearnMore241Button"
-                        Content="Learn More"
-                        Click="LearnMore241Button_Click"
-                        HorizontalAlignment="Left"
-                        VerticalAlignment="Center"/>
-            </StackPanel>
+        <Style x:Key="GlassPanelStyle" TargetType="Border">
+            <Setter Property="CornerRadius" Value="26"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="{StaticResource GlassPanelBorderBrush}"/>
+            <Setter Property="Background" Value="{StaticResource GlassPanelBrush}"/>
+        </Style>
 
-            <!-- Version 2.3.5.1 Row (NEW) -->
-            <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                <TextBlock Text="Version 2.3.5.0" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                <Button x:Name="LearnMore235Button"
-                        Content="Learn More"
-                        Click="LearnMore235Button_Click"
-                        HorizontalAlignment="Left"
-                        VerticalAlignment="Center"/>
-            </StackPanel>
+        <Style x:Key="VersionRowStyle" TargetType="Border">
+            <Setter Property="CornerRadius" Value="18"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#26FFFFFF"/>
+            <Setter Property="Background" Value="{StaticResource GlassTileBrush}"/>
+            <Setter Property="Padding" Value="14"/>
+        </Style>
 
-            <!-- Version 2.2.8 Row (NEW) -->
-            <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                <TextBlock Text="Version 2.2.8.0" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                <Button x:Name="LearnMore224Button"
-                        Content="Learn More"
-                        Click="LearnMore224Button_Click"
-                        HorizontalAlignment="Left"
-                        VerticalAlignment="Center"/>
-            </StackPanel>
+        <Style x:Key="GlassButtonStyle" TargetType="Button">
+            <Setter Property="MinHeight" Value="38"/>
+            <Setter Property="Padding" Value="14,0"/>
+            <Setter Property="CornerRadius" Value="19"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#30FFFFFF"/>
+            <Setter Property="Background" Value="#2DFFFFFF"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+    </Page.Resources>
 
-            <!-- Version 2.1.6 Row -->
-            <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                <TextBlock Text="Version 2.1.6.0" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                <Button x:Name="LearnMore216Button"
-                        Content="Learn More"
-                        Click="LearnMore216Button_Click"
-                        HorizontalAlignment="Left"
-                        VerticalAlignment="Center"/>
-            </StackPanel>
+    <Grid RequestedTheme="Dark">
+        <Grid.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#0D171F" Offset="0"/>
+                <GradientStop Color="#152635" Offset="0.52"/>
+                <GradientStop Color="#070A0F" Offset="1"/>
+            </LinearGradientBrush>
+        </Grid.Background>
 
-            <!-- Version 2.1.5 Row -->
-            <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                <TextBlock Text="Version 2.1.5.0" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                <Button x:Name="LearnMore21Button"
-                        Content="Learn More"
-                        Click="LearnMore21Button_Click"
-                        HorizontalAlignment="Left"
-                        VerticalAlignment="Center"/>
-            </StackPanel>
+        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <Grid Padding="32"
+                  RowSpacing="18">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
 
-            <!-- Version 2.0 Row -->
-            <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                <TextBlock Text="Version 2.0.0.0" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                <Button x:Name="LearnMore20Button"
-                        Content="Learn More"
-                        Click="LearnMore20Button_Click"
-                        HorizontalAlignment="Left"
-                        VerticalAlignment="Center"/>
-            </StackPanel>
+                <Border Style="{StaticResource GlassPanelStyle}"
+                        Padding="24">
+                    <Grid ColumnSpacing="22">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
 
-            <!-- Version 1.0 Row -->
-            <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                <TextBlock Text="Version 1.0.0.0" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                <Button x:Name="LearnMore10Button"
-                        Content="Learn More"
-                        Click="LearnMore10Button_Click"
-                        HorizontalAlignment="Left"
-                        VerticalAlignment="Center"/>
-            </StackPanel>
+                        <Border Width="104"
+                                Height="104"
+                                CornerRadius="24"
+                                Background="{StaticResource GlassPanelStrongBrush}"
+                                BorderBrush="#44FFFFFF"
+                                BorderThickness="1">
+                            <Image Source="ms-appx:///Assets/ZinkLogo.png"
+                                   Width="74"
+                                   Height="74"
+                                   Stretch="Uniform"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"/>
+                        </Border>
 
-            <!-- App info -->
-            <TextBlock x:Name="VersionText" FontSize="18"/>
-            <TextBlock x:Name="BuildTimeText" FontSize="18"/>
-            <TextBlock Text="Zink is a media, gaming, and social app platform."
-                       FontSize="16"
-                       TextWrapping="WrapWholeWords"/>
-            <TextBlock Text="The Zink app was made by Francis Hayle. Copyright 2026."
-                       FontSize="18"/>
-        </StackPanel>
+                        <StackPanel Grid.Column="1"
+                                    Spacing="8"
+                                    VerticalAlignment="Center">
+                            <TextBlock Text="About Zink"
+                                       FontSize="34"
+                                       FontWeight="SemiBold"
+                                       Foreground="White"/>
+                            <TextBlock Text="A media, gaming, and social app platform."
+                                       FontSize="16"
+                                       Foreground="{StaticResource MutedTextBrush}"
+                                       TextWrapping="WrapWholeWords"/>
+                            <TextBlock x:Name="VersionText"
+                                       FontSize="15"
+                                       Foreground="White"/>
+                            <TextBlock x:Name="BuildTimeText"
+                                       FontSize="13"
+                                       Foreground="{StaticResource MutedTextBrush}"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <Grid Grid.Row="1"
+                      ColumnSpacing="18">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="2*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border Style="{StaticResource GlassPanelStyle}"
+                            Padding="20">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="Version History"
+                                       FontSize="22"
+                                       FontWeight="SemiBold"
+                                       Foreground="White"/>
+
+                            <Border Style="{StaticResource VersionRowStyle}">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Version 2.4.1.0" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                    <Button x:Name="LearnMore241Button" Grid.Column="1" Style="{StaticResource GlassButtonStyle}" Content="Learn More" Click="LearnMore241Button_Click"/>
+                                </Grid>
+                            </Border>
+
+                            <Border Style="{StaticResource VersionRowStyle}">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Version 2.3.5.0" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                    <Button x:Name="LearnMore235Button" Grid.Column="1" Style="{StaticResource GlassButtonStyle}" Content="Learn More" Click="LearnMore235Button_Click"/>
+                                </Grid>
+                            </Border>
+
+                            <Border Style="{StaticResource VersionRowStyle}">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Version 2.2.8.0" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                    <Button x:Name="LearnMore224Button" Grid.Column="1" Style="{StaticResource GlassButtonStyle}" Content="Learn More" Click="LearnMore224Button_Click"/>
+                                </Grid>
+                            </Border>
+
+                            <Border Style="{StaticResource VersionRowStyle}">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Version 2.1.6.0" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                    <Button x:Name="LearnMore216Button" Grid.Column="1" Style="{StaticResource GlassButtonStyle}" Content="Learn More" Click="LearnMore216Button_Click"/>
+                                </Grid>
+                            </Border>
+
+                            <Border Style="{StaticResource VersionRowStyle}">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Version 2.1.5.0" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                    <Button x:Name="LearnMore21Button" Grid.Column="1" Style="{StaticResource GlassButtonStyle}" Content="Learn More" Click="LearnMore21Button_Click"/>
+                                </Grid>
+                            </Border>
+
+                            <Border Style="{StaticResource VersionRowStyle}">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Version 2.0.0.0" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                    <Button x:Name="LearnMore20Button" Grid.Column="1" Style="{StaticResource GlassButtonStyle}" Content="Learn More" Click="LearnMore20Button_Click"/>
+                                </Grid>
+                            </Border>
+
+                            <Border Style="{StaticResource VersionRowStyle}">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Version 1.0.0.0" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                    <Button x:Name="LearnMore10Button" Grid.Column="1" Style="{StaticResource GlassButtonStyle}" Content="Learn More" Click="LearnMore10Button_Click"/>
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Grid.Column="1"
+                            Style="{StaticResource GlassPanelStyle}"
+                            Padding="20">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="App"
+                                       FontSize="22"
+                                       FontWeight="SemiBold"
+                                       Foreground="White"/>
+                            <Border CornerRadius="18"
+                                    BorderBrush="#26FFFFFF"
+                                    BorderThickness="1"
+                                    Background="{StaticResource GlassTileBrush}"
+                                    Padding="16">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="Created by Francis Hayle"
+                                               Foreground="White"
+                                               FontWeight="SemiBold"/>
+                                    <TextBlock Text="Copyright 2026."
+                                               Foreground="{StaticResource MutedTextBrush}"/>
+                                </StackPanel>
+                            </Border>
+                            <Border CornerRadius="18"
+                                    BorderBrush="#26FFFFFF"
+                                    BorderThickness="1"
+                                    Background="{StaticResource GlassTileBrush}"
+                                    Padding="16">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="Zink"
+                                               Foreground="White"
+                                               FontWeight="SemiBold"/>
+                                    <TextBlock Text="Music, video, radio, social, and gaming tools in one place."
+                                               Foreground="{StaticResource MutedTextBrush}"
+                                               TextWrapping="WrapWholeWords"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Grid>
+        </ScrollViewer>
     </Grid>
 </Page>

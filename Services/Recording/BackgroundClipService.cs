@@ -33,6 +33,9 @@ namespace Zink.Services.Recording
 
         public async Task StartAsync()
         {
+            if (!RecordingPreferences.IsGamingBackgroundReplayEnabled)
+                throw new InvalidOperationException("Background replay for gaming is turned off in Settings.");
+
             if (_captureItem is null)
                 throw new InvalidOperationException("Choose a capture source first.");
 

@@ -1,75 +1,138 @@
-<Window 
+﻿<Window 
     x:Class="Zink.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:Zink"
     Title="Zink">
 
-    <Grid x:Name="RootGrid" Background="Transparent">
+    <Grid x:Name="RootGrid">
 
         <Grid.Resources>
+            <SolidColorBrush x:Key="ShellGlassBrush" Color="#AA111820"/>
+            <SolidColorBrush x:Key="ShellGlassBorderBrush" Color="#2FFFFFFF"/>
             <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="#00FFFFFF"/>
             <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="#00FFFFFF"/>
+            <SolidColorBrush x:Key="NavigationViewPaneBackground" Color="#00FFFFFF"/>
+            <SolidColorBrush x:Key="NavigationViewContentBackground" Color="#00FFFFFF"/>
+            <SolidColorBrush x:Key="NavigationViewPaneBorderBrush" Color="#00FFFFFF"/>
             <SolidColorBrush x:Key="NavigationViewTopPaneBackground" Color="Transparent"/>
 
             <SolidColorBrush x:Key="NavigationViewItemBackground" Color="Transparent"/>
             <SolidColorBrush x:Key="NavigationViewItemBackgroundPointerOver" Color="#20FFFFFF"/>
-            <SolidColorBrush x:Key="NavigationViewItemBackgroundSelected" Color="#40FFFFFF"/>
+            <SolidColorBrush x:Key="NavigationViewItemBackgroundSelected" Color="#36FFFFFF"/>
+            <SolidColorBrush x:Key="NavigationViewItemBackgroundPressed" Color="#2AFFFFFF"/>
+            <SolidColorBrush x:Key="NavigationViewItemForeground" Color="#EAF4FAFF"/>
+            <SolidColorBrush x:Key="NavigationViewItemForegroundPointerOver" Color="White"/>
+            <SolidColorBrush x:Key="NavigationViewItemForegroundSelected" Color="White"/>
+            <SolidColorBrush x:Key="NavigationViewItemIconForeground" Color="#EAF4FAFF"/>
+            <SolidColorBrush x:Key="NavigationViewItemIconForegroundPointerOver" Color="White"/>
+            <SolidColorBrush x:Key="NavigationViewItemIconForegroundSelected" Color="White"/>
+            <Style TargetType="FontIcon">
+                <Setter Property="Width" Value="24"/>
+                <Setter Property="Height" Value="24"/>
+                <Setter Property="FontSize" Value="20"/>
+                <Setter Property="Foreground" Value="#F2F9FDFF"/>
+                <Setter Property="HorizontalAlignment" Value="Center"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+            </Style>
+
+            <Style TargetType="BitmapIcon">
+                <Setter Property="Width" Value="26"/>
+                <Setter Property="Height" Value="26"/>
+                <Setter Property="HorizontalAlignment" Value="Center"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+            </Style>
         </Grid.Resources>
 
+        <Grid.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#0D171F" Offset="0"/>
+                <GradientStop Color="#142535" Offset="0.48"/>
+                <GradientStop Color="#070A0F" Offset="1"/>
+            </LinearGradientBrush>
+        </Grid.Background>
+
         <Grid.ColumnDefinitions>
-            <ColumnDefinition x:Name="SidebarColumn" Width="220"/>
+            <ColumnDefinition x:Name="SidebarColumn" Width="260"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
+        <Border x:Name="SidebarGlassHost"
+                Grid.Column="0"
+                Margin="12"
+                Padding="6"
+                CornerRadius="28"
+                Background="{StaticResource ShellGlassBrush}"
+                BorderBrush="{StaticResource ShellGlassBorderBrush}"
+                BorderThickness="1">
         <NavigationView
             x:Name="SidebarNav"
             x:FieldModifier="public"
-            Grid.Column="0"
             IsBackButtonVisible="Collapsed"
             IsPaneOpen="True"
+            IsPaneToggleButtonVisible="False"
             PaneDisplayMode="Left"
-            PaneTitle="Zink"
+            PaneTitle=""
+            OpenPaneLength="232"
+            CompactPaneLength="76"
+            Background="Transparent"
             IsSettingsVisible="False"
+            PaneOpening="SidebarNav_PaneOpening"
+            PaneOpened="SidebarNav_PaneOpened"
+            PaneClosing="SidebarNav_PaneClosing"
+            PaneClosed="SidebarNav_PaneClosed"
             SelectionChanged="SidebarNav_SelectionChanged">
+
+            <NavigationView.PaneHeader>
+                <Button x:Name="SidebarToggleButton"
+                        Click="SidebarToggleButton_Click"
+                        Background="Transparent"
+                        BorderBrush="Transparent"
+                        Width="56"
+                        Height="48"
+                        HorizontalAlignment="Left"
+                        Margin="4,6,0,10">
+                    <FontIcon Glyph="&#xE700;" FontFamily="Segoe Fluent Icons"/>
+                </Button>
+            </NavigationView.PaneHeader>
 
             <NavigationView.MenuItems>
 
                 <NavigationViewItem Content="Search" Tag="Search">
                     <NavigationViewItem.Icon>
-                        <SymbolIcon Symbol="Find"/>
+                        <FontIcon Glyph="&#xE71E;" FontFamily="Segoe Fluent Icons"/>
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
 
                 <NavigationViewItem Content="Home" Tag="Home">
                     <NavigationViewItem.Icon>
-                        <SymbolIcon Symbol="Home"/>
+                        <FontIcon Glyph="&#xE10F;" FontFamily="Segoe Fluent Icons"/>
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
 
                 <NavigationViewItem Content="Music" SelectsOnInvoked="False">
                     <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xE189;"/>
+                        <FontIcon Glyph="&#xE8D6;" FontFamily="Segoe Fluent Icons"/>
                     </NavigationViewItem.Icon>
 
                     <NavigationViewItem.MenuItems>
 
                         <NavigationViewItem Content="Music Player" SelectsOnInvoked="False">
                             <NavigationViewItem.Icon>
-                                <FontIcon Glyph="&#xE768;"/>
+                                <FontIcon Glyph="&#xE768;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
 
                             <NavigationViewItem.MenuItems>
 
                                 <NavigationViewItem Content="Zink Music" Tag="MusicPlayer">
                                     <NavigationViewItem.Icon>
-                                        <FontIcon Glyph="&#xE189;"/>
+                                        <FontIcon Glyph="&#xE189;" FontFamily="Segoe Fluent Icons"/>
                                     </NavigationViewItem.Icon>
                                 </NavigationViewItem>
 
                                 <NavigationViewItem Content="Music Library" Tag="MusicLibrary">
                                     <NavigationViewItem.Icon>
-                                        <FontIcon Glyph="&#xE8F1;"/>
+                                        <FontIcon Glyph="&#xE8F1;" FontFamily="Segoe Fluent Icons"/>
                                     </NavigationViewItem.Icon>
                                 </NavigationViewItem>
 
@@ -77,13 +140,13 @@
 
                                 <NavigationViewItem Content="Equalizer" Tag="Equalizer">
                                     <NavigationViewItem.Icon>
-                                        <FontIcon Glyph="&#xE993;"/>
+                                        <FontIcon Glyph="&#xE993;" FontFamily="Segoe Fluent Icons"/>
                                     </NavigationViewItem.Icon>
                                 </NavigationViewItem>
 
                                 <NavigationViewItem Content="Visualizer" Tag="Visualizer">
                                     <NavigationViewItem.Icon>
-                                        <FontIcon Glyph="&#xE9D9;"/>
+                                        <FontIcon Glyph="&#xE9D9;" FontFamily="Segoe Fluent Icons"/>
                                     </NavigationViewItem.Icon>
                                 </NavigationViewItem>
 
@@ -92,43 +155,43 @@
 
                         <NavigationViewItem Content="YouTube Music" Tag="YouTubeMusic">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="Play"/>
+                                <FontIcon Glyph="&#xE768;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="Amazon Music" Tag="AmazonMusic">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="Play"/>
+                                <FontIcon Glyph="&#xE768;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="Spotify" Tag="Spotify">
                             <NavigationViewItem.Icon>
-                                <FontIcon Glyph="&#x1F3B5;"/>
+                                <FontIcon Glyph="&#xE189;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="Spotify Widget" Tag="SpotifyWidget">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="World"/>
+                                <FontIcon Glyph="&#xE774;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="Radio" Tag="Radio">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="Audio"/>
+                                <FontIcon Glyph="&#xE189;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="Liked radio songs" Tag="LikedRadioSongs">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="Like"/>
+                                <FontIcon Glyph="&#xE8E1;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="Radio Widget" Tag="RadioWidget">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="World"/>
+                                <FontIcon Glyph="&#xE774;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
@@ -137,49 +200,43 @@
 
                 <NavigationViewItem Content="Video" SelectsOnInvoked="False">
                     <NavigationViewItem.Icon>
-                        <SymbolIcon Symbol="Video"/>
+                        <FontIcon Glyph="&#xE768;" FontFamily="Segoe Fluent Icons"/>
                     </NavigationViewItem.Icon>
 
                     <NavigationViewItem.MenuItems>
                         <NavigationViewItem Content="Video Player" Tag="VideoPlayer">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="Play"/>
+                                <FontIcon Glyph="&#xE768;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="Video Library" Tag="VideoLibrary">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="Library"/>
+                                <FontIcon Glyph="&#xE8F1;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="Screen Recorder" Tag="ScreenRecorder">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="Camera"/>
+                                <FontIcon Glyph="&#xE722;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
                     </NavigationViewItem.MenuItems>
                 </NavigationViewItem>
 
-                <NavigationViewItem Content="Photo Viewer" Tag="PhotoViewer">
-                    <NavigationViewItem.Icon>
-                        <SymbolIcon Symbol="Pictures"/>
-                    </NavigationViewItem.Icon>
-                </NavigationViewItem>
-
                 <NavigationViewItem Content="TV" SelectsOnInvoked="False">
                     <NavigationViewItem.Icon>
-                        <SymbolIcon Symbol="Video"/>
+                        <FontIcon Glyph="&#xE7F4;" FontFamily="Segoe Fluent Icons"/>
                     </NavigationViewItem.Icon>
                     <NavigationViewItem.MenuItems>
                         <NavigationViewItem Content="BBC iPlayer" Tag="BBCiPlayer">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="Video"/>
+                                <FontIcon Glyph="&#xE714;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
                         <NavigationViewItem Content="My5" Tag="My5">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="Video"/>
+                                <FontIcon Glyph="&#xE714;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
                     </NavigationViewItem.MenuItems>
@@ -187,7 +244,7 @@
 
                 <NavigationViewItem Content="Films" SelectsOnInvoked="False">
                     <NavigationViewItem.Icon>
-                        <SymbolIcon Symbol="Video"/>
+                        <FontIcon Glyph="&#xE8B2;" FontFamily="Segoe Fluent Icons"/>
                     </NavigationViewItem.Icon>
                     <NavigationViewItem.MenuItems>
 
@@ -201,25 +258,25 @@
 
                         <NavigationViewItem Content="Amazon Prime Video" Tag="PrimeVideo">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="Video"/>
+                                <FontIcon Glyph="&#xE714;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="Disney+" Tag="DisneyPlus">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="Video"/>
+                                <FontIcon Glyph="&#xE714;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="Paramount+" Tag="ParamountPlus">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="Video"/>
+                                <FontIcon Glyph="&#xE714;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="Now TV" Tag="NowTV">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="Video"/>
+                                <FontIcon Glyph="&#xE714;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
@@ -228,36 +285,42 @@
 
                 <NavigationViewItem Content="Gaming" SelectsOnInvoked="False">
                     <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xE7FC;"/>
+                        <FontIcon Glyph="&#xE7FC;" FontFamily="Segoe Fluent Icons"/>
                     </NavigationViewItem.Icon>
                     <NavigationViewItem.MenuItems>
                         <NavigationViewItem Content="Xbox" Tag="Xbox">
                             <NavigationViewItem.Icon>
-                                <FontIcon Glyph="&#xE7FC;"/>
+                                <FontIcon Glyph="&#xE7FC;" FontFamily="Segoe Fluent Icons"/>
+                            </NavigationViewItem.Icon>
+                        </NavigationViewItem>
+
+                        <NavigationViewItem Content="FPS Recorder" Tag="FpsRecorder">
+                            <NavigationViewItem.Icon>
+                                <FontIcon Glyph="&#xE9D9;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="GeForce NOW" Tag="GeForceNow">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="World"/>
+                                <FontIcon Glyph="&#xE774;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="Amazon Luna" Tag="AmazonLuna">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="World"/>
+                                <FontIcon Glyph="&#xE774;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="Boosteroid" Tag="Boosteroid">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="World"/>
+                                <FontIcon Glyph="&#xE774;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="Shadow PC" Tag="ShadowPC">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="World"/>
+                                <FontIcon Glyph="&#xE774;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
                     </NavigationViewItem.MenuItems>
@@ -265,43 +328,49 @@
 
                 <NavigationViewItem Content="Zink Social" SelectsOnInvoked="False">
                     <NavigationViewItem.Icon>
-                        <SymbolIcon Symbol="People"/>
+                        <FontIcon Glyph="&#xE125;" FontFamily="Segoe Fluent Icons"/>
                     </NavigationViewItem.Icon>
                     <NavigationViewItem.MenuItems>
 
                         <NavigationViewItem Content="Login" Tag="SocialLogin">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="ContactInfo"/>
+                                <FontIcon Glyph="&#xE946;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="Register" Tag="SocialRegister">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="AddFriend"/>
+                                <FontIcon Glyph="&#xE8FA;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="Friends" Tag="SocialFriends">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="People"/>
+                                <FontIcon Glyph="&#xE716;" FontFamily="Segoe Fluent Icons"/>
+                            </NavigationViewItem.Icon>
+                        </NavigationViewItem>
+
+                        <NavigationViewItem Content="Messages" Tag="SocialMessages">
+                            <NavigationViewItem.Icon>
+                                <FontIcon Glyph="&#xE8BD;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="Friend Requests" Tag="SocialFriendRequests">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="Mail"/>
+                                <FontIcon Glyph="&#xE715;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="Profile" Tag="SocialProfile">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="Contact"/>
+                                <FontIcon Glyph="&#xE77B;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="Call" Tag="SocialCall">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="Phone"/>
+                                <FontIcon Glyph="&#xE717;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
@@ -310,136 +379,130 @@
 
                 <NavigationViewItem Content="Social" SelectsOnInvoked="False">
                     <NavigationViewItem.Icon>
-                        <SymbolIcon Symbol="Contact"/>
+                        <FontIcon Glyph="&#xE716;" FontFamily="Segoe Fluent Icons"/>
                     </NavigationViewItem.Icon>
                     <NavigationViewItem.MenuItems>
 
                         <NavigationViewItem Content="Twitch" Tag="Twitch">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="Video"/>
+                                <FontIcon Glyph="&#xE714;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="Discord" Tag="Discord">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="Message"/>
+                                <FontIcon Glyph="&#xE8BD;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="YouTube" Tag="YouTube">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="World"/>
+                                <FontIcon Glyph="&#xE774;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="TikTok" Tag="TikTok">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="Video"/>
+                                <FontIcon Glyph="&#xE714;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="Instagram" Tag="Instagram">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="Camera"/>
+                                <FontIcon Glyph="&#xE722;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="X" Tag="X">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="World"/>
+                                <FontIcon Glyph="&#xE774;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="Facebook" Tag="Facebook">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="Contact"/>
+                                <FontIcon Glyph="&#xE77B;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="Telegram Web" Tag="Telegram">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="Message"/>
+                                <FontIcon Glyph="&#xE8BD;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="WhatsApp Web" Tag="WhatsApp">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="Message"/>
+                                <FontIcon Glyph="&#xE8BD;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="Messenger" Tag="Messenger">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="Message"/>
+                                <FontIcon Glyph="&#xE8BD;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="LinkedIn" Tag="LinkedIn">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="Contact"/>
+                                <FontIcon Glyph="&#xE77B;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="Threads" Tag="Threads">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="World"/>
+                                <FontIcon Glyph="&#xE774;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="Bluesky" Tag="Bluesky">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="World"/>
+                                <FontIcon Glyph="&#xE774;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="Mastodon" Tag="Mastodon">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="World"/>
+                                <FontIcon Glyph="&#xE774;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="Pinterest" Tag="Pinterest">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="World"/>
+                                <FontIcon Glyph="&#xE774;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="Tumblr" Tag="Tumblr">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="World"/>
+                                <FontIcon Glyph="&#xE774;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                         <NavigationViewItem Content="Reddit" Tag="Reddit">
                             <NavigationViewItem.Icon>
-                                <SymbolIcon Symbol="World"/>
+                                <FontIcon Glyph="&#xE774;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
                     </NavigationViewItem.MenuItems>
                 </NavigationViewItem>
 
-                <NavigationViewItem Content="Voice + 4K Share" Tag="nativevoiceshare">
-                    <NavigationViewItem.Icon>
-                        <SymbolIcon Symbol="Video"/>
-                    </NavigationViewItem.Icon>
-                </NavigationViewItem>
-
                 <NavigationViewItem Content="Notifications" Tag="Notifications">
                     <NavigationViewItem.Icon>
-                        <SymbolIcon Symbol="Message"/>
+                        <FontIcon Glyph="&#xEA8F;" FontFamily="Segoe Fluent Icons"/>
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
 
                 <NavigationViewItem Content="Feedback" Tag="Feedback">
                     <NavigationViewItem.Icon>
-                        <SymbolIcon Symbol="Emoji2"/>
+                        <FontIcon Glyph="&#xED15;" FontFamily="Segoe Fluent Icons"/>
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
 
                 <NavigationViewItem Content="Privacy Policy" Tag="PrivacyPolicy">
                     <NavigationViewItem.Icon>
-                        <SymbolIcon Symbol="ContactInfo"/>
+                        <FontIcon Glyph="&#xE72E;" FontFamily="Segoe Fluent Icons"/>
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
 
@@ -448,29 +511,30 @@
             <NavigationView.FooterMenuItems>
                 <NavigationViewItem Content="Leave a review" Tag="LeaveReview">
                     <NavigationViewItem.Icon>
-                        <SymbolIcon Symbol="Like"/>
+                        <FontIcon Glyph="&#xE734;" FontFamily="Segoe Fluent Icons"/>
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
 
                 <NavigationViewItem Content="App customisation" Tag="AppCustomization">
                     <NavigationViewItem.Icon>
-                        <SymbolIcon Symbol="Edit"/>
+                        <FontIcon Glyph="&#xE771;" FontFamily="Segoe Fluent Icons"/>
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
 
                 <NavigationViewItem Content="Settings" Tag="Settings">
                     <NavigationViewItem.Icon>
-                        <SymbolIcon Symbol="Setting"/>
+                        <FontIcon Glyph="&#xE713;" FontFamily="Segoe Fluent Icons"/>
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
 
                 <NavigationViewItem Content="About" Tag="About">
                     <NavigationViewItem.Icon>
-                        <SymbolIcon Symbol="Help"/>
+                        <FontIcon Glyph="&#xE897;" FontFamily="Segoe Fluent Icons"/>
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
             </NavigationView.FooterMenuItems>
         </NavigationView>
+        </Border>
 
         <Frame
             x:Name="ContentFrame"
@@ -479,3 +543,5 @@
             Background="Transparent"/>
     </Grid>
 </Window>
+
+

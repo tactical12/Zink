@@ -1,0 +1,274 @@
+<Page
+    x:Class="Zink.Pages.FpsRecorderPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="Transparent">
+
+    <Page.Resources>
+        <SolidColorBrush x:Key="FpsGlassBrush" Color="#AA0B1119"/>
+        <SolidColorBrush x:Key="FpsGlassStrongBrush" Color="#CC0E151E"/>
+        <SolidColorBrush x:Key="FpsBorderBrush" Color="#35FFFFFF"/>
+        <SolidColorBrush x:Key="FpsAccentBrush" Color="#51D6FF"/>
+
+        <Style x:Key="GlassPanelStyle" TargetType="Border">
+            <Setter Property="CornerRadius" Value="22"/>
+            <Setter Property="Padding" Value="20"/>
+            <Setter Property="Background" Value="{StaticResource FpsGlassBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource FpsBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+    </Page.Resources>
+
+    <Grid Padding="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Grid ColumnSpacing="16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Spacing="6">
+                <TextBlock Text="FPS Recorder"
+                           FontSize="32"
+                           FontWeight="SemiBold"/>
+                <TextBlock x:Name="TargetText"
+                           Text="No game selected"
+                           Opacity="0.72"
+                           TextTrimming="CharacterEllipsis"/>
+            </StackPanel>
+
+            <Border Grid.Column="1"
+                    MinWidth="168"
+                    Padding="16,10"
+                    CornerRadius="18"
+                    Background="{StaticResource FpsGlassStrongBrush}"
+                    BorderBrush="{StaticResource FpsBorderBrush}"
+                    BorderThickness="1">
+                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                    <FontIcon Glyph="&#xE7FC;" FontFamily="Segoe Fluent Icons" Foreground="{StaticResource FpsAccentBrush}"/>
+                    <StackPanel>
+                        <TextBlock x:Name="HeroFpsText"
+                                   Text="-- FPS"
+                                   FontSize="22"
+                                   FontWeight="SemiBold"/>
+                        <TextBlock x:Name="HeroStatusText"
+                                   Text="Idle"
+                                   FontSize="12"
+                                   Opacity="0.7"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <ScrollViewer Grid.Row="1"
+                      Margin="0,20,0,0"
+                      HorizontalScrollMode="Disabled"
+                      HorizontalScrollBarVisibility="Disabled">
+            <Grid ColumnSpacing="16" RowSpacing="16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="1.2*"/>
+                    <ColumnDefinition Width="0.8*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <Border Style="{StaticResource GlassPanelStyle}">
+                    <Grid RowSpacing="16">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel>
+                                <TextBlock Text="Live Monitor" FontSize="22" FontWeight="SemiBold"/>
+                                <TextBlock x:Name="DurationText" Text="00:00" Opacity="0.72"/>
+                            </StackPanel>
+
+                            <Button Grid.Column="1"
+                                    x:Name="PickGameButton"
+                                    Click="PickGameButton_Click"
+                                    MinWidth="118">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE8B7;" FontFamily="Segoe Fluent Icons"/>
+                                    <TextBlock Text="Pick"/>
+                                </StackPanel>
+                            </Button>
+
+                            <Button Grid.Column="2"
+                                    x:Name="StopButton"
+                                    Click="StopButton_Click"
+                                    MinWidth="104">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE71A;" FontFamily="Segoe Fluent Icons"/>
+                                    <TextBlock Text="Stop"/>
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+
+                        <Grid Grid.Row="1" ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Border CornerRadius="18" Padding="18" Background="#66070C12" BorderBrush="{StaticResource FpsBorderBrush}" BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="FPS" Opacity="0.68"/>
+                                    <TextBlock x:Name="CurrentFpsText" Text="--" FontSize="44" FontWeight="SemiBold"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="1" CornerRadius="18" Padding="18" Background="#66070C12" BorderBrush="{StaticResource FpsBorderBrush}" BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="1% low" Opacity="0.68"/>
+                                    <TextBlock x:Name="LowFpsText" Text="--" FontSize="32" FontWeight="SemiBold"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="2" CornerRadius="18" Padding="18" Background="#66070C12" BorderBrush="{StaticResource FpsBorderBrush}" BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="Frame time" Opacity="0.68"/>
+                                    <TextBlock x:Name="FrameTimeText" Text="-- ms" FontSize="32" FontWeight="SemiBold"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <Grid Grid.Row="2" ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Button x:Name="RecordButton"
+                                    Click="RecordButton_Click"
+                                    HorizontalAlignment="Stretch">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE7C8;" FontFamily="Segoe Fluent Icons"/>
+                                    <TextBlock x:Name="RecordButtonText" Text="Record FPS"/>
+                                </StackPanel>
+                            </Button>
+
+                            <Button Grid.Column="1"
+                                    x:Name="WidgetButton"
+                                    Click="WidgetButton_Click"
+                                    HorizontalAlignment="Stretch">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE9F9;" FontFamily="Segoe Fluent Icons"/>
+                                    <TextBlock x:Name="WidgetButtonText" Text="Pop out overlay"/>
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                    </Grid>
+                </Border>
+
+                <Border Grid.Column="1" Style="{StaticResource GlassPanelStyle}">
+                    <StackPanel Spacing="14">
+                        <TextBlock Text="Output" FontSize="22" FontWeight="SemiBold"/>
+
+                        <ComboBox x:Name="TargetFpsComboBox"
+                                  Header="Target FPS"
+                                  SelectedIndex="2"
+                                  SelectionChanged="Settings_Changed">
+                            <ComboBoxItem Content="30"/>
+                            <ComboBoxItem Content="45"/>
+                            <ComboBoxItem Content="60"/>
+                            <ComboBoxItem Content="90"/>
+                            <ComboBoxItem Content="120"/>
+                            <ComboBoxItem Content="144"/>
+                        </ComboBox>
+
+                        <Slider x:Name="SampleWindowSlider"
+                                Header="Sample window"
+                                Minimum="1"
+                                Maximum="10"
+                                Value="3"
+                                StepFrequency="1"
+                                ValueChanged="Settings_Changed"/>
+
+                        <ToggleSwitch x:Name="RecordCsvToggle"
+                                      Header="CSV recording"
+                                      IsOn="True"
+                                      Toggled="Settings_Changed"/>
+
+                        <TextBlock x:Name="RecordingPathText"
+                                   Text=""
+                                   Opacity="0.7"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Row="1" Style="{StaticResource GlassPanelStyle}">
+                    <StackPanel Spacing="14">
+                        <TextBlock Text="Popout Overlay" FontSize="22" FontWeight="SemiBold"/>
+
+                        <ToggleSwitch x:Name="ShowWidgetToggle"
+                                      Header="Open overlay with monitor"
+                                      IsOn="True"
+                                      Toggled="Settings_Changed"/>
+
+                        <Slider x:Name="WidgetOpacitySlider"
+                                Header="Glass opacity"
+                                Minimum="35"
+                                Maximum="100"
+                                Value="92"
+                                StepFrequency="1"
+                                ValueChanged="Settings_Changed"/>
+
+                        <Grid Height="88">
+                            <Border CornerRadius="22"
+                                    Padding="16,12"
+                                    Background="#CC091018"
+                                    BorderBrush="{StaticResource FpsBorderBrush}"
+                                    BorderThickness="1"
+                                    HorizontalAlignment="Left"
+                                    Width="220">
+                                <StackPanel>
+                                    <TextBlock Text="ZINK FPS" FontSize="12" Foreground="{StaticResource FpsAccentBrush}" FontWeight="SemiBold"/>
+                                    <StackPanel Orientation="Horizontal" Spacing="10">
+                                        <TextBlock x:Name="PreviewFpsText" Text="--" FontSize="34" FontWeight="SemiBold"/>
+                                        <TextBlock x:Name="PreviewDetailText" Text="FPS" FontSize="13" Opacity="0.78" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource GlassPanelStyle}">
+                    <StackPanel Spacing="14">
+                        <TextBlock Text="Capture" FontSize="22" FontWeight="SemiBold"/>
+
+                        <ToggleSwitch x:Name="IncludeCursorToggle"
+                                      Header="Cursor"
+                                      IsOn="False"
+                                      Toggled="Settings_Changed"/>
+
+                        <ToggleSwitch x:Name="HideBorderToggle"
+                                      Header="Hide capture border"
+                                      IsOn="True"
+                                      Toggled="Settings_Changed"/>
+
+                        <TextBlock x:Name="AverageText" Text="Average: --" Opacity="0.82"/>
+                        <TextBlock x:Name="PointOneLowText" Text="0.1% low: --" Opacity="0.82"/>
+                        <TextBlock x:Name="FrameCountText" Text="Frames: 0" Opacity="0.82"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </ScrollViewer>
+    </Grid>
+</Page>

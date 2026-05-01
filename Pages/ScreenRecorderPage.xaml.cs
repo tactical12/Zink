@@ -28,6 +28,7 @@ namespace Zink.Pages
             TargetText.Text = _manager.LastCaptureTargetText;
             ManualStateText.Text = $"Manual recording: {(_manager.IsManualRecording ? "Running" : "Stopped")}";
             BackgroundStateText.Text = $"Background clipping: {(_manager.IsBackgroundClipping ? "Running" : "Stopped")}";
+            UpdateBackgroundReplayControls();
 
             var renderDevices = await AudioDeviceService.GetRenderDevicesAsync();
             RenderDevicesComboBox.ItemsSource = renderDevices;
@@ -72,6 +73,13 @@ namespace Zink.Pages
 
         private async void StartBackgroundButton_Click(object sender, RoutedEventArgs e)
         {
+            if (!RecordingPreferences.IsGamingBackgroundReplayEnabled)
+            {
+                StatusText.Text = "Background replay for gaming is turned off in Settings.";
+                UpdateBackgroundReplayControls();
+                return;
+            }
+
             await _manager.StartBackgroundClippingAsync(
                 IncludeSystemAudioToggle.IsOn,
                 IncludeMicrophoneToggle.IsOn,
@@ -86,6 +94,13 @@ namespace Zink.Pages
 
         private async void SaveLast45SecondsButton_Click(object sender, RoutedEventArgs e)
         {
+            if (!RecordingPreferences.IsGamingBackgroundReplayEnabled)
+            {
+                StatusText.Text = "Background replay for gaming is turned off in Settings.";
+                UpdateBackgroundReplayControls();
+                return;
+            }
+
             await _manager.SaveLast45SecondsAsync();
         }
 
@@ -123,7 +138,20 @@ namespace Zink.Pages
             await DispatcherQueue.EnqueueAsync(() =>
             {
                 BackgroundStateText.Text = $"Background clipping: {(isRunning ? "Running" : "Stopped")}";
+                UpdateBackgroundReplayControls();
             });
+        }
+
+        private void UpdateBackgroundReplayControls()
+        {
+            bool replayEnabled = RecordingPreferences.IsGamingBackgroundReplayEnabled;
+            StartBackgroundButton.IsEnabled = replayEnabled;
+            SaveLast45SecondsButton.IsEnabled = replayEnabled;
+
+            if (!replayEnabled)
+            {
+                BackgroundStateText.Text = "Background clipping: Off in Settings";
+            }
         }
     }
 }

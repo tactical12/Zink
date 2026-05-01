@@ -17,8 +17,10 @@ namespace Zink.Services.NativeCalling
 
         private int _sentAudioChunks;
         private int _receivedAudioChunks;
-        private bool _reportedSending;
-        private bool _reportedReceiving;
+        private int _rawIncomingAudioMessages;
+        private bool _audioStarted;
+        private bool _localAudioMuted;
+        private bool _remoteAudioDeafened;
 
         private NativeCallCoordinator()
         {
@@ -34,8 +36,10 @@ namespace Zink.Services.NativeCalling
 
             _sentAudioChunks = 0;
             _receivedAudioChunks = 0;
-            _reportedSending = false;
-            _reportedReceiving = false;
+            _rawIncomingAudioMessages = 0;
+            _audioStarted = false;
+            _localAudioMuted = false;
+            _remoteAudioDeafened = false;
 
             CurrentSession.CallId = "";
             CurrentSession.TargetUserId = 0;
@@ -64,8 +68,10 @@ namespace Zink.Services.NativeCalling
         {
             _sentAudioChunks = 0;
             _receivedAudioChunks = 0;
-            _reportedSending = false;
-            _reportedReceiving = false;
+            _rawIncomingAudioMessages = 0;
+            _audioStarted = false;
+            _localAudioMuted = false;
+            _remoteAudioDeafened = false;
 
             CurrentSession.CallId = callId;
             CurrentSession.TargetUserId = targetUserId;
@@ -83,8 +89,10 @@ namespace Zink.Services.NativeCalling
         {
             _sentAudioChunks = 0;
             _receivedAudioChunks = 0;
-            _reportedSending = false;
-            _reportedReceiving = false;
+            _rawIncomingAudioMessages = 0;
+            _audioStarted = false;
+            _localAudioMuted = false;
+            _remoteAudioDeafened = false;
 
             CurrentSession.CallId = callId;
             CurrentSession.TargetUserId = fromUserId;
@@ -105,6 +113,7 @@ namespace Zink.Services.NativeCalling
             var callId = Guid.NewGuid().ToString();
 
             await SocialManager.Instance.Realtime.CallUserAsync(targetUserId, callId);
+            Zink.Services.IncomingCallRingtoneService.TryStart();
 
             CallLaunchState.SetOutgoing(callId, targetUserId, isScreenShare);
             SetOutgoing(callId, targetUserId, isScreenShare);
@@ -114,6 +123,7 @@ namespace Zink.Services.NativeCalling
         {
             EnsureRealtimeHooks();
 
+            Zink.Services.IncomingCallRingtoneService.TryStop();
             await SocialManager.Instance.Realtime.AcceptCallAsync(remoteUserId, callId);
 
             CurrentSession.CallId = callId;
@@ -131,6 +141,7 @@ namespace Zink.Services.NativeCalling
 
         public async Task RejectIncomingAsync(long remoteUserId, string callId)
         {
+            Zink.Services.IncomingCallRingtoneService.TryStop();
             await SocialManager.Instance.Realtime.RejectCallAsync(remoteUserId, callId);
 
             CurrentSession.CallId = callId;
@@ -142,27 +153,31 @@ namespace Zink.Services.NativeCalling
             RaiseChanged();
         }
 
-        public async Task OnCallAnsweredAsync(string callId, long fromUserId)
+        public async Task OnCallAnsweredAsync(string callId, long fromUserId, string? displayName = null)
         {
             EnsureRealtimeHooks();
+            Zink.Services.IncomingCallRingtoneService.TryStop();
 
+            var peerName = FormatPeerDisplayName(fromUserId, displayName);
             CurrentSession.CallId = callId;
             CurrentSession.RemoteUserId = fromUserId;
             CurrentSession.TargetUserId = fromUserId;
             CurrentSession.State = NativeCallState.Connected;
             CurrentSession.StatusText = "Connected.";
-            CurrentSession.PeerText = $"Connected with user {fromUserId}";
+            CurrentSession.PeerText = $"Connected with {peerName}";
 
             RaiseChanged();
 
             await TryStartLocalAudioAsync();
         }
 
-        public async Task EndAsync()
+        public async Task EndAsync(string reason = "left-call")
         {
+            Zink.Services.IncomingCallRingtoneService.TryStop();
+
             if (CurrentSession.RemoteUserId > 0 && !string.IsNullOrWhiteSpace(CurrentSession.CallId))
             {
-                await SocialManager.Instance.Realtime.EndCallAsync(CurrentSession.RemoteUserId, CurrentSession.CallId);
+                await SocialManager.Instance.Realtime.EndCallAsync(CurrentSession.RemoteUserId, CurrentSession.CallId, reason);
             }
 
             UnhookAudioCapture();
@@ -172,13 +187,36 @@ namespace Zink.Services.NativeCalling
 
             _sentAudioChunks = 0;
             _receivedAudioChunks = 0;
-            _reportedSending = false;
-            _reportedReceiving = false;
+            _rawIncomingAudioMessages = 0;
+            _audioStarted = false;
+            _localAudioMuted = false;
+            _remoteAudioDeafened = false;
 
             CurrentSession.State = NativeCallState.Ended;
             CurrentSession.StatusText = "Call ended.";
+            CurrentSession.PeerText = "You left the call.";
+            CurrentSession.IsScreenShare = false;
 
             RaiseChanged();
+        }
+
+        public void SetLocalAudioMuted(bool muted)
+        {
+            _localAudioMuted = muted;
+
+            if (muted)
+                AudioActivityService.Instance.UpdateLocalLevel(0);
+        }
+
+        public void SetRemoteAudioDeafened(bool deafened)
+        {
+            _remoteAudioDeafened = deafened;
+
+            if (deafened)
+            {
+                AudioPlaybackService.Instance.Stop();
+                AudioActivityService.Instance.UpdateRemoteLevel(0);
+            }
         }
 
         private void EnsureRealtimeHooks()
@@ -189,32 +227,40 @@ namespace Zink.Services.NativeCalling
             _realtimeHooked = true;
 
             SocialManager.Instance.Realtime.AudioChunkReceived += Realtime_AudioChunkReceived;
+            SocialManager.Instance.Realtime.RawIncomingAudioMessageCountChanged += Realtime_RawIncomingAudioMessageCountChanged;
             SocialManager.Instance.Realtime.CallAnswered += Realtime_CallAnswered;
             SocialManager.Instance.Realtime.CallEnded += Realtime_CallEnded;
             SocialManager.Instance.Realtime.CallRejected += Realtime_CallRejected;
         }
 
-        private async void Realtime_CallAnswered(object? sender, (string CallId, long FromUserId) e)
+        private void Realtime_RawIncomingAudioMessageCountChanged(object? sender, int e)
+        {
+            _rawIncomingAudioMessages = e;
+            UpdateAudioFlowStatus();
+        }
+
+        private async void Realtime_CallAnswered(object? sender, CallSignalEventArgs e)
         {
             try
             {
                 if (!string.IsNullOrWhiteSpace(CurrentSession.CallId) && e.CallId != CurrentSession.CallId)
                     return;
 
-                await OnCallAnsweredAsync(e.CallId, e.FromUserId);
+                await OnCallAnsweredAsync(e.CallId, e.FromUserId, GetSignalDisplayName(e));
             }
             catch
             {
             }
         }
 
-        private async void Realtime_CallEnded(object? sender, (string CallId, long FromUserId) e)
+        private async void Realtime_CallEnded(object? sender, CallSignalEventArgs e)
         {
             try
             {
                 if (!string.IsNullOrWhiteSpace(CurrentSession.CallId) && e.CallId != CurrentSession.CallId)
                     return;
 
+                Zink.Services.IncomingCallRingtoneService.TryStop();
                 UnhookAudioCapture();
                 AudioActivityService.Instance.Reset();
                 AudioPlaybackService.Instance.Stop();
@@ -222,12 +268,20 @@ namespace Zink.Services.NativeCalling
 
                 _sentAudioChunks = 0;
                 _receivedAudioChunks = 0;
-                _reportedSending = false;
-                _reportedReceiving = false;
+                _rawIncomingAudioMessages = 0;
+                _audioStarted = false;
+                _localAudioMuted = false;
+                _remoteAudioDeafened = false;
 
+                var peerName = FormatPeerDisplayName(e.FromUserId, GetSignalDisplayName(e));
+                var closedApp = IsClosedAppReason(e.Reason);
                 CurrentSession.State = NativeCallState.Ended;
-                CurrentSession.StatusText = "Call ended by remote user.";
-                CurrentSession.PeerText = $"Call with user {e.FromUserId} ended";
+                CurrentSession.StatusText = closedApp
+                    ? $"{peerName} closed the app."
+                    : $"{peerName} left the call.";
+                CurrentSession.PeerText = closedApp
+                    ? $"{peerName} closed the app and left the call"
+                    : $"{peerName} left the call";
 
                 RaiseChanged();
             }
@@ -236,13 +290,14 @@ namespace Zink.Services.NativeCalling
             }
         }
 
-        private async void Realtime_CallRejected(object? sender, (string CallId, long FromUserId) e)
+        private async void Realtime_CallRejected(object? sender, CallSignalEventArgs e)
         {
             try
             {
                 if (!string.IsNullOrWhiteSpace(CurrentSession.CallId) && e.CallId != CurrentSession.CallId)
                     return;
 
+                Zink.Services.IncomingCallRingtoneService.TryStop();
                 UnhookAudioCapture();
                 AudioActivityService.Instance.Reset();
                 AudioPlaybackService.Instance.Stop();
@@ -250,53 +305,73 @@ namespace Zink.Services.NativeCalling
 
                 _sentAudioChunks = 0;
                 _receivedAudioChunks = 0;
-                _reportedSending = false;
-                _reportedReceiving = false;
+                _rawIncomingAudioMessages = 0;
+                _audioStarted = false;
+                _localAudioMuted = false;
+                _remoteAudioDeafened = false;
 
+                var peerName = FormatPeerDisplayName(e.FromUserId, GetSignalDisplayName(e));
                 CurrentSession.State = NativeCallState.Rejected;
-                CurrentSession.StatusText = "Call rejected.";
-                CurrentSession.PeerText = $"User {e.FromUserId} rejected the call";
+                CurrentSession.StatusText = $"{peerName} rejected the call.";
+                CurrentSession.PeerText = $"{peerName} rejected the call";
 
                 RaiseChanged();
             }
             catch
             {
             }
+        }
+
+        private static string GetSignalDisplayName(CallSignalEventArgs e)
+        {
+            if (!string.IsNullOrWhiteSpace(e.FromDisplayName))
+                return e.FromDisplayName;
+
+            return e.FromUsername;
+        }
+
+        private static string FormatPeerDisplayName(long userId, string? displayName)
+        {
+            if (!string.IsNullOrWhiteSpace(displayName))
+                return displayName.Trim();
+
+            return userId > 0 ? $"User {userId}" : "Remote user";
+        }
+
+        private static bool IsClosedAppReason(string? reason)
+        {
+            return string.Equals(reason, "closed-app", StringComparison.OrdinalIgnoreCase);
         }
 
         private void Realtime_AudioChunkReceived(object? sender, AudioChunkEventArgs e)
         {
             try
             {
+                if (_remoteAudioDeafened)
+                {
+                    AudioActivityService.Instance.UpdateRemoteLevel(0);
+                    return;
+                }
+
                 if (string.IsNullOrWhiteSpace(CurrentSession.CallId))
                     return;
 
                 if (e.CallId != CurrentSession.CallId)
                     return;
 
-                if (CurrentSession.RemoteUserId > 0 && e.FromUserId != CurrentSession.RemoteUserId)
-                    return;
+                if (CurrentSession.RemoteUserId <= 0 || CurrentSession.RemoteUserId != e.FromUserId)
+                {
+                    CurrentSession.RemoteUserId = e.FromUserId;
+
+                    if (CurrentSession.TargetUserId <= 0)
+                        CurrentSession.TargetUserId = e.FromUserId;
+                }
 
                 AudioPlaybackService.Instance.Start();
                 AudioPlaybackService.Instance.Play(e.AudioData);
 
                 _receivedAudioChunks++;
-
-                if (!_reportedReceiving)
-                {
-                    _reportedReceiving = true;
-                    SetStatus(
-                        CurrentSession.State,
-                        $"Connected. Receiving remote audio... chunks={_receivedAudioChunks}",
-                        CurrentSession.PeerText);
-                }
-                else if (_receivedAudioChunks % 50 == 0)
-                {
-                    SetStatus(
-                        CurrentSession.State,
-                        $"Connected. Receiving remote audio... chunks={_receivedAudioChunks}",
-                        CurrentSession.PeerText);
-                }
+                UpdateAudioFlowStatus();
             }
             catch (Exception ex)
             {
@@ -312,7 +387,8 @@ namespace Zink.Services.NativeCalling
             try
             {
                 await StartLocalAudioAsync();
-                SetStatus(CurrentSession.State, "Connected. Audio started.", CurrentSession.PeerText);
+                _audioStarted = true;
+                UpdateAudioFlowStatus();
             }
             catch (Exception ex)
             {
@@ -354,6 +430,9 @@ namespace Zink.Services.NativeCalling
         {
             try
             {
+                if (_localAudioMuted)
+                    return;
+
                 if (CurrentSession.State != NativeCallState.Connected)
                     return;
 
@@ -369,22 +448,7 @@ namespace Zink.Services.NativeCalling
                     data);
 
                 _sentAudioChunks++;
-
-                if (!_reportedSending)
-                {
-                    _reportedSending = true;
-                    SetStatus(
-                        CurrentSession.State,
-                        $"Connected. Sending microphone audio... chunks={_sentAudioChunks}",
-                        CurrentSession.PeerText);
-                }
-                else if (_sentAudioChunks % 50 == 0)
-                {
-                    SetStatus(
-                        CurrentSession.State,
-                        $"Connected. Sending microphone audio... chunks={_sentAudioChunks}",
-                        CurrentSession.PeerText);
-                }
+                UpdateAudioFlowStatus();
             }
             catch (Exception ex)
             {
@@ -393,6 +457,21 @@ namespace Zink.Services.NativeCalling
                     $"Connected, but sending microphone audio failed: {ex.Message}",
                     CurrentSession.PeerText);
             }
+        }
+
+        private void UpdateAudioFlowStatus()
+        {
+            if (CurrentSession.State != NativeCallState.Connected)
+                return;
+
+            var peerText = CurrentSession.RemoteUserId > 0
+                ? $"Connected with user {CurrentSession.RemoteUserId}"
+                : CurrentSession.PeerText;
+
+            var audioState = _audioStarted ? "started" : "starting";
+            var status = $"Connected. Audio {audioState}. sent={_sentAudioChunks}, raw-in={_rawIncomingAudioMessages}, received={_receivedAudioChunks}";
+
+            SetStatus(CurrentSession.State, status, peerText);
         }
 
         private void RaiseChanged()

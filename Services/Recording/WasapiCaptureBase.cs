@@ -19,6 +19,7 @@ namespace Zink.Services.Recording
         private IAudioCaptureClient? _captureClient;
 
         private WAVEFORMATEX _waveFormat;
+        private bool _isFloatFormat;
         private bool _initialized;
         private DateTime _captureStartUtc;
         private long _packetCount;
@@ -68,7 +69,7 @@ namespace Zink.Services.Recording
                 }
 
                 await RecorderLog.InfoAsync(GetType().Name,
-                    $"Audio capture started. Format: {_waveFormat.nSamplesPerSec} Hz, {_waveFormat.nChannels} ch, {_waveFormat.wBitsPerSample} bit, blockAlign={_waveFormat.nBlockAlign}");
+                    $"Audio capture started. Format: {_waveFormat.nSamplesPerSec} Hz, {_waveFormat.nChannels} ch, {_waveFormat.wBitsPerSample} bit, blockAlign={_waveFormat.nBlockAlign}, formatTag=0x{_waveFormat.wFormatTag:X4}, float={_isFloatFormat}, avgBytes={_waveFormat.nAvgBytesPerSec}");
             }
             catch (Exception ex)
             {
@@ -159,6 +160,7 @@ namespace Zink.Services.Recording
                     "IAudioClient.GetMixFormat");
 
                 _waveFormat = Marshal.PtrToStructure<WAVEFORMATEX>(mixFormatPtr);
+                _isFloatFormat = IsFloatWaveFormat(mixFormatPtr, _waveFormat);
 
                 var flags =
                     AUDCLNT_STREAMFLAGS.AUTOCONVERTPCM |
@@ -319,7 +321,9 @@ namespace Zink.Services.Recording
                             PcmData = pcm,
                             SampleRate = (int)_waveFormat.nSamplesPerSec,
                             Channels = _waveFormat.nChannels,
-                            BitsPerSample = _waveFormat.wBitsPerSample
+                            BitsPerSample = _waveFormat.wBitsPerSample,
+                            FormatTag = _waveFormat.wFormatTag,
+                            IsFloatFormat = _isFloatFormat
                         });
                     }
                     catch (Exception ex)
@@ -353,6 +357,37 @@ namespace Zink.Services.Recording
             }
             catch
             {
+            }
+        }
+
+        private static bool IsFloatWaveFormat(IntPtr formatPtr, WAVEFORMATEX format)
+        {
+            const ushort waveFormatIeeeFloat = 3;
+            const ushort waveFormatExtensible = 0xFFFE;
+            var pcmSubFormat = new Guid("00000001-0000-0010-8000-00AA00389B71");
+            var floatSubFormat = new Guid("00000003-0000-0010-8000-00AA00389B71");
+
+            if (format.wFormatTag == waveFormatIeeeFloat)
+                return true;
+
+            if (format.wFormatTag != waveFormatExtensible || format.cbSize < 22)
+                return false;
+
+            try
+            {
+                var subFormatOffset = Marshal.SizeOf<WAVEFORMATEX>() + 6;
+                var subFormat = Marshal.PtrToStructure<Guid>(IntPtr.Add(formatPtr, subFormatOffset));
+                if (subFormat == floatSubFormat)
+                    return true;
+
+                if (subFormat == pcmSubFormat)
+                    return false;
+
+                return format.wBitsPerSample == 32;
+            }
+            catch
+            {
+                return format.wBitsPerSample == 32;
             }
         }
 

@@ -378,6 +378,15 @@ namespace Zink
                     artworkUri: art,
                     isPlaying: isPlaying
                 );
+
+                if (track != null)
+                {
+                    DiscordPresenceService.Instance.SetMusicPresence(
+                        songTitle: track.Title,
+                        artistName: track.Artist,
+                        sourceName: "Zink Music",
+                        isPlaying: isPlaying);
+                }
             }
             catch { }
         }

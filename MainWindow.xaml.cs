@@ -28,7 +28,13 @@ namespace Zink
 {
     public sealed partial class MainWindow : Window
     {
+        private const double SidebarOpenWidth = 260;
+        private const double SidebarCompactWidth = 104;
+        private const double SidebarOpenPaneLength = 232;
+        private const double SidebarCompactPaneLength = 76;
+
         private bool _hasShownUpdateDialog;
+        private bool _isSidebarCompact;
 
         private bool _savedSidebarStateExists = false;
         private bool _savedSidebarVisible;
@@ -77,6 +83,7 @@ namespace Zink
 
             SidebarNav.PaneDisplayMode = NavigationViewPaneDisplayMode.Left;
             SidebarNav.IsPaneOpen = true;
+            SetSidebarColumnForPaneState(true);
 
             ContentFrame.Loaded += ContentFrame_Loaded;
 
@@ -124,6 +131,7 @@ namespace Zink
 
         private void Realtime_IncomingCall_Global(object? sender, IncomingCallEventArgs e)
         {
+            IncomingCallRingtoneService.TryStart();
             DispatcherQueue.TryEnqueue(async () =>
             {
                 await ShowIncomingCallDialogAsync(e);
@@ -139,6 +147,7 @@ namespace Zink
                 return;
 
             _incomingCallDialogShowing = true;
+            IncomingCallRingtoneService.TryStart();
 
             try
             {
@@ -146,41 +155,29 @@ namespace Zink
                     ? e.FromDisplayName
                     : (!string.IsNullOrWhiteSpace(e.FromUsername) ? e.FromUsername : $"User {e.FromUserId}");
 
-                var body = new StackPanel
-                {
-                    Spacing = 10
-                };
-
-                body.Children.Add(new TextBlock
-                {
-                    Text = "Incoming Call",
-                    FontSize = 20,
-                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
-                });
-
-                body.Children.Add(new TextBlock
-                {
-                    Text = $"From: {callerName}",
-                    TextWrapping = TextWrapping.Wrap
-                });
-
-                body.Children.Add(new TextBlock
-                {
-                    Text = "Accept to open the call page and join the call, or decline to reject it.",
-                    TextWrapping = TextWrapping.Wrap
-                });
+                var body = CreateIncomingCallGlassContent(callerName);
 
                 var dialog = new ContentDialog
                 {
-                    Title = "Zink Call",
+                    Title = null,
                     Content = body,
-                    PrimaryButtonText = "Accept",
+                    PrimaryButtonText = "Answer",
                     CloseButtonText = "Decline",
                     DefaultButton = ContentDialogButton.Primary,
-                    XamlRoot = ContentFrame.XamlRoot
+                    XamlRoot = ContentFrame.XamlRoot,
+                    Background = new SolidColorBrush(global::Windows.UI.Color.FromArgb(0, 0, 0, 0)),
+                    BorderBrush = new SolidColorBrush(global::Windows.UI.Color.FromArgb(0, 0, 0, 0))
                 };
+                ApplyBorderlessGlassDialogResources(dialog);
+
+                if (Microsoft.UI.Xaml.Application.Current.Resources.TryGetValue("AccentButtonStyle", out var styleObj) &&
+                    styleObj is Style accentButtonStyle)
+                {
+                    dialog.PrimaryButtonStyle = accentButtonStyle;
+                }
 
                 var result = await dialog.ShowAsync();
+                IncomingCallRingtoneService.TryStop();
 
                 if (result == ContentDialogResult.Primary)
                 {
@@ -208,8 +205,175 @@ namespace Zink
             }
             finally
             {
+                IncomingCallRingtoneService.TryStop();
                 _incomingCallDialogShowing = false;
             }
+        }
+
+        private static void ApplyBorderlessGlassDialogResources(ContentDialog dialog)
+        {
+            var transparent = new SolidColorBrush(global::Windows.UI.Color.FromArgb(0, 0, 0, 0));
+            dialog.Resources["ContentDialogBackground"] = transparent;
+            dialog.Resources["ContentDialogBorderBrush"] = transparent;
+            dialog.Resources["ContentDialogBorderThickness"] = new Thickness(0);
+            dialog.Resources["ContentDialogContentMargin"] = new Thickness(0);
+            dialog.Resources["ContentDialogPadding"] = new Thickness(0);
+        }
+
+        private static FrameworkElement CreateIncomingCallGlassContent(string callerName)
+        {
+            var callerInitial = string.IsNullOrWhiteSpace(callerName)
+                ? "Z"
+                : callerName.Trim()[0].ToString().ToUpperInvariant();
+
+            var acrylicBrush = new AcrylicBrush
+            {
+                TintColor = global::Windows.UI.Color.FromArgb(255, 15, 23, 31),
+                TintOpacity = 0.78,
+                TintLuminosityOpacity = 0.58,
+                FallbackColor = global::Windows.UI.Color.FromArgb(245, 15, 23, 31)
+            };
+
+            var card = new Border
+            {
+                Width = 420,
+                Padding = new Thickness(24),
+                CornerRadius = new CornerRadius(28),
+                Background = acrylicBrush,
+                BorderBrush = new SolidColorBrush(global::Windows.UI.Color.FromArgb(0, 255, 255, 255)),
+                BorderThickness = new Thickness(0)
+            };
+
+            var root = new Grid
+            {
+                RowSpacing = 18
+            };
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            var header = new Grid
+            {
+                ColumnSpacing = 16
+            };
+            header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            var avatar = new Grid
+            {
+                Width = 72,
+                Height = 72
+            };
+
+            avatar.Children.Add(new Microsoft.UI.Xaml.Shapes.Ellipse
+            {
+                Fill = new LinearGradientBrush
+                {
+                    StartPoint = new Point(0, 0),
+                    EndPoint = new Point(1, 1),
+                    GradientStops =
+                    {
+                        new GradientStop { Color = global::Windows.UI.Color.FromArgb(255, 34, 211, 238), Offset = 0 },
+                        new GradientStop { Color = global::Windows.UI.Color.FromArgb(255, 45, 212, 191), Offset = 0.52 },
+                        new GradientStop { Color = global::Windows.UI.Color.FromArgb(255, 99, 102, 241), Offset = 1 }
+                    }
+                },
+                Stroke = new SolidColorBrush(global::Windows.UI.Color.FromArgb(90, 255, 255, 255)),
+                StrokeThickness = 1
+            });
+
+            avatar.Children.Add(new TextBlock
+            {
+                Text = callerInitial,
+                FontSize = 28,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(global::Windows.UI.Color.FromArgb(255, 255, 255, 255)),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+
+            var titleStack = new StackPanel
+            {
+                Spacing = 6,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            titleStack.Children.Add(new TextBlock
+            {
+                Text = "Incoming Zink call",
+                FontSize = 14,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(global::Windows.UI.Color.FromArgb(210, 188, 245, 255))
+            });
+
+            titleStack.Children.Add(new TextBlock
+            {
+                Text = callerName,
+                FontSize = 28,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                Foreground = new SolidColorBrush(global::Windows.UI.Color.FromArgb(255, 255, 255, 255))
+            });
+
+            Grid.SetColumn(titleStack, 1);
+            header.Children.Add(avatar);
+            header.Children.Add(titleStack);
+
+            var statusPill = new Border
+            {
+                Padding = new Thickness(14, 10, 14, 10),
+                CornerRadius = new CornerRadius(18),
+                Background = new SolidColorBrush(global::Windows.UI.Color.FromArgb(44, 255, 255, 255)),
+                BorderBrush = new SolidColorBrush(global::Windows.UI.Color.FromArgb(44, 255, 255, 255)),
+                BorderThickness = new Thickness(1)
+            };
+
+            var statusRow = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 10,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            statusRow.Children.Add(new FontIcon
+            {
+                Glyph = "\uE717",
+                FontFamily = new FontFamily("Segoe Fluent Icons"),
+                FontSize = 18,
+                Width = 22,
+                Height = 22,
+                Foreground = new SolidColorBrush(global::Windows.UI.Color.FromArgb(255, 125, 249, 196))
+            });
+
+            statusRow.Children.Add(new TextBlock
+            {
+                Text = "Ringing now",
+                FontSize = 15,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(global::Windows.UI.Color.FromArgb(235, 255, 255, 255)),
+                VerticalAlignment = VerticalAlignment.Center
+            });
+
+            statusPill.Child = statusRow;
+
+            var message = new TextBlock
+            {
+                Text = "Answer to join the call page, or decline to let them know you are unavailable.",
+                TextWrapping = TextWrapping.Wrap,
+                LineHeight = 22,
+                Foreground = new SolidColorBrush(global::Windows.UI.Color.FromArgb(210, 232, 239, 245))
+            };
+
+            Grid.SetRow(header, 0);
+            Grid.SetRow(statusPill, 1);
+            Grid.SetRow(message, 2);
+
+            root.Children.Add(header);
+            root.Children.Add(statusPill);
+            root.Children.Add(message);
+            card.Child = root;
+
+            return card;
         }
 
         public void ApplyAppTheme(ElementTheme theme)
@@ -511,7 +675,9 @@ Version 2.4.1.0
                     SidebarNav.IsPaneVisible = _savedSidebarVisible;
                     SidebarNav.IsPaneOpen = _savedPaneOpen;
                     SidebarNav.PaneDisplayMode = _savedPaneDisplayMode;
-                    SidebarColumn.Width = _savedSidebarWidth;
+                    SidebarColumn.Width = _savedSidebarVisible
+                        ? (_savedSidebarWidth.Value > 0 ? _savedSidebarWidth : new GridLength(_savedPaneOpen ? SidebarOpenWidth : SidebarCompactWidth))
+                        : new GridLength(0);
                     SidebarNav.Visibility = _savedSidebarVisible ? Visibility.Visible : Visibility.Collapsed;
                 }
                 catch { }
@@ -574,11 +740,12 @@ Version 2.4.1.0
 
         public void RestoreSidebar()
         {
-            SidebarColumn.Width = new GridLength(200);
             SidebarNav.PaneDisplayMode = NavigationViewPaneDisplayMode.Left;
             SidebarNav.IsPaneOpen = true;
             SidebarNav.IsPaneVisible = true;
             SidebarNav.Visibility = Visibility.Visible;
+            _isSidebarCompact = false;
+            SetSidebarColumnForPaneState(true);
             _savedSidebarStateExists = false;
             _weAreInFullscreenMode = false;
             StopFullscreenMonitor();
@@ -588,7 +755,58 @@ Version 2.4.1.0
         {
             SidebarNav.IsPaneVisible = visible;
             SidebarNav.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-            SidebarColumn.Width = new GridLength(visible ? 200 : 0);
+            SidebarColumn.Width = visible
+                ? new GridLength(SidebarNav.IsPaneOpen ? SidebarOpenWidth : SidebarCompactWidth)
+                : new GridLength(0);
+        }
+
+        private void SidebarNav_PaneOpening(NavigationView sender, object args)
+        {
+            SidebarNav.IsPaneOpen = true;
+            SetSidebarColumnForPaneState(!_isSidebarCompact);
+        }
+
+        private void SidebarNav_PaneOpened(NavigationView sender, object args)
+        {
+            SidebarNav.IsPaneOpen = true;
+            SetSidebarColumnForPaneState(!_isSidebarCompact);
+        }
+
+        private void SidebarNav_PaneClosing(NavigationView sender, NavigationViewPaneClosingEventArgs args)
+        {
+            args.Cancel = true;
+            SidebarNav.IsPaneOpen = true;
+            SetSidebarColumnForPaneState(!_isSidebarCompact);
+        }
+
+        private void SidebarNav_PaneClosed(NavigationView sender, object args)
+        {
+            SidebarNav.IsPaneOpen = true;
+            SetSidebarColumnForPaneState(!_isSidebarCompact);
+        }
+
+        private void SidebarToggleButton_Click(object sender, RoutedEventArgs e)
+        {
+            _isSidebarCompact = !_isSidebarCompact;
+            SidebarNav.IsPaneOpen = true;
+            SetSidebarColumnForPaneState(!_isSidebarCompact);
+        }
+
+        private void SetSidebarColumnForPaneState(bool isOpen)
+        {
+            try
+            {
+                if (SidebarNav.Visibility != Visibility.Visible || !SidebarNav.IsPaneVisible)
+                {
+                    SidebarColumn.Width = new GridLength(0);
+                    return;
+                }
+
+                SidebarNav.IsPaneOpen = true;
+                SidebarNav.OpenPaneLength = isOpen ? SidebarOpenPaneLength : SidebarCompactPaneLength;
+                SidebarColumn.Width = new GridLength(isOpen ? SidebarOpenWidth : SidebarCompactWidth);
+            }
+            catch { }
         }
 
         private void StartFullscreenMonitor(AppWindow appWindow)
@@ -660,7 +878,6 @@ Version 2.4.1.0
                 "VideoPlayer" => typeof(VideoPlayerPage),
                 "VideoLibrary" => typeof(VideoLibraryPage),
                 "ScreenRecorder" => typeof(RecorderPage),
-                "PhotoViewer" => typeof(PhotoViewerPage),
                 "Netflix" => typeof(NetflixPage),
                 "PrimeVideo" => typeof(PrimeVideoPage),
                 "DisneyPlus" => typeof(DisneyPlusPage),
@@ -690,14 +907,15 @@ Version 2.4.1.0
                 "Pinterest" => typeof(PinterestPage),
                 "Tumblr" => typeof(TumblrPage),
                 "Reddit" => typeof(RedditPage),
-                "nativevoiceshare" => typeof(NativeVoiceSharePage),
                 "SocialLogin" => typeof(LoginPage),
                 "SocialRegister" => typeof(RegisterPage),
                 "SocialFriends" => typeof(FriendsPage),
+                "SocialMessages" => typeof(MessagesPage),
                 "SocialFriendRequests" => typeof(FriendRequestsPage),
                 "SocialProfile" => typeof(ProfilePage),
                 "SocialCall" => typeof(CallPage),
                 "Xbox" => typeof(XboxPage),
+                "FpsRecorder" => typeof(FpsRecorderPage),
                 "GeForceNow" => typeof(GeForceNowPage),
                 "AmazonLuna" => typeof(AmazonLunaPage),
                 "Boosteroid" => typeof(BoosteroidPage),
@@ -826,8 +1044,166 @@ Version 2.4.1.0
                         imageUri: ""
                     );
                 }
+
+                UpdateDiscordPresenceForPage(t, title);
             }
             catch { }
+        }
+
+        private void UpdateDiscordPresenceForPage(Type pageType, string fallbackTitle)
+        {
+            try
+            {
+                if (IsActiveCallState(NativeCallCoordinator.Instance.CurrentSession.State))
+                    return;
+
+                var tag = GetTagForPageType(pageType);
+                var displayName = GetDiscordPresenceDisplayName(tag, fallbackTitle);
+
+                if (string.Equals(tag, "Home", StringComparison.OrdinalIgnoreCase))
+                {
+                    DiscordPresenceService.Instance.SetAppPresence("Home dashboard");
+                    return;
+                }
+
+                if (IsStreamingPresenceTag(tag))
+                {
+                    DiscordPresenceService.Instance.SetWebPresence(displayName, "Streaming", $"Browsing {displayName}");
+                    return;
+                }
+
+                if (IsMusicPresenceTag(tag))
+                {
+                    DiscordPresenceService.Instance.SetPagePresence(displayName, "Music", "Browsing");
+                    return;
+                }
+
+                if (IsSocialPresenceTag(tag))
+                {
+                    DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", $"Browsing {displayName}");
+                    return;
+                }
+
+                if (IsGamingPresenceTag(tag))
+                {
+                    DiscordPresenceService.Instance.SetWebPresence(displayName, "Cloud gaming", $"Launching {displayName}");
+                    return;
+                }
+
+                if (string.Equals(tag, "SocialCall", StringComparison.OrdinalIgnoreCase))
+                {
+                    DiscordPresenceService.Instance.SetPagePresence("Zink Call", "Calls", "Opening");
+                    return;
+                }
+
+                var category = tag switch
+                {
+                    "ScreenRecorder" or "FpsRecorder" or "Equalizer" or "Visualizer" => "Tools",
+                    "Search" => "Search",
+                    "Notifications" or "Feedback" or "PrivacyPolicy" or "LeaveReview" or "AppCustomization" or "Settings" or "About" => "App",
+                    _ => "Zink"
+                };
+
+                DiscordPresenceService.Instance.SetPagePresence(displayName, category, "Using");
+            }
+            catch { }
+        }
+
+        private static bool IsActiveCallState(NativeCallState state)
+        {
+            return state == NativeCallState.Calling ||
+                   state == NativeCallState.Incoming ||
+                   state == NativeCallState.Accepted ||
+                   state == NativeCallState.Negotiating ||
+                   state == NativeCallState.Connected;
+        }
+
+        private static bool IsStreamingPresenceTag(string tag)
+        {
+            return tag is "Netflix" or "PrimeVideo" or "DisneyPlus" or "ParamountPlus" or "NowTV" or "BBCiPlayer" or "My5" or "YouTube" or "Twitch";
+        }
+
+        private static bool IsMusicPresenceTag(string tag)
+        {
+            return tag is "MusicPlayer" or "MusicLibrary" or "YouTubeMusic" or "AmazonMusic" or "Radio" or "Spotify" or "SpotifyWidget" or "LikedRadioSongs" or "RadioWidget";
+        }
+
+        private static bool IsSocialPresenceTag(string tag)
+        {
+            return tag is "Discord" or "TikTok" or "Instagram" or "X" or "Facebook" or "Telegram" or "WhatsApp" or "Messenger" or "LinkedIn" or "Threads" or "Bluesky" or "Mastodon" or "Pinterest" or "Tumblr" or "Reddit" or "SocialLogin" or "SocialRegister" or "SocialFriends" or "SocialMessages" or "SocialFriendRequests" or "SocialProfile";
+        }
+
+        private static bool IsGamingPresenceTag(string tag)
+        {
+            return tag is "Xbox" or "FpsRecorder" or "GeForceNow" or "AmazonLuna" or "Boosteroid" or "ShadowPC";
+        }
+
+        private static string GetDiscordPresenceDisplayName(string tag, string fallbackTitle)
+        {
+            if (string.IsNullOrWhiteSpace(tag))
+                return MakeFriendlyTitle(fallbackTitle);
+
+            return tag switch
+            {
+                "Home" => "Home dashboard",
+                "MusicPlayer" => "Music player",
+                "MusicLibrary" => "Music library",
+                "YouTubeMusic" => "YouTube Music",
+                "AmazonMusic" => "Amazon Music",
+                "VideoPlayer" => "Video player",
+                "VideoLibrary" => "Video library",
+                "ScreenRecorder" => "Screen recorder",
+                "FpsRecorder" => "FPS recorder",
+                "PrimeVideo" => "Prime Video",
+                "DisneyPlus" => "Disney+",
+                "ParamountPlus" => "Paramount+",
+                "NowTV" => "NOW",
+                "BBCiPlayer" => "BBC iPlayer",
+                "SpotifyWidget" => "Spotify widget",
+                "LikedRadioSongs" => "Liked radio songs",
+                "RadioWidget" => "Radio widget",
+                "SocialLogin" => "Zink Social login",
+                "SocialRegister" => "Zink Social signup",
+                "SocialFriends" => "Friends",
+                "SocialMessages" => "Messages",
+                "SocialFriendRequests" => "Friend requests",
+                "SocialProfile" => "Profile",
+                "SocialCall" => "Zink Call",
+                "GeForceNow" => "GeForce NOW",
+                "AmazonLuna" => "Amazon Luna",
+                "ShadowPC" => "Shadow PC",
+                "PrivacyPolicy" => "Privacy policy",
+                "LeaveReview" => "Leave a review",
+                "AppCustomization" => "App customization",
+                _ => MakeFriendlyTitle(tag)
+            };
+        }
+
+        private static string MakeFriendlyTitle(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return "Zink";
+
+            var clean = value.EndsWith("Page", StringComparison.OrdinalIgnoreCase)
+                ? value.Substring(0, value.Length - 4)
+                : value;
+
+            var builder = new System.Text.StringBuilder(clean.Length + 8);
+            for (var i = 0; i < clean.Length; i++)
+            {
+                var current = clean[i];
+                if (i > 0 &&
+                    char.IsUpper(current) &&
+                    !char.IsWhiteSpace(clean[i - 1]) &&
+                    !char.IsUpper(clean[i - 1]))
+                {
+                    builder.Append(' ');
+                }
+
+                builder.Append(current);
+            }
+
+            return builder.ToString();
         }
 
         private string GetTagForPageType(Type t)
@@ -845,7 +1221,6 @@ Version 2.4.1.0
                 if (t == typeof(VideoPlayerPage)) return "VideoPlayer";
                 if (t == typeof(VideoLibraryPage)) return "VideoLibrary";
                 if (t == typeof(RecorderPage)) return "ScreenRecorder";
-                if (t == typeof(PhotoViewerPage)) return "PhotoViewer";
                 if (t == typeof(NetflixPage)) return "Netflix";
                 if (t == typeof(PrimeVideoPage)) return "PrimeVideo";
                 if (t == typeof(DisneyPlusPage)) return "DisneyPlus";
@@ -875,14 +1250,15 @@ Version 2.4.1.0
                 if (t == typeof(PinterestPage)) return "Pinterest";
                 if (t == typeof(TumblrPage)) return "Tumblr";
                 if (t == typeof(RedditPage)) return "Reddit";
-                if (t == typeof(NativeVoiceSharePage)) return "nativevoiceshare";
                 if (t == typeof(LoginPage)) return "SocialLogin";
                 if (t == typeof(RegisterPage)) return "SocialRegister";
                 if (t == typeof(FriendsPage)) return "SocialFriends";
+                if (t == typeof(MessagesPage)) return "SocialMessages";
                 if (t == typeof(FriendRequestsPage)) return "SocialFriendRequests";
                 if (t == typeof(ProfilePage)) return "SocialProfile";
                 if (t == typeof(CallPage)) return "SocialCall";
                 if (t == typeof(XboxPage)) return "Xbox";
+                if (t == typeof(FpsRecorderPage)) return "FpsRecorder";
                 if (t == typeof(GeForceNowPage)) return "GeForceNow";
                 if (t == typeof(AmazonLunaPage)) return "AmazonLuna";
                 if (t == typeof(BoosteroidPage)) return "Boosteroid";

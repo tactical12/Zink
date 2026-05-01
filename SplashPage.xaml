@@ -2,29 +2,89 @@
     x:Class="Zink.SplashPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Background="Black">
+    Background="#0B0F14">
 
     <Grid>
-        <!-- Background Image (optional) -->
-        <Image Source="Assets/ZinkSplash4K.png"
+        <Grid.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#071018" Offset="0"/>
+                <GradientStop Color="#10151D" Offset="0.48"/>
+                <GradientStop Color="#05070A" Offset="1"/>
+            </LinearGradientBrush>
+        </Grid.Background>
+
+        <Image Source="Assets/splashScreen.png"
                Stretch="UniformToFill"
-               HorizontalAlignment="Stretch"
-               VerticalAlignment="Stretch"/>
+               Opacity="0.28"/>
 
-        <!-- BIG LOGO! -->
-        <Image Source="Assets/ZinkLogo.png"
-               Width="700" Height="700"
-               HorizontalAlignment="Center"
-               VerticalAlignment="Center"/>
+        <Rectangle Fill="#9905070A"/>
+        <Rectangle Fill="#184A5E72"
+                   Width="620"
+                   Height="360"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"
+                   RadiusX="180"
+                   RadiusY="180"/>
 
-        <!-- Loader at bottom -->
-        <ProgressRing x:Name="SplashLoader"
-                      IsActive="True"
-                      Width="60"
-                      Height="60"
-                      Foreground="White"
-                      HorizontalAlignment="Center"
-                      VerticalAlignment="Bottom"
-                      Margin="0,0,0,30"/>
+        <Border Width="420"
+                MaxWidth="520"
+                Padding="34"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                CornerRadius="34"
+                BorderBrush="#4CFFFFFF"
+                BorderThickness="1">
+            <Border.Background>
+                <SolidColorBrush Color="#D9101820"/>
+            </Border.Background>
+
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <Border Width="156"
+                        Height="156"
+                        HorizontalAlignment="Center"
+                        CornerRadius="36"
+                        Background="#1EFFFFFF"
+                        BorderBrush="#32FFFFFF"
+                        BorderThickness="1">
+                    <Image Source="Assets/ZinkLogo.png"
+                           Width="122"
+                           Height="122"
+                           Stretch="Uniform"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"/>
+                </Border>
+
+                <TextBlock Grid.Row="1"
+                           Text="ZINK"
+                           Margin="0,24,0,0"
+                           HorizontalAlignment="Center"
+                           FontSize="48"
+                           FontWeight="SemiBold"
+                           Foreground="White"/>
+
+                <TextBlock Grid.Row="2"
+                           Text="Loading your workspace"
+                           Margin="0,8,0,0"
+                           HorizontalAlignment="Center"
+                           FontSize="15"
+                           Foreground="#CCD9E2EA"/>
+
+                <ProgressRing x:Name="SplashLoader"
+                              Grid.Row="3"
+                              IsActive="True"
+                              Width="44"
+                              Height="44"
+                              Margin="0,30,0,0"
+                              Foreground="#E8FFFFFF"
+                              HorizontalAlignment="Center"/>
+            </Grid>
+        </Border>
     </Grid>
 </Page>

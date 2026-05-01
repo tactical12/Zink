@@ -9,5 +9,7 @@ namespace Zink.Services.Recording
         public int SampleRate { get; set; } = 48000;
         public int Channels { get; set; } = 2;
         public int BitsPerSample { get; set; } = 16;
+        public ushort FormatTag { get; set; } = 1;
+        public bool IsFloatFormat { get; set; }
     }
 }

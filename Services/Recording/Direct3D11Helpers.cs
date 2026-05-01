@@ -92,6 +92,26 @@ namespace Zink.Services.Recording
             }
         }
 
+        public static IDirect3DDevice CreateD3DDevice(SharpDX.Direct3D11.Device d3dDevice)
+        {
+            using var dxgiDevice = d3dDevice.QueryInterface<SharpDX.DXGI.Device>();
+
+            IntPtr inspectablePtr;
+            var hr = CreateDirect3D11DeviceFromDXGIDevice(dxgiDevice.NativePointer, out inspectablePtr);
+            if (hr < 0)
+                Marshal.ThrowExceptionForHR(hr);
+
+            try
+            {
+                return MarshalInterface<IDirect3DDevice>.FromAbi(inspectablePtr);
+            }
+            finally
+            {
+                if (inspectablePtr != IntPtr.Zero)
+                    Marshal.Release(inspectablePtr);
+            }
+        }
+
         public static SharpDX.Direct3D11.Device CreateSharpDXDevice(IDirect3DDevice device)
         {
             var access = device.As<IDirect3DDxgiInterfaceAccess>();

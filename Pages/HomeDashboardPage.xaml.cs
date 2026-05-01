@@ -2,12 +2,17 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Navigation;
+using Microsoft.UI.Xaml.Media.Imaging;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
+using Windows.Media.Control;
+using Windows.Storage.Streams;
 
 using WStorage = global::Windows.Storage;
 using WPickers = global::Windows.Storage.Pickers;
@@ -36,6 +41,11 @@ namespace Zink.Pages
         private RecentItem? _lastPlayable;
         private readonly DispatcherTimer _nowPlayingTimer = new();
         private string _lastThumbIdentity = "";
+        private string _lastSpotifyArtLookupIdentity = "";
+        private GlobalSystemMediaTransportControlsSessionManager? _mediaSessionManager;
+        private bool _spotifyDesktopRefreshInFlight;
+        private string _lastSpotifyDesktopDisplay = "";
+        private DateTimeOffset _lastSpotifyDiagnosticAtUtc;
 
         private static readonly HashSet<string> MusicExt = new(StringComparer.OrdinalIgnoreCase)
         {
@@ -58,7 +68,6 @@ namespace Zink.Pages
 
         private const string K_ShowHeroInsights = "Dash_ShowHeroInsights";
         private const string K_ShowPowerTools = "Dash_ShowPowerTools";
-        private const string K_ShowRecentActivity = "Dash_ShowRecentActivity";
         private static string K_Tile(string id) => $"Dash_Tile_{id}";
 
         private bool _isUpdatingHomeRadioVolumeUi;
@@ -79,6 +88,15 @@ namespace Zink.Pages
             AppPlaybackService.Instance.IsPlayingChanged -= AppPlaybackService_IsPlayingChanged;
             AppPlaybackService.Instance.IsPlayingChanged += AppPlaybackService_IsPlayingChanged;
 
+            DiagnosticLogService.StateChanged -= DiagnosticLogService_StateChanged;
+            DiagnosticLogService.StateChanged += DiagnosticLogService_StateChanged;
+
+            SpotifyControllerService.Instance.TrackChanged -= SpotifyControllerService_TrackChanged;
+            SpotifyControllerService.Instance.TrackChanged += SpotifyControllerService_TrackChanged;
+
+            SpotifyControllerService.Instance.PlayingChanged -= SpotifyControllerService_PlayingChanged;
+            SpotifyControllerService.Instance.PlayingChanged += SpotifyControllerService_PlayingChanged;
+
             Loaded += HomeDashboardPage_Loaded;
             Unloaded += HomeDashboardPage_Unloaded;
 
@@ -93,6 +111,7 @@ namespace Zink.Pages
 
             RefreshFromActivityHub();
             RefreshNowPlayingFromServices();
+            RefreshNotifications();
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -104,6 +123,7 @@ namespace Zink.Pages
             InitializeHomeRadioVolumeUi();
             RefreshFromActivityHub();
             RefreshNowPlayingFromServices();
+            RefreshNotifications();
         }
 
         private void HomeDashboardPage_Loaded(object sender, RoutedEventArgs e)
@@ -113,6 +133,7 @@ namespace Zink.Pages
                 _nowPlayingTimer.Start();
                 InitializeHomeRadioVolumeUi();
                 RefreshNowPlayingFromServices();
+                RefreshNotifications();
             }
             catch { }
         }
@@ -122,6 +143,14 @@ namespace Zink.Pages
             try
             {
                 _nowPlayingTimer.Stop();
+            }
+            catch { }
+
+            try
+            {
+                SpotifyControllerService.Instance.TrackChanged -= SpotifyControllerService_TrackChanged;
+                SpotifyControllerService.Instance.PlayingChanged -= SpotifyControllerService_PlayingChanged;
+                DiagnosticLogService.StateChanged -= DiagnosticLogService_StateChanged;
             }
             catch { }
         }
@@ -135,6 +164,16 @@ namespace Zink.Pages
         {
             RefreshFromActivityHub();
             RefreshNowPlayingFromServices();
+            RefreshNotifications();
+        }
+
+        private void DiagnosticLogService_StateChanged(object? sender, EventArgs e)
+        {
+            try
+            {
+                DispatcherQueue?.TryEnqueue(RefreshNotifications);
+            }
+            catch { }
         }
 
         private void AppPlaybackService_NowPlayingChanged(object? sender, EventArgs e)
@@ -150,6 +189,30 @@ namespace Zink.Pages
         }
 
         private void AppPlaybackService_IsPlayingChanged(object? sender, EventArgs e)
+        {
+            try
+            {
+                DispatcherQueue?.TryEnqueue(() =>
+                {
+                    RefreshNowPlayingFromServices();
+                });
+            }
+            catch { }
+        }
+
+        private void SpotifyControllerService_TrackChanged(object? sender, SpotifyControllerService.TrackInfo e)
+        {
+            try
+            {
+                DispatcherQueue?.TryEnqueue(() =>
+                {
+                    RefreshNowPlayingFromServices();
+                });
+            }
+            catch { }
+        }
+
+        private void SpotifyControllerService_PlayingChanged(object? sender, bool e)
         {
             try
             {
@@ -201,12 +264,7 @@ namespace Zink.Pages
 
                 try
                 {
-                    var w = ActivityHub.GetTotalWatchedTime();
-                    var l = ActivityHub.GetTotalListenedTime();
-
-                    TimeWatchedText.Text = FormatShortTime(w);
-                    TimeListenedText.Text = FormatShortTime(l);
-                    MostUsedText.Text = ActivityHub.GetMostUsedType();
+                    RefreshNotifications();
                 }
                 catch { }
             }
@@ -219,6 +277,11 @@ namespace Zink.Pages
         {
             try
             {
+                if (TryRefreshFromSpotifyController())
+                    return;
+
+                QueueSpotifyDesktopRefresh();
+
                 if (TryRefreshFromAppPlaybackService())
                     return;
 
@@ -231,6 +294,14 @@ namespace Zink.Pages
                         HeroPlaybackValue.Text = "Live";
                         HeroDurationValue.Text = "Live";
                         HeroMetaText.Text = "Live stream";
+                    }
+                    else if (string.Equals(_lastPlayable.Kind, "spotify", StringComparison.OrdinalIgnoreCase))
+                    {
+                        HeroKindText.Text = "Spotify";
+                        HeroTypeValue.Text = "Spotify";
+                        HeroPlaybackValue.Text = ResumeButton.IsEnabled ? "Ready" : "Stopped";
+                        HeroDurationValue.Text = "-";
+                        HeroMetaText.Text = "Spotify playback";
                     }
                     else
                     {
@@ -245,6 +316,410 @@ namespace Zink.Pages
                 }
             }
             catch { }
+        }
+
+        private bool TryRefreshFromSpotifyController()
+        {
+            try
+            {
+                var spotify = SpotifyControllerService.Instance;
+                var current = spotify?.Current;
+
+                if (spotify == null || !spotify.IsAttached || current == null)
+                    return false;
+
+                var hasState =
+                    !string.IsNullOrWhiteSpace(current.Title) ||
+                    !string.IsNullOrWhiteSpace(current.Artist) ||
+                    !string.IsNullOrWhiteSpace(current.Album);
+
+                if (!hasState)
+                    return false;
+
+                var primary = string.IsNullOrWhiteSpace(current.Title) ? "Spotify" : current.Title;
+
+                var secondaryParts = new List<string>();
+                if (!string.IsNullOrWhiteSpace(current.Artist))
+                    secondaryParts.Add(current.Artist);
+                if (!string.IsNullOrWhiteSpace(current.Album))
+                    secondaryParts.Add(current.Album);
+
+                var secondary = secondaryParts.Count > 0
+                    ? string.Join(" - ", secondaryParts)
+                    : "Spotify is active in Zink";
+
+                HeroTitle.Text = primary;
+                HeroSubtitle.Text = secondary;
+                HeroKindText.Text = "Spotify";
+                HeroTypeValue.Text = "Spotify";
+                HeroPlaybackValue.Text = spotify.IsPlaying ? "Playing" : "Paused";
+
+                var duration = TimeSpan.FromSeconds(Math.Max(0, current.DurationSec));
+                var position = TimeSpan.FromSeconds(Math.Max(0, current.PositionSec));
+
+                if (duration > TimeSpan.Zero)
+                {
+                    HeroMetaText.Text = $"{FormatClock(position)} - {FormatClock(duration)}";
+                    HeroDurationValue.Text = FormatClock(duration);
+                }
+                else if (position > TimeSpan.Zero)
+                {
+                    HeroMetaText.Text = FormatClock(position);
+                    HeroDurationValue.Text = "-";
+                }
+                else
+                {
+                    HeroMetaText.Text = "Spotify playback";
+                    HeroDurationValue.Text = "-";
+                }
+
+                ResumeButton.IsEnabled = true;
+
+                _ = RefreshHeroArtworkFromSpotifyAsync(current.Artist, current.Title, current.Album, current.ImageUrl);
+
+                _lastPlayable = new RecentItem
+                {
+                    Title = primary,
+                    Subtitle = secondary,
+                    RightText = spotify.IsPlaying ? "Now" : "Paused",
+                    Kind = "spotify"
+                };
+
+                SaveHeroToSettings(_lastPlayable);
+                RefreshHomeRadioVolumeUi(false);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private void QueueSpotifyDesktopRefresh()
+        {
+            if (_spotifyDesktopRefreshInFlight)
+                return;
+
+            _spotifyDesktopRefreshInFlight = true;
+            _ = RefreshSpotifyDesktopNowPlayingAsync();
+        }
+
+        private async Task RefreshSpotifyDesktopNowPlayingAsync()
+        {
+            try
+            {
+                _mediaSessionManager ??= await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
+                var spotifySession = await FindSpotifySessionAsync(_mediaSessionManager);
+
+                if (spotifySession == null)
+                {
+                    DispatcherQueue?.TryEnqueue(() =>
+                    {
+                        TryRefreshFromSpotifyProcessFallback();
+                    });
+                    return;
+                }
+
+                var mediaProperties = await spotifySession.TryGetMediaPropertiesAsync();
+                var playbackInfo = spotifySession.GetPlaybackInfo();
+                var timeline = spotifySession.GetTimelineProperties();
+
+                DispatcherQueue?.TryEnqueue(async () =>
+                {
+                    var title = string.IsNullOrWhiteSpace(mediaProperties.Title) ? "Spotify" : mediaProperties.Title;
+                    var artist = string.IsNullOrWhiteSpace(mediaProperties.Artist) ? "Unknown artist" : mediaProperties.Artist;
+                    var album = string.IsNullOrWhiteSpace(mediaProperties.AlbumTitle) ? "" : mediaProperties.AlbumTitle;
+                    var status = playbackInfo.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing
+                        ? "Playing"
+                        : playbackInfo.PlaybackStatus.ToString();
+
+                    var subtitleParts = new List<string> { artist };
+                    if (!string.IsNullOrWhiteSpace(album))
+                        subtitleParts.Add(album);
+
+                    HeroTitle.Text = title;
+                    HeroSubtitle.Text = string.Join(" - ", subtitleParts);
+                    HeroKindText.Text = "Spotify";
+                    HeroTypeValue.Text = "Spotify";
+                    HeroPlaybackValue.Text = status;
+
+                    var duration = timeline.EndTime - timeline.StartTime;
+                    var position = timeline.Position - timeline.StartTime;
+                    if (duration > TimeSpan.Zero)
+                    {
+                        HeroMetaText.Text = $"{FormatClock(position)} - {FormatClock(duration)}";
+                        HeroDurationValue.Text = FormatClock(duration);
+                    }
+                    else
+                    {
+                        HeroMetaText.Text = "Spotify desktop app";
+                        HeroDurationValue.Text = "-";
+                    }
+
+                    ResumeButton.IsEnabled = true;
+                    RefreshHomeRadioVolumeUi(false);
+
+                    _lastPlayable = new RecentItem
+                    {
+                        Title = title,
+                        Subtitle = HeroSubtitle.Text,
+                        RightText = status,
+                        Kind = "spotify"
+                    };
+
+                    SaveHeroToSettings(_lastPlayable);
+
+                    var displayKey = $"{title}|{artist}|{album}";
+                    if (!string.Equals(displayKey, _lastSpotifyDesktopDisplay, StringComparison.Ordinal))
+                    {
+                        _lastSpotifyDesktopDisplay = displayKey;
+                        await SetSpotifyDesktopThumbnailAsync(mediaProperties.Thumbnail);
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                WriteSpotifyDiagnosticsThrottled("Desktop session refresh failed: " + ex.Message);
+                DispatcherQueue?.TryEnqueue(() =>
+                {
+                    TryRefreshFromSpotifyProcessFallback();
+                });
+            }
+            finally
+            {
+                _spotifyDesktopRefreshInFlight = false;
+            }
+        }
+
+        private async Task<GlobalSystemMediaTransportControlsSession?> FindSpotifySessionAsync(
+            GlobalSystemMediaTransportControlsSessionManager manager)
+        {
+            GlobalSystemMediaTransportControlsSession? currentPlayingFallback = null;
+            var current = manager.GetCurrentSession();
+            var diagnostics = new StringBuilder();
+
+            foreach (var session in manager.GetSessions())
+            {
+                var source = session.SourceAppUserModelId ?? "";
+                var status = session.GetPlaybackInfo()?.PlaybackStatus ?? GlobalSystemMediaTransportControlsSessionPlaybackStatus.Closed;
+                var title = "";
+                var artist = "";
+
+                try
+                {
+                    var properties = await session.TryGetMediaPropertiesAsync();
+                    title = properties.Title ?? "";
+                    artist = properties.Artist ?? "";
+                }
+                catch { }
+
+                diagnostics.Append(source)
+                    .Append(" | ")
+                    .Append(status)
+                    .Append(" | ")
+                    .Append(title)
+                    .Append(" | ")
+                    .AppendLine(artist);
+
+                if (source.Contains("Spotify", StringComparison.OrdinalIgnoreCase) ||
+                    IsLikelySpotifySession(source, title, artist))
+                {
+                    return session;
+                }
+
+                if (session == current &&
+                    status == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing &&
+                    (!string.IsNullOrWhiteSpace(title) || !string.IsNullOrWhiteSpace(artist)))
+                {
+                    currentPlayingFallback = session;
+                }
+            }
+
+            WriteSpotifyDiagnosticsThrottled("No Spotify-named media session. Available sessions:\n" + diagnostics);
+            return currentPlayingFallback;
+        }
+
+        private static bool IsLikelySpotifySession(string source, string title, string artist)
+        {
+            if (source.Contains("Spotify", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            if (source.Contains("com.squirrel", StringComparison.OrdinalIgnoreCase) &&
+                source.Contains("spotify", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            return !string.IsNullOrWhiteSpace(title) &&
+                !string.IsNullOrWhiteSpace(artist) &&
+                !source.Contains("Zink", StringComparison.OrdinalIgnoreCase) &&
+                (source.Contains("Music", StringComparison.OrdinalIgnoreCase) ||
+                 source.Contains("Shell", StringComparison.OrdinalIgnoreCase) ||
+                 source.Contains("Windows", StringComparison.OrdinalIgnoreCase));
+        }
+
+        private bool TryRefreshFromSpotifyProcessFallback()
+        {
+            try
+            {
+                var title = Process.GetProcessesByName("Spotify")
+                    .Select(process =>
+                    {
+                        try { return process.MainWindowTitle; }
+                        catch { return ""; }
+                    })
+                    .FirstOrDefault(IsUsableSpotifyWindowTitle);
+
+                if (string.IsNullOrWhiteSpace(title))
+                    return false;
+
+                var trackTitle = title;
+                var artist = "Spotify desktop app";
+                var separatorIndex = title.IndexOf(" - ", StringComparison.Ordinal);
+                if (separatorIndex > 0 && separatorIndex + 3 < title.Length)
+                {
+                    artist = title[..separatorIndex].Trim();
+                    trackTitle = title[(separatorIndex + 3)..].Trim();
+                }
+
+                HeroTitle.Text = trackTitle;
+                HeroSubtitle.Text = artist;
+                HeroKindText.Text = "Spotify";
+                HeroTypeValue.Text = "Spotify";
+                HeroPlaybackValue.Text = "Playing";
+                HeroDurationValue.Text = "-";
+                HeroMetaText.Text = "Spotify desktop app";
+                ResumeButton.IsEnabled = true;
+                RefreshHomeRadioVolumeUi(false);
+                HeroThumb.Source = null;
+                HeroThumb.Visibility = Visibility.Collapsed;
+                HeroThumbFallback.Visibility = Visibility.Visible;
+
+                _lastPlayable = new RecentItem
+                {
+                    Title = trackTitle,
+                    Subtitle = artist,
+                    RightText = "Playing",
+                    Kind = "spotify"
+                };
+
+                SaveHeroToSettings(_lastPlayable);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                WriteSpotifyDiagnosticsThrottled("Process fallback failed: " + ex.Message);
+                return false;
+            }
+        }
+
+        private static bool IsUsableSpotifyWindowTitle(string? title)
+        {
+            if (string.IsNullOrWhiteSpace(title))
+                return false;
+
+            var text = title.Trim();
+            return !string.Equals(text, "Spotify", StringComparison.OrdinalIgnoreCase) &&
+                !text.Contains("Spotify Free", StringComparison.OrdinalIgnoreCase) &&
+                !text.Contains("Spotify Premium", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private async Task SetSpotifyDesktopThumbnailAsync(IRandomAccessStreamReference? thumbnail)
+        {
+            try
+            {
+                if (thumbnail == null)
+                {
+                    HeroThumb.Source = null;
+                    HeroThumb.Visibility = Visibility.Collapsed;
+                    HeroThumbFallback.Visibility = Visibility.Visible;
+                    return;
+                }
+
+                using var stream = await thumbnail.OpenReadAsync();
+                var image = new BitmapImage();
+                await image.SetSourceAsync(stream);
+                HeroThumb.Source = image;
+                HeroThumb.Visibility = Visibility.Visible;
+                HeroThumbFallback.Visibility = Visibility.Collapsed;
+                _lastThumbIdentity = "spotify-desktop|" + _lastSpotifyDesktopDisplay;
+            }
+            catch
+            {
+                HeroThumb.Source = null;
+                HeroThumb.Visibility = Visibility.Collapsed;
+                HeroThumbFallback.Visibility = Visibility.Visible;
+            }
+        }
+
+        private void WriteSpotifyDiagnosticsThrottled(string message)
+        {
+            var now = DateTimeOffset.UtcNow;
+            if (now - _lastSpotifyDiagnosticAtUtc < TimeSpan.FromSeconds(10))
+                return;
+
+            _lastSpotifyDiagnosticAtUtc = now;
+            DiagnosticLogService.WriteLine("[HomeDashboard:Spotify] " + message);
+        }
+
+        private async Task RefreshHeroArtworkFromSpotifyAsync(string? artist, string? title, string? album, string? fallbackImageUrl)
+        {
+            try
+            {
+                var lookupIdentity = $"{artist}|{title}|{album}|{fallbackImageUrl}";
+                if (string.Equals(lookupIdentity, _lastSpotifyArtLookupIdentity, StringComparison.Ordinal))
+                    return;
+
+                _lastSpotifyArtLookupIdentity = lookupIdentity;
+
+                string artistImageUrl = "";
+                try
+                {
+                    if (!string.IsNullOrWhiteSpace(artist) || !string.IsNullOrWhiteSpace(title) || !string.IsNullOrWhiteSpace(album))
+                    {
+                        artistImageUrl = await SpotifyAuthHelper.GetArtistImageUrlAsync(
+                            artist ?? "",
+                            title ?? "",
+                            album ?? "");
+                    }
+                }
+                catch
+                {
+                    artistImageUrl = "";
+                }
+
+                var chosenImageUrl = !string.IsNullOrWhiteSpace(artistImageUrl)
+                    ? artistImageUrl
+                    : (fallbackImageUrl ?? "");
+
+                var identity = $"spotify|{chosenImageUrl}";
+                if (string.Equals(identity, _lastThumbIdentity, StringComparison.Ordinal))
+                    return;
+
+                if (!string.IsNullOrWhiteSpace(chosenImageUrl))
+                {
+                    try
+                    {
+                        var bmp = new BitmapImage();
+                        bmp.UriSource = new Uri(chosenImageUrl);
+                        HeroThumb.Source = bmp;
+                        HeroThumb.Visibility = Visibility.Visible;
+                        HeroThumbFallback.Visibility = Visibility.Collapsed;
+                        _lastThumbIdentity = identity;
+                        return;
+                    }
+                    catch
+                    {
+                    }
+                }
+
+                HeroThumb.Visibility = Visibility.Collapsed;
+                HeroThumbFallback.Visibility = Visibility.Visible;
+                _lastThumbIdentity = identity;
+            }
+            catch
+            {
+                HeroThumb.Visibility = Visibility.Collapsed;
+                HeroThumbFallback.Visibility = Visibility.Visible;
+            }
         }
 
         private bool TryRefreshFromAppPlaybackService()
@@ -496,7 +971,7 @@ namespace Zink.Pages
             {
                 HeroInsightsSection.Visibility = ReadBool(K_ShowHeroInsights, true) ? Visibility.Visible : Visibility.Collapsed;
                 PowerToolsSection.Visibility = ReadBool(K_ShowPowerTools, true) ? Visibility.Visible : Visibility.Collapsed;
-                RecentActivitySection.Visibility = ReadBool(K_ShowRecentActivity, true) ? Visibility.Visible : Visibility.Collapsed;
+                RecentActivitySection.Visibility = Visibility.Collapsed;
 
                 SetTileVisibility(TileBtn_MusicPlayer, "MusicPlayer");
                 SetTileVisibility(TileBtn_VideoPlayer, "VideoPlayer");
@@ -548,6 +1023,7 @@ namespace Zink.Pages
                     HomeRadioVolumeValueText.Text = "100%";
                 _lastPlayable = null;
                 _lastThumbIdentity = "";
+                _lastSpotifyArtLookupIdentity = "";
             }
             catch { }
         }
@@ -1059,7 +1535,8 @@ namespace Zink.Pages
                 HeroThumb.Visibility = Visibility.Collapsed;
                 HeroThumbFallback.Visibility = Visibility.Visible;
 
-                if (string.Equals(kind, "radio", StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(kind, "radio", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(kind, "spotify", StringComparison.OrdinalIgnoreCase))
                 {
                     return;
                 }
@@ -1151,6 +1628,17 @@ namespace Zink.Pages
 
                 case "radio":
                     App.MainWindow.MainFrame.Navigate(typeof(RadioPage));
+                    break;
+
+                case "spotify":
+                    if (!TryNavigateToAny(
+                        "Zink.Pages.SpotifyPage",
+                        "Zink.Pages.SpotifyLoginPage",
+                        "Zink.Pages.SpotifyHomePage",
+                        "Zink.Pages.SpotifyBrowserPage"))
+                    {
+                        try { App.MainWindow.MainFrame.Navigate(typeof(SpotifyLoginPage)); } catch { }
+                    }
                     break;
             }
         }
@@ -1258,7 +1746,7 @@ namespace Zink.Pages
                 if (string.IsNullOrWhiteSpace(item.Kind) && !string.IsNullOrWhiteSpace(item.PayloadPath))
                     item.Kind = DetectKindFromPath(item.PayloadPath);
 
-                if (item.Kind == "music" || item.Kind == "video" || item.Kind == "radio")
+                if (item.Kind == "music" || item.Kind == "video" || item.Kind == "radio" || item.Kind == "spotify")
                     SetHeroPlayableState(item, persist: true);
                 else
                     SetHeroPlayableState(item, persist: false);
@@ -1454,7 +1942,8 @@ namespace Zink.Pages
             if (item == null)
                 return false;
 
-            if (string.Equals(item.Kind, "radio", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(item.Kind, "radio", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(item.Kind, "spotify", StringComparison.OrdinalIgnoreCase))
                 return true;
 
             if (string.Equals(item.Kind, "music", StringComparison.OrdinalIgnoreCase) ||
@@ -1474,6 +1963,7 @@ namespace Zink.Pages
                 "music" => "Music",
                 "video" => "Film / Video",
                 "radio" => "Radio",
+                "spotify" => "Spotify",
                 _ => "Idle"
             };
         }
@@ -1485,6 +1975,7 @@ namespace Zink.Pages
                 "music" => "Music playback",
                 "video" => "Video playback",
                 "radio" => "Live stream",
+                "spotify" => "Spotify playback",
                 _ => "Nothing active"
             };
         }
@@ -1496,6 +1987,7 @@ namespace Zink.Pages
                 "music" => "Music is active in Zink",
                 "video" => "Video is active in Zink",
                 "radio" => "Radio is active in Zink",
+                "spotify" => "Spotify is active in Zink",
                 _ => "Play music, radio or a film and it will appear here"
             };
         }
@@ -1504,6 +1996,16 @@ namespace Zink.Pages
         {
             try
             {
+                var spotify = SpotifyControllerService.Instance;
+                if (spotify != null &&
+                    spotify.IsAttached &&
+                    (!string.IsNullOrWhiteSpace(spotify.Current?.Title) ||
+                     !string.IsNullOrWhiteSpace(spotify.Current?.Artist) ||
+                     !string.IsNullOrWhiteSpace(spotify.Current?.Album)))
+                {
+                    return true;
+                }
+
                 var appPlayback = AppPlaybackService.Instance;
                 if (appPlayback == null)
                     return false;
@@ -1521,6 +2023,113 @@ namespace Zink.Pages
             catch { }
 
             return false;
+        }
+
+        private void RefreshNotifications()
+        {
+            try
+            {
+                var items = new List<(string Title, string Detail, string Accent)>
+                {
+                    (
+                        DiagnosticLogService.IsEnabled ? "Diagnostics logging is on" : "Diagnostics logging is off",
+                        DiagnosticLogService.IsEnabled
+                            ? "Writing this device to " + DiagnosticLogService.CurrentLogPath
+                            : "Turn logging on in Settings before testing calls.",
+                        DiagnosticLogService.IsEnabled ? "#65D887" : "#FFB84D"
+                    ),
+                    (
+                        "GPU screen share logging",
+                        "Receiver now logs H.264 input format, decoder output, RTP frames and preview fallback frames.",
+                        "#5AB4FF"
+                    )
+                };
+
+                if (!HasLiveNowPlaying())
+                {
+                    items.Add((
+                        "No live playback detected",
+                        "Start Spotify, music, radio or video playback and the dashboard will update automatically.",
+                        "#B9C9D6"
+                    ));
+                }
+
+                NotificationsCountText.Text = items.Count.ToString();
+                NotificationsBadge.Visibility = items.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+                NotificationsList.Items.Clear();
+
+                foreach (var item in items)
+                {
+                    var row = new Border
+                    {
+                        CornerRadius = new CornerRadius(18),
+                        Padding = new Thickness(12),
+                        Margin = new Thickness(0, 0, 0, 8),
+                        BorderThickness = new Thickness(1),
+                        BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(global::Windows.UI.Color.FromArgb(0x24, 0xFF, 0xFF, 0xFF)),
+                        Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(global::Windows.UI.Color.FromArgb(0x22, 0xFF, 0xFF, 0xFF))
+                    };
+
+                    var grid = new Grid
+                    {
+                        ColumnSpacing = 10
+                    };
+                    grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                    grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+                    var dot = new Border
+                    {
+                        Width = 10,
+                        Height = 10,
+                        CornerRadius = new CornerRadius(10),
+                        Background = ColorBrushFromHex(item.Accent),
+                        VerticalAlignment = VerticalAlignment.Top,
+                        Margin = new Thickness(0, 5, 0, 0)
+                    };
+
+                    var text = new StackPanel { Spacing = 3 };
+                    text.Children.Add(new TextBlock
+                    {
+                        Text = item.Title,
+                        Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(global::Windows.UI.Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF)),
+                        FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                        TextWrapping = TextWrapping.WrapWholeWords
+                    });
+                    text.Children.Add(new TextBlock
+                    {
+                        Text = item.Detail,
+                        Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(global::Windows.UI.Color.FromArgb(0xB7, 0xC8, 0xD2, 0xDC)),
+                        FontSize = 12,
+                        TextWrapping = TextWrapping.WrapWholeWords,
+                        MaxLines = 3
+                    });
+
+                    Grid.SetColumn(text, 1);
+                    grid.Children.Add(dot);
+                    grid.Children.Add(text);
+                    row.Child = grid;
+                    NotificationsList.Items.Add(row);
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        private static Microsoft.UI.Xaml.Media.SolidColorBrush ColorBrushFromHex(string hex)
+        {
+            try
+            {
+                var value = hex.TrimStart('#');
+                var r = Convert.ToByte(value.Substring(0, 2), 16);
+                var g = Convert.ToByte(value.Substring(2, 2), 16);
+                var b = Convert.ToByte(value.Substring(4, 2), 16);
+                return new Microsoft.UI.Xaml.Media.SolidColorBrush(global::Windows.UI.Color.FromArgb(0xFF, r, g, b));
+            }
+            catch
+            {
+                return new Microsoft.UI.Xaml.Media.SolidColorBrush(global::Windows.UI.Color.FromArgb(0xFF, 0xB9, 0xC9, 0xD6));
+            }
         }
 
         private static string FormatClock(TimeSpan t)

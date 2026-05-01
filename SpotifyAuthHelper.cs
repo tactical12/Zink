@@ -228,6 +228,112 @@ namespace Zink
             return new SpotifyTrackMatch(trackId, trackUrl);
         }
 
+        public static async Task<string> GetArtistImageUrlAsync(string artist, string title, string album)
+        {
+            try
+            {
+                var match = await SearchBestTrackAsync(artist, title, album);
+                if (match == null || string.IsNullOrWhiteSpace(match.Value.TrackId))
+                    return "";
+
+                return await GetArtistImageUrlForTrackAsync(match.Value.TrackId);
+            }
+            catch
+            {
+                return "";
+            }
+        }
+
+        public static async Task<string> GetArtistImageUrlForTrackAsync(string trackId)
+        {
+            if (string.IsNullOrWhiteSpace(trackId))
+                return "";
+
+            if (!await EnsureAccessTokenAsync())
+                return "";
+
+            string url = $"https://api.spotify.com/v1/tracks/{Uri.EscapeDataString(trackId)}";
+
+            using var http = CreateAuthorizedClient();
+            var response = await http.GetAsync(url);
+
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                await RefreshAccessTokenAsync();
+                if (string.IsNullOrWhiteSpace(AccessToken))
+                    return "";
+
+                using var retryHttp = CreateAuthorizedClient();
+                response = await retryHttp.GetAsync(url);
+            }
+
+            if (!response.IsSuccessStatusCode)
+                return "";
+
+            var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
+
+            if (!json.TryGetProperty("artists", out var artists))
+                return "";
+
+            if (artists.ValueKind != JsonValueKind.Array || artists.GetArrayLength() == 0)
+                return "";
+
+            var firstArtist = artists[0];
+            string artistId = firstArtist.TryGetProperty("id", out var idEl) ? idEl.GetString() ?? "" : "";
+
+            if (string.IsNullOrWhiteSpace(artistId))
+                return "";
+
+            return await GetArtistImageByArtistIdAsync(artistId);
+        }
+
+        public static async Task<string> GetArtistImageByArtistIdAsync(string artistId)
+        {
+            if (string.IsNullOrWhiteSpace(artistId))
+                return "";
+
+            if (!await EnsureAccessTokenAsync())
+                return "";
+
+            string url = $"https://api.spotify.com/v1/artists/{Uri.EscapeDataString(artistId)}";
+
+            using var http = CreateAuthorizedClient();
+            var response = await http.GetAsync(url);
+
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                await RefreshAccessTokenAsync();
+                if (string.IsNullOrWhiteSpace(AccessToken))
+                    return "";
+
+                using var retryHttp = CreateAuthorizedClient();
+                response = await retryHttp.GetAsync(url);
+            }
+
+            if (!response.IsSuccessStatusCode)
+                return "";
+
+            var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
+
+            if (!json.TryGetProperty("images", out var images))
+                return "";
+
+            if (images.ValueKind != JsonValueKind.Array || images.GetArrayLength() == 0)
+                return "";
+
+            foreach (var image in images.EnumerateArray())
+            {
+                if (image.TryGetProperty("url", out var urlEl))
+                {
+                    var found = urlEl.GetString() ?? "";
+                    if (!string.IsNullOrWhiteSpace(found))
+                        return found;
+                }
+            }
+
+            return "";
+        }
+
         public static async Task<bool> AddTrackToLikedSongsAsync(string trackId)
         {
             if (string.IsNullOrWhiteSpace(trackId))

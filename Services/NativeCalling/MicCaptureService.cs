@@ -1,22 +1,87 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading.Tasks;
+using Concentus.Enums;
+using ConcentusEncoder = Concentus.Structs.OpusEncoder;
 using NAudio.Wave;
 
 namespace Zink.Services.NativeCalling
 {
     public sealed class MicCaptureService
     {
+        public sealed class InputDeviceInfo
+        {
+            public int DeviceNumber { get; init; }
+            public string Name { get; init; } = string.Empty;
+
+            public override string ToString() => Name;
+        }
+
         public static MicCaptureService Instance { get; } = new MicCaptureService();
 
         private readonly object _gate = new();
         private WaveInEvent? _capture;
+        private ConcentusEncoder? _encoder;
+        private int _selectedInputDeviceNumber = 0;
+        private long _encodeFailures;
 
         public bool IsRunning { get; private set; }
+
+        public int SelectedInputDeviceNumber
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return _selectedInputDeviceNumber;
+                }
+            }
+        }
 
         public event Action<byte[]>? AudioCaptured;
 
         private MicCaptureService()
         {
+        }
+
+        public IReadOnlyList<InputDeviceInfo> GetInputDevices()
+        {
+            var devices = new List<InputDeviceInfo>();
+
+            for (int i = 0; i < WaveIn.DeviceCount; i++)
+            {
+                var capabilities = WaveIn.GetCapabilities(i);
+
+                devices.Add(new InputDeviceInfo
+                {
+                    DeviceNumber = i,
+                    Name = capabilities.ProductName
+                });
+            }
+
+            return devices;
+        }
+
+        public bool SetInputDevice(int deviceNumber)
+        {
+            lock (_gate)
+            {
+                if (deviceNumber < 0 || deviceNumber >= WaveIn.DeviceCount)
+                    return false;
+
+                bool wasRunning = IsRunning;
+
+                if (wasRunning)
+                    StopCaptureLocked();
+
+                _selectedInputDeviceNumber = deviceNumber;
+
+                if (wasRunning)
+                    StartCaptureLocked();
+
+                return true;
+            }
         }
 
         public Task StartAsync()
@@ -26,19 +91,7 @@ namespace Zink.Services.NativeCalling
                 if (IsRunning)
                     return Task.CompletedTask;
 
-                _capture = new WaveInEvent
-                {
-                    DeviceNumber = 0,
-                    WaveFormat = new WaveFormat(16000, 16, 1),
-                    BufferMilliseconds = 40,
-                    NumberOfBuffers = 3
-                };
-
-                _capture.DataAvailable += OnDataAvailable;
-                _capture.RecordingStopped += OnRecordingStopped;
-                _capture.StartRecording();
-
-                IsRunning = true;
+                StartCaptureLocked();
             }
 
             return Task.CompletedTask;
@@ -51,25 +104,57 @@ namespace Zink.Services.NativeCalling
                 if (!IsRunning)
                     return Task.CompletedTask;
 
-                try
-                {
-                    if (_capture != null)
-                    {
-                        _capture.DataAvailable -= OnDataAvailable;
-                        _capture.RecordingStopped -= OnRecordingStopped;
-                        _capture.StopRecording();
-                        _capture.Dispose();
-                        _capture = null;
-                    }
-                }
-                finally
-                {
-                    IsRunning = false;
-                    AudioActivityService.Instance.UpdateLocalLevel(0);
-                }
+                StopCaptureLocked();
             }
 
             return Task.CompletedTask;
+        }
+
+        private void StartCaptureLocked()
+        {
+            _encoder = new ConcentusEncoder(16000, 1, OpusApplication.OPUS_APPLICATION_VOIP)
+            {
+                Bitrate = 16000,
+                Complexity = 10,
+                SignalType = OpusSignal.OPUS_SIGNAL_VOICE
+            };
+            _encodeFailures = 0;
+
+            _capture = new WaveInEvent
+            {
+                DeviceNumber = _selectedInputDeviceNumber,
+                WaveFormat = new WaveFormat(16000, 16, 1),
+                BufferMilliseconds = 20,
+                NumberOfBuffers = 2
+            };
+
+            _capture.DataAvailable += OnDataAvailable;
+            _capture.RecordingStopped += OnRecordingStopped;
+            _capture.StartRecording();
+
+            IsRunning = true;
+        }
+
+        private void StopCaptureLocked()
+        {
+            try
+            {
+                if (_capture != null)
+                {
+                    _capture.DataAvailable -= OnDataAvailable;
+                    _capture.RecordingStopped -= OnRecordingStopped;
+                    _capture.StopRecording();
+                    _capture.Dispose();
+                    _capture = null;
+                }
+
+                _encoder = null;
+            }
+            finally
+            {
+                IsRunning = false;
+                AudioActivityService.Instance.UpdateLocalLevel(0);
+            }
         }
 
         private void OnRecordingStopped(object? sender, StoppedEventArgs e)
@@ -84,30 +169,96 @@ namespace Zink.Services.NativeCalling
 
         private void OnDataAvailable(object? sender, WaveInEventArgs e)
         {
-            if (e.BytesRecorded <= 0)
+            var encoder = _encoder;
+            if (e.BytesRecorded <= 0 || encoder == null || !IsRunning)
             {
                 AudioActivityService.Instance.UpdateLocalLevel(0);
                 return;
             }
 
-            var buffer = new byte[e.BytesRecorded];
-            Array.Copy(e.Buffer, buffer, e.BytesRecorded);
+            var pcmBytes = new byte[e.BytesRecorded];
+            Array.Copy(e.Buffer, pcmBytes, e.BytesRecorded);
 
-            AudioCaptured?.Invoke(buffer);
+            float max = 0f;
+            for (int i = 0; i < pcmBytes.Length - 1; i += 2)
+            {
+                short sample = BitConverter.ToInt16(pcmBytes, i);
+                float abs = Math.Abs((int)sample);
+                if (abs > max)
+                    max = abs;
+            }
 
-            double level = 0;
-            int sampleCount = e.BytesRecorded / 2;
+            float gain = 1.0f;
+            if (max > 0f)
+            {
+                gain = 12000f / max;
 
+                if (gain > 3.0f) gain = 3.0f;
+                if (gain < 1.0f) gain = 1.0f;
+            }
+
+            for (int i = 0; i < pcmBytes.Length - 1; i += 2)
+            {
+                short sample = BitConverter.ToInt16(pcmBytes, i);
+
+                float amplified = sample * gain;
+
+                if (amplified > short.MaxValue) amplified = short.MaxValue;
+                if (amplified < short.MinValue) amplified = short.MinValue;
+
+                short newSample = (short)amplified;
+                byte[] bytes = BitConverter.GetBytes(newSample);
+
+                pcmBytes[i] = bytes[0];
+                pcmBytes[i + 1] = bytes[1];
+            }
+
+            int sampleCount = pcmBytes.Length / 2;
             if (sampleCount <= 0)
             {
                 AudioActivityService.Instance.UpdateLocalLevel(0);
                 return;
             }
 
-            for (int i = 0; i < e.BytesRecorded - 1; i += 2)
+            short[] pcmSamples = new short[sampleCount];
+            Buffer.BlockCopy(pcmBytes, 0, pcmSamples, 0, pcmBytes.Length);
+
+            byte[] opusBuffer = new byte[4000];
+            int encodedLength;
+            try
             {
-                short sample = BitConverter.ToInt16(e.Buffer, i);
-                level += Math.Abs(sample);
+                encodedLength = encoder.Encode(
+                    pcmSamples,
+                    0,
+                    pcmSamples.Length,
+                    opusBuffer,
+                    0,
+                    opusBuffer.Length);
+            }
+            catch (Exception ex)
+            {
+                _encodeFailures++;
+                if (_encodeFailures == 1 || _encodeFailures % 50 == 0)
+                {
+                    Debug.WriteLine($"[Call:Mic] Opus encode failed #{_encodeFailures}: samples={pcmSamples.Length}; bytes={pcmBytes.Length}; running={IsRunning}; {ex.GetType().Name}: {ex.Message}");
+                }
+
+                AudioActivityService.Instance.UpdateLocalLevel(0);
+                return;
+            }
+
+            if (encodedLength > 0)
+            {
+                byte[] finalPacket = new byte[encodedLength];
+                Array.Copy(opusBuffer, finalPacket, encodedLength);
+                AudioCaptured?.Invoke(finalPacket);
+            }
+
+            double level = 0;
+            for (int i = 0; i < pcmBytes.Length - 1; i += 2)
+            {
+                short sample = BitConverter.ToInt16(pcmBytes, i);
+                level += Math.Abs((int)sample);
             }
 
             level /= sampleCount;

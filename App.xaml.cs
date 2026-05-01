@@ -13,6 +13,8 @@ using Microsoft.Windows.AppNotifications;
 using AppLifecycleInstance = Microsoft.Windows.AppLifecycle.AppInstance;
 
 using Zink.Services;
+using Zink.Services.NativeCalling;
+using Zink.Services.Recording;
 
 namespace Zink
 {
@@ -29,10 +31,14 @@ namespace Zink
 
         private DateTimeOffset? _replayBufferStartedAtUtc;
         private static readonly TimeSpan RequiredReplayBufferDuration = TimeSpan.FromSeconds(45);
+        private const string BackgroundRunSettingKey = "ZinkBackgroundRunEnabled";
 
         public App()
         {
             this.InitializeComponent();
+            DiagnosticLogService.InitializeFromSettings();
+            DiagnosticLogService.WriteLine("Zink app constructor started.");
+            HookDiagnosticCrashLogging();
 
             try
             {
@@ -47,11 +53,90 @@ namespace Zink
             {
                 try
                 {
+                    DiagnosticLogService.WriteLine("Unhandled exception: " + e.Exception);
                     File.WriteAllText("CrashLog.txt", e.Exception.Message + "\n" + e.Exception.StackTrace);
                 }
                 catch { }
+                finally
+                {
+                    DiagnosticLogService.Flush();
+                }
+
                 e.Handled = true;
             };
+        }
+
+        private static void HookDiagnosticCrashLogging()
+        {
+            AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+            {
+                try
+                {
+                    DiagnosticLogService.WriteLine("AppDomain unhandled exception: " + e.ExceptionObject);
+                }
+                catch
+                {
+                }
+                finally
+                {
+                    DiagnosticLogService.Flush();
+                }
+            };
+
+            AppDomain.CurrentDomain.FirstChanceException += (_, e) =>
+            {
+                try
+                {
+                    if (IsScreenShareDiagnosticException(e.Exception))
+                        DiagnosticLogService.WriteLine("First-chance screen-share exception: " + e.Exception);
+                }
+                catch
+                {
+                }
+            };
+
+            TaskScheduler.UnobservedTaskException += (_, e) =>
+            {
+                try
+                {
+                    DiagnosticLogService.WriteLine("Unobserved task exception: " + e.Exception);
+                }
+                catch
+                {
+                }
+                finally
+                {
+                    DiagnosticLogService.Flush();
+                }
+            };
+
+            AppDomain.CurrentDomain.ProcessExit += (_, __) =>
+            {
+                try
+                {
+                    DiagnosticLogService.WriteLine("Process exit.");
+                }
+                catch
+                {
+                }
+                finally
+                {
+                    DiagnosticLogService.Flush();
+                }
+            };
+        }
+
+        private static bool IsScreenShareDiagnosticException(Exception exception)
+        {
+            var typeName = exception.GetType().FullName ?? "";
+            var stack = exception.StackTrace ?? "";
+
+            return typeName.Contains("SharpDX", StringComparison.OrdinalIgnoreCase) ||
+                typeName.Contains("Vortice", StringComparison.OrdinalIgnoreCase) ||
+                stack.Contains("ScreenShare", StringComparison.OrdinalIgnoreCase) ||
+                stack.Contains("MediaFoundationH264Encoder", StringComparison.OrdinalIgnoreCase) ||
+                stack.Contains("NativePeerConnectionService", StringComparison.OrdinalIgnoreCase) ||
+                stack.Contains("SIPSorcery", StringComparison.OrdinalIgnoreCase);
         }
 
         [DllImport("user32.dll")]
@@ -62,12 +147,13 @@ namespace Zink
         protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
         {
             _ = InitializeAppServicesAsync();
-            _ = EnsureStartupTaskEnabledAsync();
 
             SetupTray();
 
             StorageFile fileToOpen = null;
             bool launchedFromStartupTask = IsStartupTaskLaunch();
+            bool backgroundRunEnabled = IsBackgroundRunEnabled();
+            bool gamingReplayEnabled = RecordingPreferences.IsGamingBackgroundReplayEnabled;
 
             try
             {
@@ -92,7 +178,11 @@ namespace Zink
                 MainWindow.Activate();
 
                 _ = VideoLibraryService.Current.StartAsync(TimeSpan.FromSeconds(30));
-                _replayStartupTask = DelayedReplayStartupAsync(TimeSpan.FromSeconds(2));
+
+                if (backgroundRunEnabled && gamingReplayEnabled)
+                {
+                    _replayStartupTask = DelayedReplayStartupAsync(TimeSpan.FromSeconds(2));
+                }
 
                 var frame = GetRootFrame();
                 frame?.Navigate(typeof(VideoPlayerPage), fileToOpen);
@@ -115,7 +205,12 @@ namespace Zink
                 });
 
                 _ = VideoLibraryService.Current.StartAsync(TimeSpan.FromSeconds(30));
-                _replayStartupTask = DelayedReplayStartupAsync(TimeSpan.FromSeconds(25));
+
+                if (backgroundRunEnabled && gamingReplayEnabled)
+                {
+                    _replayStartupTask = DelayedReplayStartupAsync(TimeSpan.FromSeconds(25));
+                }
+
                 return;
             }
 
@@ -135,11 +230,30 @@ namespace Zink
                     MainWindow.Activate();
 
                     _ = VideoLibraryService.Current.StartAsync(TimeSpan.FromSeconds(30));
-                    _replayStartupTask = DelayedReplayStartupAsync(TimeSpan.FromSeconds(2));
+
+                    if (backgroundRunEnabled && gamingReplayEnabled)
+                    {
+                        _replayStartupTask = DelayedReplayStartupAsync(TimeSpan.FromSeconds(2));
+                    }
 
                     splashWindow.Close();
                 });
             });
+        }
+
+        private bool IsBackgroundRunEnabled()
+        {
+            try
+            {
+                object value = ApplicationData.Current.LocalSettings.Values[BackgroundRunSettingKey];
+                if (value is bool boolValue)
+                    return boolValue;
+            }
+            catch
+            {
+            }
+
+            return true;
         }
 
         private async Task DelayedReplayStartupAsync(TimeSpan delay)
@@ -168,23 +282,6 @@ namespace Zink
         {
             _replayReady = false;
             _replayBufferStartedAtUtc = null;
-        }
-
-        private async Task EnsureStartupTaskEnabledAsync()
-        {
-            try
-            {
-                var startupTask = await StartupTask.GetAsync("ZinkStartupTask");
-
-                if (startupTask.State == StartupTaskState.Disabled)
-                {
-                    await startupTask.RequestEnableAsync();
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine("Startup task enable failed: " + ex);
-            }
         }
 
         private bool IsStartupTaskLaunch()
@@ -278,6 +375,14 @@ namespace Zink
 
                 var service = Zink.Services.Recording.ManualRecordingService.Instance;
 
+                if (!RecordingPreferences.IsGamingBackgroundReplayEnabled)
+                {
+                    _trayService?.ShowBalloonTip(
+                        "Zink Replay",
+                        "Background replay for gaming is turned off in Settings.");
+                    return;
+                }
+
                 if (!service.IsReplayBufferRunning)
                 {
                     _trayService?.ShowBalloonTip(
@@ -329,6 +434,8 @@ namespace Zink
                 }
                 else
                 {
+                    NotifyActiveCallEndedBeforeExit();
+
                     try
                     {
                         _trayService?.Dispose();
@@ -351,6 +458,13 @@ namespace Zink
 
             try
             {
+                if (!RecordingPreferences.IsGamingBackgroundReplayEnabled)
+                {
+                    _replayStartupError = "Background replay for gaming is turned off in Settings.";
+                    _replayReady = false;
+                    return;
+                }
+
                 var service = Zink.Services.Recording.ManualRecordingService.Instance;
 
                 if (service.IsReplayBufferRunning)
@@ -425,17 +539,31 @@ namespace Zink
 
         private void OnMainWindowClosed(object sender, Microsoft.UI.Xaml.WindowEventArgs e)
         {
-            if (!_exitRequested)
+            var hasActiveCall = IsActiveCallState(NativeCallCoordinator.Instance.CurrentSession.State);
+            DiagnosticLogService.WriteLine($"Main window closing; exitRequested={_exitRequested}; activeCall={hasActiveCall}.");
+            DiagnosticLogService.Flush();
+
+            if (!_exitRequested && !hasActiveCall)
             {
                 try
                 {
                     MainWindow?.HideToTray();
+                    DiagnosticLogService.WriteLine("Main window hidden to tray.");
+                    DiagnosticLogService.Flush();
                     return;
                 }
                 catch
                 {
                 }
             }
+
+            if (!_exitRequested && hasActiveCall)
+            {
+                DiagnosticLogService.WriteLine("Main window close requested during an active call; leaving the call instead of hiding to tray.");
+                DiagnosticLogService.Flush();
+            }
+
+            NotifyActiveCallEndedBeforeExit();
 
             try { VideoLibraryService.Current.Stop(); } catch { }
             try { DiscordPresenceService.Instance.Clear(); } catch { }
@@ -461,7 +589,56 @@ namespace Zink
             }
             catch { }
 
+            DiagnosticLogService.WriteLine("Main window closed; exiting process.");
+            DiagnosticLogService.Flush();
             Environment.Exit(0);
+        }
+
+        private void NotifyActiveCallEndedBeforeExit()
+        {
+            try
+            {
+                var session = NativeCallCoordinator.Instance.CurrentSession;
+                if (!IsActiveCallState(session.State) || string.IsNullOrWhiteSpace(session.CallId))
+                    return;
+
+                var endTask = Task.Run(async () =>
+                {
+                    try
+                    {
+                        DiagnosticLogService.WriteLine("Stopping screen share during app exit.");
+                        await NativeScreenShareStreamingService.Instance.StopAsync();
+                    }
+                    catch
+                    {
+                        DiagnosticLogService.WriteLine("Stopping screen share during app exit failed.");
+                    }
+
+                    await NativeCallCoordinator.Instance.EndAsync("closed-app");
+                });
+
+                if (!endTask.Wait(TimeSpan.FromSeconds(2)))
+                {
+                    System.Diagnostics.Debug.WriteLine("Timed out while notifying call end during app exit.");
+                }
+                else
+                {
+                    endTask.GetAwaiter().GetResult();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Failed to notify call end during app exit: " + ex);
+            }
+        }
+
+        private static bool IsActiveCallState(NativeCallState state)
+        {
+            return state == NativeCallState.Calling ||
+                state == NativeCallState.Incoming ||
+                state == NativeCallState.Accepted ||
+                state == NativeCallState.Negotiating ||
+                state == NativeCallState.Connected;
         }
 
         private void StopAllMediaPlayers(Window window)

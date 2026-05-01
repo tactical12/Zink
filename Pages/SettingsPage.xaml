@@ -1,16 +1,248 @@
 <Page
-  x:Class="Zink.Pages.SettingsPage"
-  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-  Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+    x:Class="Zink.Pages.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="Transparent">
 
-    <StackPanel Padding="20" Spacing="12">
-        <TextBlock Text="Settings" FontSize="24" FontWeight="Bold"/>
+    <Page.Resources>
+        <SolidColorBrush x:Key="GlassPanelBrush" Color="#B0141820"/>
+        <SolidColorBrush x:Key="GlassPanelStrongBrush" Color="#C2182530"/>
+        <SolidColorBrush x:Key="GlassTileBrush" Color="#8F101820"/>
+        <SolidColorBrush x:Key="GlassPanelBorderBrush" Color="#33FFFFFF"/>
+        <SolidColorBrush x:Key="MutedTextBrush" Color="#B7C8D2DC"/>
 
-        <Button x:Name="CheckForUpdatesButton"
-            Content="Check for updates"
-            Click="CheckForUpdatesButton_Click"/>
+        <Style x:Key="GlassPanelStyle" TargetType="Border">
+            <Setter Property="CornerRadius" Value="24"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="{StaticResource GlassPanelBorderBrush}"/>
+            <Setter Property="Background" Value="{StaticResource GlassPanelBrush}"/>
+        </Style>
 
-        <TextBlock x:Name="StatusText" Text=""/>
-    </StackPanel>
+        <Style x:Key="GlassSettingRowStyle" TargetType="Border">
+            <Setter Property="CornerRadius" Value="18"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#26FFFFFF"/>
+            <Setter Property="Background" Value="{StaticResource GlassTileBrush}"/>
+            <Setter Property="Padding" Value="16"/>
+        </Style>
+
+        <Style x:Key="GlassButtonStyle" TargetType="Button">
+            <Setter Property="MinHeight" Value="42"/>
+            <Setter Property="Padding" Value="16,0"/>
+            <Setter Property="CornerRadius" Value="21"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#30FFFFFF"/>
+            <Setter Property="Background" Value="#2DFFFFFF"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+    </Page.Resources>
+
+    <Grid RequestedTheme="Dark">
+        <Grid.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#0D171F" Offset="0"/>
+                <GradientStop Color="#162737" Offset="0.52"/>
+                <GradientStop Color="#070A0F" Offset="1"/>
+            </LinearGradientBrush>
+        </Grid.Background>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Padding="32"
+                        Spacing="18">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Settings"
+                               FontSize="34"
+                               FontWeight="SemiBold"
+                               Foreground="White"/>
+                    <TextBlock Text="Control startup, replay capture, and app updates."
+                               Foreground="{StaticResource MutedTextBrush}"
+                               FontSize="15"/>
+                </StackPanel>
+
+                <Border Style="{StaticResource GlassPanelStyle}"
+                        Padding="20">
+                    <StackPanel Spacing="14">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Background"
+                                       FontSize="20"
+                                       FontWeight="SemiBold"
+                                       Foreground="White"/>
+                            <TextBlock Text="Replay and startup controls stay saved on this device."
+                                       Foreground="{StaticResource MutedTextBrush}"
+                                       FontSize="13"/>
+                        </StackPanel>
+
+                        <Border Style="{StaticResource GlassSettingRowStyle}">
+                            <Grid ColumnSpacing="18">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Spacing="6"
+                                            VerticalAlignment="Center">
+                                    <TextBlock Text="Run Zink in the background when Windows starts"
+                                               Foreground="White"
+                                               FontWeight="SemiBold"/>
+                                    <TextBlock x:Name="StartupStatusText"
+                                               Text=""
+                                               Foreground="{StaticResource MutedTextBrush}"
+                                               TextWrapping="WrapWholeWords"/>
+                                </StackPanel>
+
+                                <ToggleSwitch x:Name="StartupToggle"
+                                              Grid.Column="1"
+                                              MinWidth="128"
+                                              OnContent="On"
+                                              OffContent="Off"
+                                              Toggled="StartupToggle_Toggled"/>
+                            </Grid>
+                        </Border>
+
+                        <Border Style="{StaticResource GlassSettingRowStyle}">
+                            <Grid ColumnSpacing="18">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Spacing="6"
+                                            VerticalAlignment="Center">
+                                    <TextBlock Text="Turn off background replay for gaming"
+                                               Foreground="White"
+                                               FontWeight="SemiBold"/>
+                                    <TextBlock x:Name="BackgroundReplayStatusText"
+                                               Text=""
+                                               Foreground="{StaticResource MutedTextBrush}"
+                                               TextWrapping="WrapWholeWords"/>
+                                </StackPanel>
+
+                                <ToggleSwitch x:Name="BackgroundReplayOffToggle"
+                                              Grid.Column="1"
+                                              MinWidth="128"
+                                              OnContent="Off"
+                                              OffContent="On"
+                                              Toggled="BackgroundReplayOffToggle_Toggled"/>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource GlassPanelStyle}"
+                        Padding="20">
+                    <StackPanel Spacing="14">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Diagnostics"
+                                       FontSize="20"
+                                       FontWeight="SemiBold"
+                                       Foreground="White"/>
+                            <TextBlock Text="Write Zink debug output to a local text file."
+                                       Foreground="{StaticResource MutedTextBrush}"
+                                       FontSize="13"/>
+                        </StackPanel>
+
+                        <Border Style="{StaticResource GlassSettingRowStyle}">
+                            <Grid ColumnSpacing="18">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Spacing="6"
+                                            VerticalAlignment="Center">
+                                    <TextBlock Text="Diagnostic log file"
+                                               Foreground="White"
+                                               FontWeight="SemiBold"/>
+                                    <TextBlock x:Name="DiagnosticLogStatusText"
+                                               Text=""
+                                               Foreground="{StaticResource MutedTextBrush}"
+                                               TextWrapping="WrapWholeWords"/>
+                                </StackPanel>
+
+                                <ToggleSwitch x:Name="DiagnosticLogToggle"
+                                              Grid.Column="1"
+                                              MinWidth="128"
+                                              OnContent="On"
+                                              OffContent="Off"
+                                              Toggled="DiagnosticLogToggle_Toggled"/>
+                            </Grid>
+                        </Border>
+
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Button x:Name="OpenDiagnosticLogFolderButton"
+                                    Style="{StaticResource GlassButtonStyle}"
+                                    Click="OpenDiagnosticLogFolderButton_Click">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE838;" FontSize="15"/>
+                                    <TextBlock Text="Open log folder"/>
+                                </StackPanel>
+                            </Button>
+
+                            <Button x:Name="ClearDiagnosticLogButton"
+                                    Grid.Column="1"
+                                    Style="{StaticResource GlassButtonStyle}"
+                                    Click="ClearDiagnosticLogButton_Click">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE74D;" FontSize="15"/>
+                                    <TextBlock Text="Clear log"/>
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource GlassPanelStyle}"
+                        Padding="20">
+                    <StackPanel Spacing="14">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Maintenance"
+                                       FontSize="20"
+                                       FontWeight="SemiBold"
+                                       Foreground="White"/>
+                            <TextBlock Text="Restore defaults or check for a Store update."
+                                       Foreground="{StaticResource MutedTextBrush}"
+                                       FontSize="13"/>
+                        </StackPanel>
+
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Button x:Name="ResetDefaultsButton"
+                                    Style="{StaticResource GlassButtonStyle}"
+                                    Click="ResetDefaultsButton_Click">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE777;" FontSize="15"/>
+                                    <TextBlock Text="Reset defaults"/>
+                                </StackPanel>
+                            </Button>
+
+                            <Button x:Name="CheckForUpdatesButton"
+                                    Grid.Column="1"
+                                    Style="{StaticResource GlassButtonStyle}"
+                                    Click="CheckForUpdatesButton_Click">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE895;" FontSize="15"/>
+                                    <TextBlock Text="Check for updates"/>
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+
+                        <TextBlock x:Name="StatusText"
+                                   Text=""
+                                   Foreground="{StaticResource MutedTextBrush}"
+                                   TextWrapping="WrapWholeWords"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
 </Page>

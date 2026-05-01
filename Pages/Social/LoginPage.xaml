@@ -6,22 +6,179 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <ScrollViewer>
-        <Grid Padding="24">
-            <StackPanel Spacing="12" MaxWidth="420">
-                <TextBlock Text="Login" FontSize="28" FontWeight="SemiBold"/>
-                <TextBlock Text="Email or Username"/>
-                <TextBox x:Name="EmailOrUsernameBox" PlaceholderText="Email or username"/>
+    <Page.Resources>
+        <SolidColorBrush x:Key="GlassPanelBrush" Color="#B0141820"/>
+        <SolidColorBrush x:Key="GlassPanelBorderBrush" Color="#33FFFFFF"/>
+        <SolidColorBrush x:Key="GlassCardBrush" Color="#8F101820"/>
+        <SolidColorBrush x:Key="MutedTextBrush" Color="#B7C8D2DC"/>
 
-                <TextBlock Text="Password"/>
-                <PasswordBox x:Name="PasswordBox"/>
+        <Style x:Key="GlassButtonStyle" TargetType="Button">
+            <Setter Property="MinHeight" Value="46"/>
+            <Setter Property="Padding" Value="18,0"/>
+            <Setter Property="CornerRadius" Value="23"/>
+            <Setter Property="Background" Value="#2DFFFFFF"/>
+            <Setter Property="BorderBrush" Value="#32FFFFFF"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
 
-                <Button Content="Login" Click="LoginButton_Click"/>
-                <Button Content="Go to Register" Click="RegisterButton_Click"/>
+        <Style x:Key="PrimaryGlassButtonStyle" TargetType="Button" BasedOn="{StaticResource GlassButtonStyle}">
+            <Setter Property="Background" Value="#D72E8DFF"/>
+            <Setter Property="BorderBrush" Value="#88D8F0FF"/>
+        </Style>
+    </Page.Resources>
 
-                <ProgressRing x:Name="BusyRing" IsActive="False" Visibility="Collapsed"/>
-                <TextBlock x:Name="StatusText" TextWrapping="Wrap"/>
+    <Grid RequestedTheme="Dark">
+        <Grid.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#0D171F" Offset="0"/>
+                <GradientStop Color="#152633" Offset="0.48"/>
+                <GradientStop Color="#070A0F" Offset="1"/>
+            </LinearGradientBrush>
+        </Grid.Background>
+
+        <Grid Padding="32">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.2*"/>
+                <ColumnDefinition Width="0.9*"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Spacing="18"
+                        VerticalAlignment="Center"
+                        MaxWidth="560">
+                <Grid Width="72" Height="72">
+                    <Ellipse Fill="#25394A"/>
+                    <FontIcon Glyph="&#xE77B;"
+                              FontSize="30"
+                              Foreground="White"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"/>
+                </Grid>
+
+                <TextBlock Text="Welcome back to Zink"
+                           FontSize="44"
+                           FontWeight="SemiBold"
+                           Foreground="White"
+                           TextWrapping="Wrap"/>
+                <TextBlock Text="Sign in to sync friends, calls, messages, and presence."
+                           FontSize="17"
+                           Foreground="{StaticResource MutedTextBrush}"
+                           TextWrapping="Wrap"
+                           MaxWidth="500"/>
+
+                <StackPanel Orientation="Horizontal"
+                            Spacing="10">
+                    <Border Padding="14,10"
+                            CornerRadius="18"
+                            Background="{StaticResource GlassCardBrush}"
+                            BorderBrush="#24FFFFFF"
+                            BorderThickness="1">
+                        <StackPanel>
+                            <TextBlock Text="Realtime"
+                                       Foreground="White"
+                                       FontWeight="SemiBold"/>
+                            <TextBlock Text="Calls and presence"
+                                       Foreground="{StaticResource MutedTextBrush}"
+                                       FontSize="12"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Padding="14,10"
+                            CornerRadius="18"
+                            Background="{StaticResource GlassCardBrush}"
+                            BorderBrush="#24FFFFFF"
+                            BorderThickness="1">
+                        <StackPanel>
+                            <TextBlock Text="Private"
+                                       Foreground="White"
+                                       FontWeight="SemiBold"/>
+                            <TextBlock Text="Local saved chats"
+                                       Foreground="{StaticResource MutedTextBrush}"
+                                       FontSize="12"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
             </StackPanel>
+
+            <Border Grid.Column="1"
+                    Padding="28"
+                    MaxWidth="460"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Center"
+                    CornerRadius="28"
+                    Background="{StaticResource GlassPanelBrush}"
+                    BorderBrush="{StaticResource GlassPanelBorderBrush}"
+                    BorderThickness="1">
+                <StackPanel Spacing="16">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Sign in"
+                                   FontSize="30"
+                                   FontWeight="SemiBold"
+                                   Foreground="White"/>
+                        <TextBlock Text="Use your Zink Social username."
+                                   Foreground="{StaticResource MutedTextBrush}"/>
+                    </StackPanel>
+
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="Email or username"
+                                   Foreground="White"
+                                   FontWeight="SemiBold"/>
+                        <TextBox x:Name="EmailOrUsernameBox"
+                                 PlaceholderText="Email or username"
+                                 MinHeight="46"
+                                 CornerRadius="14"/>
+                    </StackPanel>
+
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="Password"
+                                   Foreground="White"
+                                   FontWeight="SemiBold"/>
+                        <PasswordBox x:Name="PasswordBox"
+                                     MinHeight="46"
+                                     CornerRadius="14"/>
+                    </StackPanel>
+
+                    <Button Style="{StaticResource PrimaryGlassButtonStyle}"
+                            Click="LoginButton_Click"
+                            HorizontalAlignment="Stretch">
+                        <StackPanel Orientation="Horizontal"
+                                    HorizontalAlignment="Center"
+                                    Spacing="8">
+                            <FontIcon Glyph="&#xE72E;" FontSize="15"/>
+                            <TextBlock Text="Sign in"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Button Style="{StaticResource GlassButtonStyle}"
+                            Click="RegisterButton_Click"
+                            HorizontalAlignment="Stretch">
+                        <StackPanel Orientation="Horizontal"
+                                    HorizontalAlignment="Center"
+                                    Spacing="8">
+                            <FontIcon Glyph="&#xE710;" FontSize="15"/>
+                            <TextBlock Text="Create account"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Grid ColumnSpacing="10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <ProgressRing x:Name="BusyRing"
+                                      Width="24"
+                                      Height="24"
+                                      IsActive="False"
+                                      Visibility="Collapsed"/>
+                        <TextBlock x:Name="StatusText"
+                                   Grid.Column="1"
+                                   Foreground="{StaticResource MutedTextBrush}"
+                                   TextWrapping="Wrap"
+                                   VerticalAlignment="Center"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
         </Grid>
-    </ScrollViewer>
+    </Grid>
 </Page>

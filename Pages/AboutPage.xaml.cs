@@ -22,17 +22,6 @@ namespace Zink.Pages
             VersionText.Text = $"App Version: {version} (Latest: {LatestVersion})";
             BuildTimeText.Text = $"This app version was built on: {buildTime:dd MMM yyyy, HH:mm:ss}";
 
-            if (Application.Current.Resources.TryGetValue("AccentButtonStyle", out var styleObj) &&
-                styleObj is Style accentStyle)
-            {
-                LearnMore241Button.Style = accentStyle;
-                LearnMore235Button.Style = accentStyle;
-                LearnMore224Button.Style = accentStyle;
-                LearnMore216Button.Style = accentStyle;
-                LearnMore21Button.Style = accentStyle;
-                LearnMore20Button.Style = accentStyle;
-                LearnMore10Button.Style = accentStyle;
-            }
         }
 
         private string GetAppVersion()

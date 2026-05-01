@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using DiscordRPC;
 
 namespace Zink.Services
@@ -10,9 +11,17 @@ namespace Zink.Services
 
         private DiscordRpcClient? _client;
         private bool _initialized;
+        private readonly DateTime _appStartUtc = DateTime.UtcNow;
         private DateTime _activityStartUtc;
+        private DateTime _callStartUtc;
+        private string? _lastPresenceKey;
+        private string? _lastPresenceContext;
+        private DateTime _lastPresenceSentUtc;
 
         private const string DiscordApplicationId = "1487472795767279857";
+        private const string DefaultLargeImageKey = "zink_1024";
+        private const string DefaultLargeImageText = "Zink";
+        private static readonly TimeSpan DuplicatePresenceRefreshInterval = TimeSpan.FromSeconds(30);
 
         private DiscordPresenceService()
         {
@@ -59,6 +68,7 @@ namespace Zink.Services
 
                 _client.Initialize();
                 _initialized = true;
+                SetAppPresence();
 
                 System.Diagnostics.Debug.WriteLine("Discord RPC: Initialize() called successfully.");
             }
@@ -87,6 +97,9 @@ namespace Zink.Services
             {
                 _client = null;
                 _initialized = false;
+                _lastPresenceKey = null;
+                _lastPresenceContext = null;
+                _lastPresenceSentUtc = default;
             }
         }
 
@@ -100,14 +113,170 @@ namespace Zink.Services
 
             try
             {
-                System.Diagnostics.Debug.WriteLine("Discord RPC: Clearing presence.");
-                _client.ClearPresence();
-                _client.Invoke();
+                System.Diagnostics.Debug.WriteLine("Discord RPC: Restoring app presence.");
+                SetAppPresence();
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine("Discord RPC clear failed: " + ex);
             }
+        }
+
+        public void SetAppPresence(string? state = null)
+        {
+            if (!TryEnsureClient(nameof(SetAppPresence)))
+                return;
+
+            _callStartUtc = default;
+
+            var presence = new RichPresence
+            {
+                Details = "Using Zink",
+                State = Trim(string.IsNullOrWhiteSpace(state) ? "Music, movies, calls, and web apps" : state.Trim(), 128),
+                Timestamps = new Timestamps(_appStartUtc),
+                Assets = new Assets
+                {
+                    LargeImageKey = DefaultLargeImageKey,
+                    LargeImageText = DefaultLargeImageText
+                }
+            };
+
+            SetPresence(presence, "app");
+        }
+
+        public void SetPagePresence(string pageName, string? category = null, string? action = null)
+        {
+            if (!TryEnsureClient(nameof(SetPagePresence)))
+                return;
+
+            var cleanPage = NormalizePresencePart(pageName, "Zink");
+            var cleanCategory = category?.Trim();
+            var cleanAction = string.IsNullOrWhiteSpace(action) ? "Using" : action.Trim();
+
+            var presence = new RichPresence
+            {
+                Details = Trim($"{cleanAction} {cleanPage}", 128),
+                State = Trim(string.IsNullOrWhiteSpace(cleanCategory) ? "Exploring Zink" : $"{cleanCategory} in Zink", 128),
+                Timestamps = new Timestamps(_appStartUtc),
+                Assets = new Assets
+                {
+                    LargeImageKey = DefaultLargeImageKey,
+                    LargeImageText = Trim($"{DefaultLargeImageText} - {cleanPage}", 128)
+                }
+            };
+
+            SetPresence(presence, "page");
+        }
+
+        public void SetWebPresence(string siteName, string? category = null, string? pageTitle = null)
+        {
+            if (!TryEnsureClient(nameof(SetWebPresence)))
+                return;
+
+            var cleanSite = NormalizePresencePart(siteName, "Web");
+            var cleanCategory = string.IsNullOrWhiteSpace(category) ? "Web app" : category.Trim();
+
+            var presence = new RichPresence
+            {
+                Details = Trim(string.IsNullOrWhiteSpace(pageTitle) ? $"Browsing {cleanSite}" : pageTitle.Trim(), 128),
+                State = Trim($"{cleanCategory} in Zink", 128),
+                Timestamps = new Timestamps(_appStartUtc),
+                Assets = new Assets
+                {
+                    LargeImageKey = DefaultLargeImageKey,
+                    LargeImageText = Trim($"{DefaultLargeImageText} - {cleanSite}", 128)
+                }
+            };
+
+            SetPresence(presence, "web page");
+        }
+
+        public void SetMusicPresence(
+            string songTitle,
+            string? artistName,
+            string? sourceName = null,
+            string? largeImageKey = null,
+            string? largeImageText = null,
+            string? buttonUrl = null,
+            bool isPlaying = true)
+        {
+            if (!TryEnsureClient(nameof(SetMusicPresence)))
+                return;
+
+            var cleanSource = NormalizePresencePart(sourceName, "Zink Music");
+            var cleanTitle = NormalizePresencePart(songTitle, "Music");
+            var trackText = BuildRadioState(cleanTitle, artistName);
+            var state = isPlaying ? trackText : $"Paused - {trackText}";
+
+            _activityStartUtc = DateTime.UtcNow;
+
+            var presence = new RichPresence
+            {
+                Details = Trim(isPlaying ? $"Listening on {cleanSource}" : $"Paused on {cleanSource}", 128),
+                State = Trim(state, 128),
+                Timestamps = new Timestamps(_activityStartUtc),
+                Assets = new Assets
+                {
+                    LargeImageKey = string.IsNullOrWhiteSpace(largeImageKey) ? DefaultLargeImageKey : largeImageKey,
+                    LargeImageText = Trim(string.IsNullOrWhiteSpace(largeImageText) ? $"{DefaultLargeImageText} - {cleanSource}" : largeImageText, 128)
+                }
+            };
+
+            if (!string.IsNullOrWhiteSpace(buttonUrl))
+            {
+                presence.Buttons = new[]
+                {
+                    new DiscordRPC.Button
+                    {
+                        Label = "Open Zink",
+                        Url = buttonUrl
+                    }
+                };
+            }
+
+            SetPresence(presence, "music");
+        }
+
+        public void SetCallPresence(
+            string status,
+            int participantCount,
+            bool isScreenSharing,
+            bool isMuted,
+            bool isDeafened,
+            TimeSpan? connectedFor = null)
+        {
+            if (!TryEnsureClient(nameof(SetCallPresence)))
+                return;
+
+            if (participantCount < 1)
+                participantCount = 1;
+
+            var cleanStatus = NormalizePresencePart(status, isScreenSharing ? "Screen sharing in Zink" : "In a Zink call");
+            var participantLabel = participantCount == 1 ? "1 participant" : $"{participantCount} participants";
+            var mediaLabel = isScreenSharing ? "Screen share on" : "Voice call";
+            var audioLabel = isMuted && isDeafened
+                ? "Muted and deafened"
+                : (isMuted ? "Muted" : (isDeafened ? "Deafened" : "Voice active"));
+
+            var startUtc = connectedFor.HasValue && connectedFor.Value > TimeSpan.Zero
+                ? DateTime.UtcNow - connectedFor.Value
+                : (_callStartUtc == default ? DateTime.UtcNow : _callStartUtc);
+
+            _callStartUtc = startUtc;
+
+            var presence = new RichPresence
+            {
+                Details = Trim(cleanStatus, 128),
+                State = Trim($"{participantLabel} - {mediaLabel} - {audioLabel}", 128),
+                Timestamps = new Timestamps(startUtc),
+                Assets = new Assets
+                {
+                    LargeImageKey = DefaultLargeImageKey,
+                    LargeImageText = isScreenSharing ? "Zink screen share" : "Zink call"
+                }
+            };
+
+            SetPresence(presence, "call");
         }
 
         public void SetRadioPresence(
@@ -133,21 +302,9 @@ namespace Zink.Services
 
             _activityStartUtc = DateTime.UtcNow;
 
-            string details = $"Listening to {stationName}";
-
-            string state;
-            if (!string.IsNullOrWhiteSpace(artistName) && !string.IsNullOrWhiteSpace(songTitle))
-            {
-                state = $"Now playing: {artistName} - {songTitle}";
-            }
-            else if (!string.IsNullOrWhiteSpace(songTitle))
-            {
-                state = $"Now playing: {songTitle}";
-            }
-            else
-            {
-                state = "Live radio playback";
-            }
+            var normalizedStation = NormalizeStationName(stationName);
+            string details = BuildRadioDetails(normalizedStation);
+            string state = BuildRadioState(songTitle, artistName);
 
             var presence = new RichPresence
             {
@@ -156,8 +313,8 @@ namespace Zink.Services
                 Timestamps = new Timestamps(_activityStartUtc),
                 Assets = new Assets
                 {
-                    LargeImageKey = string.IsNullOrWhiteSpace(stationAssetKey) ? "zink_1024" : stationAssetKey,
-                    LargeImageText = Trim(stationName, 128)
+                    LargeImageKey = string.IsNullOrWhiteSpace(stationAssetKey) ? DefaultLargeImageKey : stationAssetKey,
+                    LargeImageText = BuildRadioImageText(normalizedStation)
                 }
             };
 
@@ -176,7 +333,7 @@ namespace Zink.Services
             try
             {
                 System.Diagnostics.Debug.WriteLine(
-                    $"Discord RPC: Setting station presence | Station='{stationName}' | Asset='{presence.Assets?.LargeImageKey}'");
+                    $"Discord RPC: Setting station presence | Station='{normalizedStation}' | Asset='{presence.Assets?.LargeImageKey}'");
 
                 _client.SetPresence(presence);
                 _client.Invoke();
@@ -207,21 +364,9 @@ namespace Zink.Services
                 return;
             }
 
-            string details = $"Listening to {stationName}";
-
-            string state;
-            if (!string.IsNullOrWhiteSpace(artistName) && !string.IsNullOrWhiteSpace(songTitle))
-            {
-                state = $"Now playing: {artistName} - {songTitle}";
-            }
-            else if (!string.IsNullOrWhiteSpace(songTitle))
-            {
-                state = $"Now playing: {songTitle}";
-            }
-            else
-            {
-                state = "Live radio playback";
-            }
+            var normalizedStation = NormalizeStationName(stationName);
+            string details = BuildRadioDetails(normalizedStation);
+            string state = BuildRadioState(songTitle, artistName);
 
             var presence = new RichPresence
             {
@@ -230,8 +375,8 @@ namespace Zink.Services
                 Timestamps = new Timestamps(_activityStartUtc == default ? DateTime.UtcNow : _activityStartUtc),
                 Assets = new Assets
                 {
-                    LargeImageKey = string.IsNullOrWhiteSpace(stationAssetKey) ? "zink_1024" : stationAssetKey,
-                    LargeImageText = Trim(stationName, 128)
+                    LargeImageKey = string.IsNullOrWhiteSpace(stationAssetKey) ? DefaultLargeImageKey : stationAssetKey,
+                    LargeImageText = BuildRadioImageText(normalizedStation)
                 }
             };
 
@@ -250,7 +395,7 @@ namespace Zink.Services
             try
             {
                 System.Diagnostics.Debug.WriteLine(
-                    $"Discord RPC: Updating track presence | Station='{stationName}' | Artist='{artistName}' | Title='{songTitle}' | Asset='{presence.Assets?.LargeImageKey}'");
+                    $"Discord RPC: Updating track presence | Station='{normalizedStation}' | Artist='{artistName}' | Title='{songTitle}' | Asset='{presence.Assets?.LargeImageKey}'");
 
                 _client.SetPresence(presence);
                 _client.Invoke();
@@ -310,7 +455,7 @@ namespace Zink.Services
                 Timestamps = new Timestamps(startUtc),
                 Assets = new Assets
                 {
-                    LargeImageKey = string.IsNullOrWhiteSpace(largeImageKey) ? "zink_1024" : largeImageKey,
+                    LargeImageKey = string.IsNullOrWhiteSpace(largeImageKey) ? DefaultLargeImageKey : largeImageKey,
                     LargeImageText = Trim(string.IsNullOrWhiteSpace(largeImageText) ? videoTitle : largeImageText, 128)
                 }
             };
@@ -384,7 +529,7 @@ namespace Zink.Services
                 State = Trim(state, 128),
                 Assets = new Assets
                 {
-                    LargeImageKey = string.IsNullOrWhiteSpace(largeImageKey) ? "zink_1024" : largeImageKey,
+                    LargeImageKey = string.IsNullOrWhiteSpace(largeImageKey) ? DefaultLargeImageKey : largeImageKey,
                     LargeImageText = Trim(string.IsNullOrWhiteSpace(largeImageText) ? videoTitle : largeImageText, 128)
                 }
             };
@@ -413,6 +558,113 @@ namespace Zink.Services
             {
                 System.Diagnostics.Debug.WriteLine("Discord RPC set paused video presence failed: " + ex);
             }
+        }
+
+        private bool TryEnsureClient(string caller)
+        {
+            if (!IsEnabled)
+            {
+                System.Diagnostics.Debug.WriteLine($"Discord RPC: {caller} skipped - disabled.");
+                return false;
+            }
+
+            Initialize();
+
+            if (!_initialized || _client == null)
+            {
+                System.Diagnostics.Debug.WriteLine($"Discord RPC: {caller} skipped - client not initialized.");
+                return false;
+            }
+
+            return true;
+        }
+
+        private void SetPresence(RichPresence presence, string context)
+        {
+            if (!_initialized || _client == null)
+                return;
+
+            try
+            {
+                var presenceKey = BuildPresenceKey(presence);
+                var nowUtc = DateTime.UtcNow;
+                if (string.Equals(_lastPresenceKey, presenceKey, StringComparison.Ordinal) &&
+                    string.Equals(_lastPresenceContext, context, StringComparison.Ordinal) &&
+                    nowUtc - _lastPresenceSentUtc < DuplicatePresenceRefreshInterval)
+                {
+                    return;
+                }
+
+                System.Diagnostics.Debug.WriteLine($"Discord RPC: Setting {context} presence | Details='{presence.Details}' | State='{presence.State}'");
+                _client.SetPresence(presence);
+                _client.Invoke();
+                _lastPresenceKey = presenceKey;
+                _lastPresenceContext = context;
+                _lastPresenceSentUtc = nowUtc;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Discord RPC set {context} presence failed: " + ex);
+            }
+        }
+
+        private static string BuildPresenceKey(RichPresence presence)
+        {
+            var assets = presence.Assets;
+            var buttons = presence.Buttons == null
+                ? string.Empty
+                : string.Join("|", presence.Buttons.Select(button => $"{button.Label}:{button.Url}"));
+
+            return string.Join(
+                "\u001F",
+                presence.Details ?? string.Empty,
+                presence.State ?? string.Empty,
+                assets?.LargeImageKey ?? string.Empty,
+                assets?.LargeImageText ?? string.Empty,
+                assets?.SmallImageKey ?? string.Empty,
+                assets?.SmallImageText ?? string.Empty,
+                buttons);
+        }
+
+        private static string NormalizePresencePart(string? value, string fallback)
+        {
+            return string.IsNullOrWhiteSpace(value)
+                ? fallback
+                : value.Trim();
+        }
+
+        private static string NormalizeStationName(string stationName)
+        {
+            return string.IsNullOrWhiteSpace(stationName)
+                ? "Live radio"
+                : stationName.Trim();
+        }
+
+        private static string BuildRadioDetails(string stationName)
+        {
+            if (string.Equals(stationName, "Live radio", StringComparison.OrdinalIgnoreCase))
+                return "Live radio on Zink";
+
+            return $"{stationName} on Zink";
+        }
+
+        private static string BuildRadioState(string? songTitle, string? artistName)
+        {
+            var title = songTitle?.Trim();
+            var artist = artistName?.Trim();
+
+            if (!string.IsNullOrWhiteSpace(artist) && !string.IsNullOrWhiteSpace(title))
+                return $"{artist} - {title}";
+
+            if (!string.IsNullOrWhiteSpace(title))
+                return title;
+
+            return "Live radio";
+        }
+
+        private static string BuildRadioImageText(string stationName)
+        {
+            return Trim($"{DefaultLargeImageText} - {stationName}", 128);
         }
 
         private static string FormatTime(TimeSpan time)
