@@ -2,6 +2,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
 using System;
+using System.IO;
 using Windows.ApplicationModel;
 using Windows.Services.Store;
 using Windows.Storage;
@@ -18,6 +19,7 @@ namespace Zink.Pages
         private bool _isLoadingStartupState;
         private bool _isLoadingReplayState;
         private bool _isLoadingDiagnosticLogState;
+        private string? _latestHealthReportPath;
 
         private const string BackgroundRunSettingKey = "ZinkBackgroundRunEnabled";
 
@@ -317,6 +319,12 @@ namespace Zink.Pages
             {
                 DiagnosticLogToggle.IsOn = DiagnosticLogService.GetEnabledSetting();
                 DiagnosticLogStatusText.Text = $"Logging to {DiagnosticLogService.CurrentLogPath}";
+                _latestHealthReportPath = Path.Combine(
+                    DiagnosticLogService.LogDirectoryPath,
+                    $"zink-health-{DiagnosticLogService.DeviceName}-latest.txt");
+
+                if (File.Exists(_latestHealthReportPath))
+                    HealthCheckStatusText.Text = $"Latest report: {_latestHealthReportPath}";
             }
             finally
             {
@@ -368,6 +376,68 @@ namespace Zink.Pages
             catch (Exception ex)
             {
                 StatusText.Text = $"Error clearing diagnostic log: {ex.Message}";
+            }
+        }
+
+        private async void RunHealthCheckButton_Click(object sender, RoutedEventArgs e)
+        {
+            RunHealthCheckButton.IsEnabled = false;
+            OpenHealthReportButton.IsEnabled = false;
+            HealthCheckStatusText.Text = "Running Zink health check...";
+            StatusText.Text = "Running Zink health check...";
+
+            try
+            {
+                var report = await ZinkHealthCheckService.RunAsync();
+                _latestHealthReportPath = report.ReportPath;
+                HealthCheckStatusText.Text = $"Health check complete: {report.Summary}. Report: {report.ReportPath}. Bundle: {report.BundlePath}";
+                StatusText.Text = report.Failed == 0
+                    ? "Health check complete."
+                    : $"Health check found {report.Failed} failed check(s).";
+            }
+            catch (Exception ex)
+            {
+                HealthCheckStatusText.Text = $"Health check failed: {ex.Message}";
+                StatusText.Text = $"Health check failed: {ex.Message}";
+            }
+            finally
+            {
+                RunHealthCheckButton.IsEnabled = true;
+                OpenHealthReportButton.IsEnabled = true;
+            }
+        }
+
+        private async void OpenHealthReportButton_Click(object sender, RoutedEventArgs e)
+        {
+            OpenHealthReportButton.IsEnabled = false;
+
+            try
+            {
+                if (string.IsNullOrWhiteSpace(_latestHealthReportPath) || !File.Exists(_latestHealthReportPath))
+                {
+                    _latestHealthReportPath = Path.Combine(
+                        DiagnosticLogService.LogDirectoryPath,
+                        $"zink-health-{DiagnosticLogService.DeviceName}-latest.txt");
+                }
+
+                if (!File.Exists(_latestHealthReportPath))
+                {
+                    HealthCheckStatusText.Text = "No health report exists yet. Run a health check first.";
+                    StatusText.Text = "No health report exists yet.";
+                    return;
+                }
+
+                var file = await StorageFile.GetFileFromPathAsync(_latestHealthReportPath);
+                await Launcher.LaunchFileAsync(file);
+                StatusText.Text = "Health report opened.";
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = $"Error opening health report: {ex.Message}";
+            }
+            finally
+            {
+                OpenHealthReportButton.IsEnabled = true;
             }
         }
 

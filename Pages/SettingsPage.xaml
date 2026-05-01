@@ -173,6 +173,7 @@
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
 
                             <Button x:Name="OpenDiagnosticLogFolderButton"
@@ -193,7 +194,47 @@
                                     <TextBlock Text="Clear log"/>
                                 </StackPanel>
                             </Button>
+
+                            <Button x:Name="RunHealthCheckButton"
+                                    Grid.Column="2"
+                                    Style="{StaticResource GlassButtonStyle}"
+                                    Click="RunHealthCheckButton_Click">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE9D9;" FontSize="15"/>
+                                    <TextBlock Text="Run health check"/>
+                                </StackPanel>
+                            </Button>
                         </Grid>
+
+                        <Border Style="{StaticResource GlassSettingRowStyle}">
+                            <Grid ColumnSpacing="18">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Spacing="6"
+                                            VerticalAlignment="Center">
+                                    <TextBlock Text="Support report"
+                                               Foreground="White"
+                                               FontWeight="SemiBold"/>
+                                    <TextBlock x:Name="HealthCheckStatusText"
+                                               Text="Run a health check to create a report and support bundle."
+                                               Foreground="{StaticResource MutedTextBrush}"
+                                               TextWrapping="WrapWholeWords"/>
+                                </StackPanel>
+
+                                <Button x:Name="OpenHealthReportButton"
+                                        Grid.Column="1"
+                                        Style="{StaticResource GlassButtonStyle}"
+                                        Click="OpenHealthReportButton_Click">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <FontIcon Glyph="&#xE8A5;" FontSize="15"/>
+                                        <TextBlock Text="Open report"/>
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+                        </Border>
                     </StackPanel>
                 </Border>
 
