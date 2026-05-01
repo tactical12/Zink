@@ -354,7 +354,7 @@
     <HoursBetweenUpdateChecks>0</HoursBetweenUpdateChecks>
 
     <!-- Recommended: avoid OneDrive for packaging outputs -->
-    <AppxPackageDir>C:\Users\Franc\Downloads\</AppxPackageDir>
+    <AppxPackageDir>$(USERPROFILE)\Downloads\</AppxPackageDir>
 
     <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
 
@@ -398,6 +398,20 @@
       DestinationFiles="@(_BouncyCastleRuntime->'$(AppxLayoutDir)%(Filename)%(Extension)')"
       SkipUnchangedFiles="true"
       Condition="'@(_BouncyCastleRuntime)'!='' And '$(AppxLayoutDir)'!='' And Exists('$(AppxLayoutDir)')" />
+  </Target>
+
+  <ItemGroup>
+    <ZinkInstallTrustFiles Include="Zink_TemporaryKey.cer" />
+    <ZinkInstallTrustFiles Include="Install-ZinkPackage.ps1" />
+  </ItemGroup>
+
+  <Target Name="CopyZinkInstallTrustFiles" AfterTargets="Build;_GenerateAppxPackage;GenerateAppxPackage">
+    <Copy SourceFiles="@(ZinkInstallTrustFiles)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" Condition="'$(OutDir)'!='' And Exists('%(ZinkInstallTrustFiles.FullPath)')" />
+    <Copy SourceFiles="@(ZinkInstallTrustFiles)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" Condition="'$(PublishDir)'!='' And Exists('$(PublishDir)') And Exists('%(ZinkInstallTrustFiles.FullPath)')" />
+    <MakeDir Directories="$(AppxPackageDir)" Condition="'$(AppxPackageDir)'!=''" />
+    <Copy SourceFiles="@(ZinkInstallTrustFiles)" DestinationFolder="$(AppxPackageDir)" SkipUnchangedFiles="true" Condition="'$(AppxPackageDir)'!='' And Exists('%(ZinkInstallTrustFiles.FullPath)')" />
+    <MakeDir Directories="$(MSBuildProjectDirectory)\BundleArtifacts" />
+    <Copy SourceFiles="@(ZinkInstallTrustFiles)" DestinationFolder="$(MSBuildProjectDirectory)\BundleArtifacts" SkipUnchangedFiles="true" Condition="Exists('%(ZinkInstallTrustFiles.FullPath)')" />
   </Target>
 
 </Project>
