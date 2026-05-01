@@ -139,6 +139,8 @@ namespace Zink.Pages.Social
         private const int MaxRemoteH264DecodeQueue = 12;
         private const int RemoteGpuBacklogKeyFrameRequestQueue = 18;
         private const int MaxRemoteGpuPlaybackQueue = 36;
+        private const int StartupRemoteGpuBacklogKeyFrameRequestQueue = 8;
+        private const int StartupMaxRemoteGpuPlaybackQueue = 14;
         private const int RealtimeBacklogRetainFrames = 2;
         private static readonly TimeSpan RemoteGpuFrameDuration = TimeSpan.FromTicks(TimeSpan.TicksPerSecond / NativeScreenShareStreamingService.TargetFps);
         private static readonly TimeSpan RemoteGpuMinFrameDuration = TimeSpan.FromTicks(TimeSpan.TicksPerSecond / 75);
@@ -190,6 +192,7 @@ namespace Zink.Pages.Social
         private bool _remoteGpuBacklogKeyFrameRequested;
         private bool _remoteGpuFirstSampleSubmitted;
         private int _remoteGpuConsecutiveSampleStarvations;
+        private DateTimeOffset _remoteGpuPlaybackStartedAtUtc = DateTimeOffset.MinValue;
         private DateTimeOffset _lastRemoteGpuPlaybackDropLogUtc = DateTimeOffset.MinValue;
 
         private DispatcherTimer? _callTimer;
@@ -1858,6 +1861,18 @@ namespace Zink.Pages.Social
                     Debug.WriteLine($"[ScreenShare:GPU:RECEIVER] Fresh IDR received; restarted compressed GPU playback queue at {width}x{height}.");
                 }
 
+                var now = DateTimeOffset.UtcNow;
+                var isStartupCatchup =
+                    !_remoteGpuFirstSampleSubmitted ||
+                    (_remoteGpuPlaybackStartedAtUtc != DateTimeOffset.MinValue &&
+                     now - _remoteGpuPlaybackStartedAtUtc < TimeSpan.FromSeconds(12));
+                var keyFrameRequestQueue = isStartupCatchup
+                    ? StartupRemoteGpuBacklogKeyFrameRequestQueue
+                    : RemoteGpuBacklogKeyFrameRequestQueue;
+                var maxPlaybackQueue = isStartupCatchup
+                    ? StartupMaxRemoteGpuPlaybackQueue
+                    : MaxRemoteGpuPlaybackQueue;
+
                 if (isKeyFrame && _remoteGpuBacklogKeyFrameRequested && _pendingRemoteGpuPlaybackFrames.Count > 0)
                 {
                     var dropped = _pendingRemoteGpuPlaybackFrames.Count;
@@ -1872,20 +1887,33 @@ namespace Zink.Pages.Social
 
                 if (!isKeyFrame &&
                     !_remoteGpuBacklogKeyFrameRequested &&
-                    _pendingRemoteGpuPlaybackFrames.Count >= RemoteGpuBacklogKeyFrameRequestQueue)
+                    _pendingRemoteGpuPlaybackFrames.Count >= keyFrameRequestQueue)
                 {
                     _remoteGpuBacklogKeyFrameRequested = true;
                     var keyFrameReason = "receiver GPU playback keyframe requested after realtime queue pressure";
                     _ = SendScreenShareQosIfNeededAsync(keyFrameReason);
                     RequestRemoteVideoKeyFrame(keyFrameReason);
+                    if (isStartupCatchup)
+                    {
+                        var dropped = _pendingRemoteGpuPlaybackFrames.Count;
+                        _pendingRemoteGpuPlaybackFrames.Clear();
+                        _screenShareDroppedReceiveFrames += dropped;
+                        _remoteBacklogTrimmedSinceLastLog += dropped;
+                        _remoteGpuWaitingForKeyFrame = true;
+                        _remoteGpuEstimatedFrameDuration = RemoteGpuFrameDuration;
+                        _remoteGpuLastQueuedAtUtc = null;
+                        Debug.WriteLine($"[ScreenShare:GPU:RECEIVER] Startup queue pressure flushed {dropped} compressed frames; waiting for a fresh IDR to avoid first-playback lag.");
+                        return true;
+                    }
+
                     if (ShouldLogFlow(ref _lastRemoteGpuPlaybackDropLogUtc, TimeSpan.FromSeconds(1)))
                     {
-                        Debug.WriteLine($"[ScreenShare:GPU:RECEIVER] GPU playback queue reached {RemoteGpuBacklogKeyFrameRequestQueue}; preserving H.264 dependency chain while requesting a fresh IDR. queue={_pendingRemoteGpuPlaybackFrames.Count}; reason={backlogReason}.");
+                        Debug.WriteLine($"[ScreenShare:GPU:RECEIVER] GPU playback queue reached {keyFrameRequestQueue}; preserving H.264 dependency chain while requesting a fresh IDR. queue={_pendingRemoteGpuPlaybackFrames.Count}; reason={backlogReason}.");
                         _remoteBacklogTrimmedSinceLastLog = 0;
                     }
                 }
 
-                if (_pendingRemoteGpuPlaybackFrames.Count >= MaxRemoteGpuPlaybackQueue)
+                if (_pendingRemoteGpuPlaybackFrames.Count >= maxPlaybackQueue)
                 {
                     if (isKeyFrame)
                     {
@@ -1900,7 +1928,7 @@ namespace Zink.Pages.Social
                     {
                         if (ShouldLogFlow(ref _lastRemoteGpuPlaybackDropLogUtc, TimeSpan.FromSeconds(1)))
                         {
-                            Debug.WriteLine($"[ScreenShare:GPU:RECEIVER] GPU playback queue reached {MaxRemoteGpuPlaybackQueue}; dropping incoming delta until a fresh IDR arrives to avoid corrupting the H.264 chain. reason={backlogReason}.");
+                            Debug.WriteLine($"[ScreenShare:GPU:RECEIVER] GPU playback queue reached {maxPlaybackQueue}; dropping incoming delta until a fresh IDR arrives to avoid corrupting the H.264 chain. reason={backlogReason}.");
                             _remoteBacklogTrimmedSinceLastLog = 0;
                         }
 
@@ -1922,10 +1950,10 @@ namespace Zink.Pages.Social
                     sampleDuration));
                 var queuedCount = _pendingRemoteGpuPlaybackFrames.Count;
                 _remoteGpuPlaybackQueuePeak = Math.Max(_remoteGpuPlaybackQueuePeak, queuedCount);
-                if (queuedCount >= RemoteGpuBacklogKeyFrameRequestQueue / 2 &&
+                if (queuedCount >= keyFrameRequestQueue / 2 &&
                     ShouldLogFlow(ref _lastRemoteGpuPlaybackDropLogUtc, TimeSpan.FromSeconds(2)))
                 {
-                    Debug.WriteLine($"[ScreenShare:GPU:RECEIVER] 60fps queue watch: queue={queuedCount}; requestThreshold={RemoteGpuBacklogKeyFrameRequestQueue}; hardLimit={MaxRemoteGpuPlaybackQueue}; receiveFps={_remoteReceiveObservedFps:0.0}; playbackFps={_remotePlaybackObservedFps:0.0}; reason={backlogReason}.");
+                    Debug.WriteLine($"[ScreenShare:GPU:RECEIVER] 60fps queue watch: queue={queuedCount}; requestThreshold={keyFrameRequestQueue}; hardLimit={maxPlaybackQueue}; startupCatchup={isStartupCatchup}; receiveFps={_remoteReceiveObservedFps:0.0}; playbackFps={_remotePlaybackObservedFps:0.0}; reason={backlogReason}.");
                 }
                 Monitor.PulseAll(_remoteGpuPlaybackSync);
             }
@@ -2018,6 +2046,7 @@ namespace Zink.Pages.Social
                 _remoteGpuWaitingForKeyFrame = false;
                 _remoteGpuBacklogKeyFrameRequested = false;
                 _remoteGpuFirstSampleSubmitted = false;
+                _remoteGpuPlaybackStartedAtUtc = DateTimeOffset.UtcNow;
                 Monitor.PulseAll(_remoteGpuPlaybackSync);
             }
 
@@ -2173,6 +2202,7 @@ namespace Zink.Pages.Social
                 _remoteGpuBacklogKeyFrameRequested = false;
                 _remoteGpuFirstSampleSubmitted = false;
                 _remoteGpuConsecutiveSampleStarvations = 0;
+                _remoteGpuPlaybackStartedAtUtc = DateTimeOffset.MinValue;
                 Monitor.PulseAll(_remoteGpuPlaybackSync);
             }
 

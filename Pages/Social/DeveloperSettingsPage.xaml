@@ -75,6 +75,8 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
                         <ToggleSwitch x:Name="OfflineModeToggle"
@@ -110,7 +112,26 @@
                                      TextChanged="TextSettingChanged"/>
                         </StackPanel>
 
-                        <StackPanel Grid.Row="2" Grid.ColumnSpan="2" Spacing="8">
+                        <StackPanel Grid.Row="2" Spacing="8">
+                            <TextBlock Text="Test password"
+                                       Foreground="White"
+                                       FontWeight="SemiBold"/>
+                            <PasswordBox x:Name="PasswordBox"
+                                         MinHeight="44"
+                                         CornerRadius="14"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="2" Grid.Column="1" Spacing="8">
+                            <TextBlock Text="Test email"
+                                       Foreground="White"
+                                       FontWeight="SemiBold"/>
+                            <TextBox x:Name="EmailBox"
+                                     Style="{StaticResource GlassTextBoxStyle}"
+                                     PlaceholderText="tester@zink.local"
+                                     TextChanged="TextSettingChanged"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="3" Grid.ColumnSpan="2" Spacing="8">
                             <TextBlock Text="Call server endpoint"
                                        Foreground="White"
                                        FontWeight="SemiBold"/>
@@ -119,6 +140,37 @@
                                      PlaceholderText="http://localhost:5000"
                                      TextChanged="TextSettingChanged"/>
                         </StackPanel>
+
+                        <Grid Grid.Row="4" Grid.ColumnSpan="2" ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                <ProgressRing x:Name="RegisterBusyRing"
+                                              Width="24"
+                                              Height="24"
+                                              IsActive="False"
+                                              Visibility="Collapsed"/>
+                                <TextBlock x:Name="RegisterStatusText"
+                                           Foreground="{StaticResource MutedTextBrush}"
+                                           TextWrapping="Wrap"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+
+                            <Button Grid.Column="1"
+                                    Click="RegisterDeveloperAccountButton_Click"
+                                    MinHeight="46"
+                                    Padding="18,0"
+                                    CornerRadius="23"
+                                    Style="{StaticResource AccentButtonStyle}">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE710;" FontSize="15"/>
+                                    <TextBlock Text="Register test account"/>
+                                </StackPanel>
+                            </Button>
+                        </Grid>
                     </Grid>
                 </Border>
 
