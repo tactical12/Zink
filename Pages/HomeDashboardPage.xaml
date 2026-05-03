@@ -5,46 +5,60 @@
     Background="Transparent">
 
     <Page.Resources>
-        <SolidColorBrush x:Key="GlassPanelBrush" Color="#B0141820"/>
-        <SolidColorBrush x:Key="GlassPanelStrongBrush" Color="#C2182530"/>
-        <SolidColorBrush x:Key="GlassTileBrush" Color="#8F101820"/>
-        <SolidColorBrush x:Key="GlassPanelBorderBrush" Color="#33FFFFFF"/>
-        <SolidColorBrush x:Key="MutedTextBrush" Color="#B7C8D2DC"/>
-        <SolidColorBrush x:Key="ZinkAccentBrush" Color="#50E6D7"/>
-        <SolidColorBrush x:Key="ZinkBlueBrush" Color="#2E8DFF"/>
-        <SolidColorBrush x:Key="ZinkGreenBrush" Color="#63F4A8"/>
+        <AcrylicBrush x:Key="GlassPanelBrush"
+                      TintColor="#111820"
+                      TintOpacity="0.72"
+                      TintLuminosityOpacity="0.50"
+                      FallbackColor="#D1111820"/>
+        <AcrylicBrush x:Key="GlassStrongBrush"
+                      TintColor="#0B1219"
+                      TintOpacity="0.88"
+                      TintLuminosityOpacity="0.42"
+                      FallbackColor="#EB0B1219"/>
+        <SolidColorBrush x:Key="GlassTileBrush" Color="#66131D28"/>
+        <SolidColorBrush x:Key="GlassTileHoverBrush" Color="#8A1C2A38"/>
+        <SolidColorBrush x:Key="GlassBorderBrush" Color="#38FFFFFF"/>
+        <SolidColorBrush x:Key="GlassBorderStrongBrush" Color="#5EFFFFFF"/>
+        <SolidColorBrush x:Key="MutedTextBrush" Color="#B7D6E2EA"/>
+        <SolidColorBrush x:Key="DimTextBrush" Color="#83D6E2EA"/>
+        <SolidColorBrush x:Key="CyanBrush" Color="#5AE8E0"/>
+        <SolidColorBrush x:Key="BlueBrush" Color="#5AA7FF"/>
+        <SolidColorBrush x:Key="GreenBrush" Color="#7BF5B5"/>
+        <SolidColorBrush x:Key="YellowBrush" Color="#FFD56A"/>
+        <SolidColorBrush x:Key="RedBrush" Color="#FF6F86"/>
 
         <Style x:Key="GlassPanelStyle" TargetType="Border">
-            <Setter Property="CornerRadius" Value="24"/>
+            <Setter Property="CornerRadius" Value="28"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="BorderBrush" Value="{StaticResource GlassPanelBorderBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource GlassBorderBrush}"/>
             <Setter Property="Background" Value="{StaticResource GlassPanelBrush}"/>
         </Style>
 
         <Style x:Key="GlassTileButtonStyle" TargetType="Button">
-            <Setter Property="MinHeight" Value="88"/>
+            <Setter Property="MinHeight" Value="92"/>
             <Setter Property="Padding" Value="0"/>
-            <Setter Property="CornerRadius" Value="18"/>
+            <Setter Property="CornerRadius" Value="22"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="BorderBrush" Value="#28FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#30FFFFFF"/>
             <Setter Property="Background" Value="{StaticResource GlassTileBrush}"/>
+            <Setter Property="Foreground" Value="White"/>
             <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
             <Setter Property="VerticalContentAlignment" Value="Stretch"/>
         </Style>
 
         <Style x:Key="PillButtonStyle" TargetType="Button">
-            <Setter Property="MinHeight" Value="42"/>
+            <Setter Property="MinHeight" Value="44"/>
             <Setter Property="Padding" Value="16,0"/>
-            <Setter Property="CornerRadius" Value="21"/>
+            <Setter Property="CornerRadius" Value="22"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="BorderBrush" Value="#30FFFFFF"/>
-            <Setter Property="Background" Value="#2DFFFFFF"/>
+            <Setter Property="BorderBrush" Value="#34FFFFFF"/>
+            <Setter Property="Background" Value="#2BFFFFFF"/>
             <Setter Property="Foreground" Value="White"/>
         </Style>
 
         <Style x:Key="PrimaryPillButtonStyle" TargetType="Button" BasedOn="{StaticResource PillButtonStyle}">
-            <Setter Property="Background" Value="#D72E8DFF"/>
-            <Setter Property="BorderBrush" Value="#80D8F0FF"/>
+            <Setter Property="Background" Value="#D74F95FF"/>
+            <Setter Property="BorderBrush" Value="#86D9F8FF"/>
         </Style>
 
         <Style x:Key="ZinkSubText" TargetType="TextBlock">
@@ -55,10 +69,10 @@
         </Style>
 
         <Style x:Key="SignalCardStyle" TargetType="Border">
-            <Setter Property="CornerRadius" Value="18"/>
-            <Setter Property="Padding" Value="14"/>
-            <Setter Property="Background" Value="#5C101820"/>
-            <Setter Property="BorderBrush" Value="#2EFFFFFF"/>
+            <Setter Property="CornerRadius" Value="20"/>
+            <Setter Property="Padding" Value="15"/>
+            <Setter Property="Background" Value="#51131D28"/>
+            <Setter Property="BorderBrush" Value="#2CFFFFFF"/>
             <Setter Property="BorderThickness" Value="1"/>
         </Style>
     </Page.Resources>
@@ -66,407 +80,280 @@
     <Grid RequestedTheme="Dark">
         <Grid.Background>
             <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                <GradientStop Color="#081017" Offset="0"/>
-                <GradientStop Color="#102333" Offset="0.42"/>
-                <GradientStop Color="#071513" Offset="0.72"/>
-                <GradientStop Color="#04070B" Offset="1"/>
+                <GradientStop Color="#060A10" Offset="0"/>
+                <GradientStop Color="#0B1821" Offset="0.32"/>
+                <GradientStop Color="#10261F" Offset="0.62"/>
+                <GradientStop Color="#070A12" Offset="1"/>
             </LinearGradientBrush>
         </Grid.Background>
 
         <ScrollViewer VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled">
-            <Grid Padding="30"
+            <Grid Padding="32"
                   RowSpacing="18">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <Border Style="{StaticResource GlassPanelStyle}"
-                        Padding="22"
-                        Background="#AA071018"
-                        BorderBrush="#4450E6D7">
-                    <Grid ColumnSpacing="18"
-                          RowSpacing="18">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
+                <Grid ColumnSpacing="18">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
 
-                        <StackPanel Spacing="8">
-                            <StackPanel Orientation="Horizontal"
-                                        Spacing="12">
-                                <Border Width="48"
-                                        Height="48"
-                                        CornerRadius="15"
-                                        Background="#254EF0E5"
-                                        BorderBrush="#8050E6D7"
-                                        BorderThickness="1">
-                                    <FontIcon Glyph="&#xE8D4;"
-                                              FontSize="22"
-                                              Foreground="{StaticResource ZinkAccentBrush}"
-                                              HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"/>
-                                </Border>
-                                <StackPanel VerticalAlignment="Center"
-                                            Spacing="0">
-                                    <TextBlock Text="Zink Command Centre"
-                                               FontSize="32"
-                                               FontWeight="SemiBold"
-                                               Foreground="White"/>
-                                    <TextBlock Text="Media, calls, screen share, gaming tools and diagnostics running from one glass surface."
-                                               Foreground="{StaticResource MutedTextBrush}"
-                                               TextWrapping="WrapWholeWords"/>
-                                </StackPanel>
+                    <StackPanel Spacing="8">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Border Width="52"
+                                    Height="52"
+                                    CornerRadius="18"
+                                    Background="#224FE8E0"
+                                    BorderBrush="#785AE8E0"
+                                    BorderThickness="1">
+                                <FontIcon Glyph="&#xE768;"
+                                          FontFamily="Segoe Fluent Icons"
+                                          FontSize="24"
+                                          Foreground="{StaticResource CyanBrush}"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                            </Border>
+                            <StackPanel VerticalAlignment="Center" Spacing="0">
+                                <TextBlock Text="Zink"
+                                           FontSize="42"
+                                           FontWeight="SemiBold"
+                                           Foreground="White"/>
+                                <TextBlock Text="Play. Watch. Call. Share. Tune. Test."
+                                           FontSize="15"
+                                           Foreground="{StaticResource MutedTextBrush}"/>
                             </StackPanel>
-
-                            <Grid ColumnSpacing="10"
-                                  Margin="60,6,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-
-                                <Border CornerRadius="999" Padding="12,6" Background="#2534E6A7" BorderBrush="#4450E6D7" BorderThickness="1">
-                                    <StackPanel Orientation="Horizontal" Spacing="7">
-                                        <FontIcon Glyph="&#xE768;" FontSize="13" Foreground="{StaticResource ZinkAccentBrush}"/>
-                                        <TextBlock Text="Now playing aware" Foreground="#D7FFF9" FontSize="12" FontWeight="SemiBold"/>
-                                    </StackPanel>
-                                </Border>
-                                <Border Grid.Column="1" CornerRadius="999" Padding="12,6" Background="#222E8DFF" BorderBrush="#552E8DFF" BorderThickness="1">
-                                    <StackPanel Orientation="Horizontal" Spacing="7">
-                                        <FontIcon Glyph="&#xE717;" FontSize="13" Foreground="#BFDFFF"/>
-                                        <TextBlock Text="Zink Social ready" Foreground="#EAF5FF" FontSize="12" FontWeight="SemiBold"/>
-                                    </StackPanel>
-                                </Border>
-                                <Border Grid.Column="2" CornerRadius="999" Padding="12,6" Background="#2263F4A8" BorderBrush="#5563F4A8" BorderThickness="1">
-                                    <StackPanel Orientation="Horizontal" Spacing="7">
-                                        <FontIcon Glyph="&#xE8B7;" FontSize="13" Foreground="{StaticResource ZinkGreenBrush}"/>
-                                        <TextBlock Text="Reports and logs" Foreground="#E9FFF3" FontSize="12" FontWeight="SemiBold"/>
-                                    </StackPanel>
-                                </Border>
-                                <Border Grid.Column="3" CornerRadius="999" Padding="12,6" Background="#22FFFFFF" BorderBrush="#2EFFFFFF" BorderThickness="1">
-                                    <StackPanel Orientation="Horizontal" Spacing="7">
-                                        <FontIcon Glyph="&#xE7FC;" FontSize="13" Foreground="White"/>
-                                        <TextBlock Text="Game overlay tools" Foreground="White" FontSize="12" FontWeight="SemiBold"/>
-                                    </StackPanel>
-                                </Border>
-                            </Grid>
                         </StackPanel>
 
                         <AutoSuggestBox x:Name="HomeSearchBox"
-                                        Grid.Row="1"
+                                        MaxWidth="760"
                                         MinHeight="46"
-                                        PlaceholderText="Search Zink: music, films, stations, calls, settings, reports and tools"
+                                        PlaceholderText="Search Zink"
                                         QuerySubmitted="HomeSearchBox_QuerySubmitted"/>
+                    </StackPanel>
 
-                        <Button x:Name="NotificationsButton"
-                                Grid.Column="1"
-                                Grid.RowSpan="2"
-                                MinWidth="54"
-                                MinHeight="46"
-                                Padding="14,0"
-                                CornerRadius="23"
-                                BorderThickness="1"
-                                BorderBrush="#55FFFFFF"
-                                Background="#33FFFFFF"
-                                Foreground="White"
-                                HorizontalAlignment="Right"
-                                VerticalAlignment="Top">
-                            <Button.Flyout>
-                                <Flyout Placement="BottomEdgeAlignedRight">
-                                    <Border Width="360"
-                                            Padding="18"
-                                            CornerRadius="24"
-                                            BorderBrush="#44FFFFFF"
-                                            BorderThickness="1"
-                                            Background="{StaticResource GlassPanelStrongBrush}">
-                                        <StackPanel Spacing="14">
-                                            <Grid>
-                                                <TextBlock Text="Notifications"
-                                                           FontSize="20"
-                                                           FontWeight="SemiBold"
-                                                           Foreground="White"/>
-                                                <TextBlock x:Name="NotificationsCountText"
-                                                           Text="0"
-                                                           HorizontalAlignment="Right"
-                                                           VerticalAlignment="Center"
-                                                           Foreground="{StaticResource MutedTextBrush}"/>
-                                            </Grid>
-                                            <ItemsControl x:Name="NotificationsList"/>
-                                        </StackPanel>
-                                    </Border>
-                                </Flyout>
-                            </Button.Flyout>
-                            <Grid Width="26"
-                                  Height="26">
-                                <FontIcon Glyph="&#xE7F4;"
-                                          FontSize="18"
-                                          Foreground="White"
-                                          HorizontalAlignment="Center"
-                                          VerticalAlignment="Center"/>
-                                <Border x:Name="NotificationsBadge"
-                                        Width="9"
-                                        Height="9"
-                                        CornerRadius="9"
-                                        Background="#FF4D5C"
-                                        BorderBrush="#CCFFFFFF"
+                    <Button x:Name="NotificationsButton"
+                            Grid.Column="1"
+                            Width="54"
+                            Height="54"
+                            Padding="0"
+                            CornerRadius="27"
+                            BorderThickness="1"
+                            BorderBrush="{StaticResource GlassBorderStrongBrush}"
+                            Background="#30FFFFFF"
+                            Foreground="White"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Top">
+                        <Button.Flyout>
+                            <Flyout Placement="BottomEdgeAlignedRight">
+                                <Border Width="370"
+                                        Padding="18"
+                                        CornerRadius="26"
+                                        BorderBrush="#44FFFFFF"
                                         BorderThickness="1"
-                                        HorizontalAlignment="Right"
-                                        VerticalAlignment="Top"/>
-                            </Grid>
-                        </Button>
-                    </Grid>
-                </Border>
+                                        Background="{StaticResource GlassStrongBrush}">
+                                    <StackPanel Spacing="14">
+                                        <Grid>
+                                            <TextBlock Text="Notifications"
+                                                       FontSize="21"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="White"/>
+                                            <TextBlock x:Name="NotificationsCountText"
+                                                       Text="0"
+                                                       HorizontalAlignment="Right"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{StaticResource MutedTextBrush}"/>
+                                        </Grid>
+                                        <ItemsControl x:Name="NotificationsList"/>
+                                    </StackPanel>
+                                </Border>
+                            </Flyout>
+                        </Button.Flyout>
+                        <Grid Width="28" Height="28">
+                            <FontIcon Glyph="&#xE7F4;"
+                                      FontFamily="Segoe Fluent Icons"
+                                      FontSize="19"
+                                      Foreground="White"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center"/>
+                            <Border x:Name="NotificationsBadge"
+                                    Width="10"
+                                    Height="10"
+                                    CornerRadius="10"
+                                    Background="{StaticResource RedBrush}"
+                                    BorderBrush="#CCFFFFFF"
+                                    BorderThickness="1"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Top"/>
+                        </Grid>
+                    </Button>
+                </Grid>
 
                 <Grid x:Name="HeroInsightsSection"
-                      Grid.Row="1">
+                      Grid.Row="1"
+                      ColumnSpacing="18">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1.42*"/>
+                        <ColumnDefinition Width="0.86*"/>
+                    </Grid.ColumnDefinitions>
+
                     <Border Style="{StaticResource GlassPanelStyle}"
-                            Padding="22"
-                            Background="{StaticResource GlassPanelStrongBrush}">
-                        <Grid ColumnSpacing="24">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="360"/>
-                            </Grid.ColumnDefinitions>
+                            Padding="24"
+                            Background="{StaticResource GlassStrongBrush}">
+                        <Grid RowSpacing="20">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
 
-                            <Border CornerRadius="24"
-                                    Grid.Column="1"
-                                    BorderThickness="1"
-                                    BorderBrush="#4050E6D7"
-                                    Background="#97101820"
-                                    Width="340"
-                                    Height="300"
-                                    HorizontalAlignment="Right">
-                                <Grid>
-                                    <Image x:Name="HeroThumb"
-                                           Stretch="UniformToFill"
-                                           Visibility="Collapsed"/>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Border Background="#D64F95FF" CornerRadius="999" Padding="12,5">
+                                    <TextBlock x:Name="HeroKindText"
+                                               Text="Idle"
+                                               Foreground="White"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"/>
+                                </Border>
+                                <Border Background="#24232D38" CornerRadius="999" Padding="12,5" BorderBrush="#26FFFFFF" BorderThickness="1">
+                                    <TextBlock x:Name="HeroMetaText"
+                                               Text="Nothing active"
+                                               Foreground="{StaticResource MutedTextBrush}"
+                                               FontSize="12"/>
+                                </Border>
+                            </StackPanel>
 
-                                    <Grid x:Name="HeroThumbFallback">
-                                        <StackPanel HorizontalAlignment="Center"
-                                                    VerticalAlignment="Center"
-                                                    Spacing="12">
-                                            <Grid Width="78" Height="78">
-                                                <Ellipse Fill="#273B45"/>
-                                                <Ellipse Stroke="#8050E6D7"
-                                                         StrokeThickness="1"/>
-                                                <FontIcon Glyph="&#xE8D4;"
-                                                          FontSize="36"
-                                                          Foreground="{StaticResource ZinkAccentBrush}"
-                                                          HorizontalAlignment="Center"
-                                                          VerticalAlignment="Center"/>
-                                            </Grid>
-                                            <TextBlock Text="Live Zink surface"
-                                                       Foreground="White"
-                                                       FontSize="15"
-                                                       FontWeight="SemiBold"
-                                                       HorizontalAlignment="Center"/>
-                                        </StackPanel>
-                                    </Grid>
-                                </Grid>
-                            </Border>
+                            <Grid Grid.Row="1" ColumnSpacing="22">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="220"/>
+                                </Grid.ColumnDefinitions>
 
-                            <Grid Grid.Column="0"
-                                  RowSpacing="16">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
-
-                                <StackPanel Orientation="Horizontal"
-                                            Spacing="8">
-                                    <Border Background="#D72E8DFF"
-                                            CornerRadius="999"
-                                            Padding="12,5">
-                                        <TextBlock x:Name="HeroKindText"
-                                                   Text="Idle"
-                                                   Foreground="White"
-                                                   FontSize="12"
-                                                   FontWeight="SemiBold"/>
-                                    </Border>
-
-                                    <Border Background="#2BFFFFFF"
-                                            CornerRadius="999"
-                                            Padding="12,5"
-                                            BorderBrush="#24FFFFFF"
-                                            BorderThickness="1">
-                                        <TextBlock x:Name="HeroMetaText"
-                                                   Text="Nothing active"
-                                                   Foreground="{StaticResource MutedTextBrush}"
-                                                   FontSize="12"/>
-                                    </Border>
-
-                                    <Border Background="#2434E6A7"
-                                            CornerRadius="999"
-                                            Padding="12,5"
-                                            BorderBrush="#4450E6D7"
-                                            BorderThickness="1">
-                                        <TextBlock Text="Live session"
-                                                   Foreground="#D7FFF9"
-                                                   FontSize="12"
-                                                   FontWeight="SemiBold"/>
-                                    </Border>
-                                </StackPanel>
-
-                                <StackPanel Grid.Row="1"
-                                            Spacing="6">
+                                <StackPanel Spacing="8">
                                     <TextBlock x:Name="HeroTitle"
                                                Text="Your Zink session starts here"
-                                               FontSize="44"
+                                               FontSize="46"
                                                FontWeight="SemiBold"
                                                Foreground="White"
                                                TextTrimming="CharacterEllipsis"
                                                MaxLines="2"/>
                                     <TextBlock x:Name="HeroSubtitle"
-                                               Text="Start playback, jump into a call, share your screen, open gaming tools, or send diagnostics when something feels off."
+                                               Text="Open your last media, keep Spotify visible, or jump into the spaces you use most."
                                                FontSize="16"
                                                Foreground="{StaticResource MutedTextBrush}"
                                                TextWrapping="WrapWholeWords"
                                                MaxLines="3"/>
                                 </StackPanel>
 
-                                <Grid Grid.Row="2"
-                                      ColumnSpacing="10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
+                                <Border Grid.Column="1"
+                                        Width="220"
+                                        Height="220"
+                                        CornerRadius="30"
+                                        BorderBrush="#405AE8E0"
+                                        BorderThickness="1"
+                                        Background="#80131D28">
+                                    <Grid>
+                                        <Image x:Name="HeroThumb"
+                                               Stretch="UniformToFill"
+                                               Visibility="Collapsed"/>
+                                        <Grid x:Name="HeroThumbFallback">
+                                            <StackPanel HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center"
+                                                        Spacing="12">
+                                                <Grid Width="86" Height="86">
+                                                    <Ellipse Fill="#263846"/>
+                                                    <Ellipse Stroke="#805AE8E0" StrokeThickness="1"/>
+                                                    <FontIcon Glyph="&#xE768;"
+                                                              FontFamily="Segoe Fluent Icons"
+                                                              FontSize="38"
+                                                              Foreground="{StaticResource CyanBrush}"
+                                                              HorizontalAlignment="Center"
+                                                              VerticalAlignment="Center"/>
+                                                </Grid>
+                                                <TextBlock Text="Live"
+                                                           Foreground="White"
+                                                           FontSize="15"
+                                                           FontWeight="SemiBold"
+                                                           HorizontalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Grid>
+                                </Border>
+                            </Grid>
 
-                                    <Border Padding="14"
-                                            CornerRadius="16"
-                                            Background="{StaticResource GlassTileBrush}"
-                                            BorderBrush="#24FFFFFF"
-                                            BorderThickness="1">
-                                        <StackPanel Spacing="2">
-                                            <TextBlock Text="Zink surface"
-                                                       Foreground="{StaticResource MutedTextBrush}"
-                                                       FontSize="12"/>
-                                            <TextBlock x:Name="HeroTypeValue"
-                                                       Text="Nothing"
-                                                       Foreground="White"
-                                                       FontWeight="SemiBold"/>
-                                        </StackPanel>
-                                    </Border>
+                            <Grid Grid.Row="2" ColumnSpacing="10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
 
-                                    <Border Grid.Column="1"
-                                            Padding="14"
-                                            CornerRadius="16"
-                                            Background="{StaticResource GlassTileBrush}"
-                                            BorderBrush="#24FFFFFF"
-                                            BorderThickness="1">
-                                        <StackPanel Spacing="2">
-                                            <TextBlock Text="Live state"
-                                                       Foreground="{StaticResource MutedTextBrush}"
-                                                       FontSize="12"/>
-                                            <TextBlock x:Name="HeroPlaybackValue"
-                                                       Text="Stopped"
-                                                       Foreground="White"
-                                                       FontWeight="SemiBold"/>
-                                        </StackPanel>
-                                    </Border>
+                                <Border Style="{StaticResource SignalCardStyle}">
+                                    <StackPanel Spacing="3">
+                                        <TextBlock Text="Surface" Foreground="{StaticResource DimTextBrush}" FontSize="12"/>
+                                        <TextBlock x:Name="HeroTypeValue" Text="Nothing" Foreground="White" FontWeight="SemiBold"/>
+                                    </StackPanel>
+                                </Border>
 
-                                    <Border Grid.Column="2"
-                                            Padding="14"
-                                            CornerRadius="16"
-                                            Background="{StaticResource GlassTileBrush}"
-                                            BorderBrush="#24FFFFFF"
-                                            BorderThickness="1">
-                                        <StackPanel Spacing="2">
-                                            <TextBlock Text="Session time"
-                                                       Foreground="{StaticResource MutedTextBrush}"
-                                                       FontSize="12"/>
-                                            <TextBlock x:Name="HeroDurationValue"
-                                                       Text="-"
-                                                       Foreground="White"
-                                                       FontWeight="SemiBold"/>
-                                        </StackPanel>
-                                    </Border>
-                                </Grid>
+                                <Border Grid.Column="1" Style="{StaticResource SignalCardStyle}">
+                                    <StackPanel Spacing="3">
+                                        <TextBlock Text="State" Foreground="{StaticResource DimTextBrush}" FontSize="12"/>
+                                        <TextBlock x:Name="HeroPlaybackValue" Text="Stopped" Foreground="White" FontWeight="SemiBold"/>
+                                    </StackPanel>
+                                </Border>
 
-                                <StackPanel Grid.Row="3"
-                                            Orientation="Horizontal"
-                                            Spacing="10">
+                                <Border Grid.Column="2" Style="{StaticResource SignalCardStyle}">
+                                    <StackPanel Spacing="3">
+                                        <TextBlock Text="Time" Foreground="{StaticResource DimTextBrush}" FontSize="12"/>
+                                        <TextBlock x:Name="HeroDurationValue" Text="-" Foreground="White" FontWeight="SemiBold"/>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+
+                            <Grid Grid.Row="3" RowSpacing="12">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Orientation="Horizontal" Spacing="10">
                                     <Button x:Name="ResumeButton"
                                             Style="{StaticResource PrimaryPillButtonStyle}"
                                             IsEnabled="False"
                                             Click="ResumeButton_Click">
                                         <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <FontIcon Glyph="&#xE768;" FontSize="15"/>
+                                            <FontIcon Glyph="&#xE768;" FontFamily="Segoe Fluent Icons" FontSize="15"/>
                                             <TextBlock Text="Resume"/>
                                         </StackPanel>
                                     </Button>
 
-                                    <Button Style="{StaticResource PillButtonStyle}"
-                                            Click="OpenFileButton_Click">
+                                    <Button Style="{StaticResource PillButtonStyle}" Click="OpenFileButton_Click">
                                         <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <FontIcon Glyph="&#xE8E5;" FontSize="15"/>
+                                            <FontIcon Glyph="&#xE8E5;" FontFamily="Segoe Fluent Icons" FontSize="15"/>
                                             <TextBlock Text="Open file"/>
                                         </StackPanel>
                                     </Button>
 
-                                    <Button Style="{StaticResource PillButtonStyle}"
-                                            Click="OpenFolderButton_Click">
+                                    <Button Style="{StaticResource PillButtonStyle}" Click="OpenFolderButton_Click">
                                         <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <FontIcon Glyph="&#xE8B7;" FontSize="15"/>
+                                            <FontIcon Glyph="&#xE8B7;" FontFamily="Segoe Fluent Icons" FontSize="15"/>
                                             <TextBlock Text="Open folder"/>
                                         </StackPanel>
                                     </Button>
                                 </StackPanel>
 
-                                <Grid Grid.Row="5"
-                                      ColumnSpacing="10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-
-                                    <Border Style="{StaticResource SignalCardStyle}">
-                                        <StackPanel Spacing="5">
-                                            <FontIcon Glyph="&#xE717;" Foreground="{StaticResource ZinkBlueBrush}" FontSize="18"/>
-                                            <TextBlock Text="Calls" Foreground="White" FontWeight="SemiBold"/>
-                                            <TextBlock Text="Voice, screen share and support reports" Style="{StaticResource ZinkSubText}"/>
-                                        </StackPanel>
-                                    </Border>
-
-                                    <Border Grid.Column="1" Style="{StaticResource SignalCardStyle}">
-                                        <StackPanel Spacing="5">
-                                            <FontIcon Glyph="&#xE8D4;" Foreground="{StaticResource ZinkAccentBrush}" FontSize="18"/>
-                                            <TextBlock Text="Stream" Foreground="White" FontWeight="SemiBold"/>
-                                            <TextBlock Text="Quality, FPS, audio and diagnostics" Style="{StaticResource ZinkSubText}"/>
-                                        </StackPanel>
-                                    </Border>
-
-                                    <Border Grid.Column="2" Style="{StaticResource SignalCardStyle}">
-                                        <StackPanel Spacing="5">
-                                            <FontIcon Glyph="&#xE7FC;" Foreground="{StaticResource ZinkGreenBrush}" FontSize="18"/>
-                                            <TextBlock Text="Gaming" Foreground="White" FontWeight="SemiBold"/>
-                                            <TextBlock Text="FPS recorder and overlay-ready tools" Style="{StaticResource ZinkSubText}"/>
-                                        </StackPanel>
-                                    </Border>
-                                </Grid>
-
                                 <Border x:Name="HomeRadioVolumePanel"
-                                        Grid.Row="4"
+                                        Grid.Row="1"
                                         Visibility="Collapsed"
-                                        CornerRadius="20"
+                                        CornerRadius="22"
                                         Padding="14"
-                                        Background="{StaticResource GlassTileBrush}"
-                                        BorderBrush="#24FFFFFF"
+                                        Background="#4F131D28"
+                                        BorderBrush="#28FFFFFF"
                                         BorderThickness="1">
                                     <Grid ColumnSpacing="14">
                                         <Grid.ColumnDefinitions>
@@ -476,6 +363,7 @@
                                         </Grid.ColumnDefinitions>
 
                                         <FontIcon Glyph="&#xE15D;"
+                                                  FontFamily="Segoe Fluent Icons"
                                                   FontSize="18"
                                                   Foreground="White"
                                                   VerticalAlignment="Center"/>
@@ -489,358 +377,347 @@
                                                 VerticalAlignment="Center"
                                                 ValueChanged="HomeRadioVolumeSlider_ValueChanged"/>
 
-                                        <StackPanel Grid.Column="2"
-                                                    VerticalAlignment="Center"
-                                                    Spacing="2">
-                                            <TextBlock Text="Volume"
-                                                       Foreground="{StaticResource MutedTextBrush}"
-                                                       FontSize="12"
-                                                       HorizontalAlignment="Right"/>
-                                            <TextBlock x:Name="HomeRadioVolumeValueText"
-                                                       Text="50%"
-                                                       Foreground="White"
-                                                       FontSize="14"
-                                                       FontWeight="SemiBold"
-                                                       HorizontalAlignment="Right"/>
-                                        </StackPanel>
+                                        <TextBlock x:Name="HomeRadioVolumeValueText"
+                                                   Grid.Column="2"
+                                                   Text="50%"
+                                                   Foreground="White"
+                                                   FontSize="14"
+                                                   FontWeight="SemiBold"
+                                                   VerticalAlignment="Center"/>
                                     </Grid>
                                 </Border>
-
                             </Grid>
                         </Grid>
                     </Border>
+
+                    <StackPanel Grid.Column="1" Spacing="14">
+                        <Border Style="{StaticResource GlassPanelStyle}"
+                                Padding="18"
+                                Background="#80131D28">
+                            <StackPanel Spacing="14">
+                                <TextBlock Text="Zink Pulse"
+                                           FontSize="24"
+                                           FontWeight="SemiBold"
+                                           Foreground="White"/>
+
+                                <Grid ColumnSpacing="10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Border Style="{StaticResource SignalCardStyle}">
+                                        <StackPanel Spacing="6">
+                                            <FontIcon Glyph="&#xE717;" FontFamily="Segoe Fluent Icons" Foreground="{StaticResource BlueBrush}" FontSize="20"/>
+                                            <TextBlock Text="Calls" Foreground="White" FontWeight="SemiBold"/>
+                                            <TextBlock Text="Voice and screen share" Style="{StaticResource ZinkSubText}"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Grid.Column="1" Style="{StaticResource SignalCardStyle}">
+                                        <StackPanel Spacing="6">
+                                            <FontIcon Glyph="&#xE7FC;" FontFamily="Segoe Fluent Icons" Foreground="{StaticResource GreenBrush}" FontSize="20"/>
+                                            <TextBlock Text="FPS" Foreground="White" FontWeight="SemiBold"/>
+                                            <TextBlock Text="Overlay and capture" Style="{StaticResource ZinkSubText}"/>
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+
+                                <Grid ColumnSpacing="10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Border Style="{StaticResource SignalCardStyle}">
+                                        <StackPanel Spacing="6">
+                                            <FontIcon Glyph="&#xE8D4;" FontFamily="Segoe Fluent Icons" Foreground="{StaticResource CyanBrush}" FontSize="20"/>
+                                            <TextBlock Text="Stream" Foreground="White" FontWeight="SemiBold"/>
+                                            <TextBlock Text="Quality and reports" Style="{StaticResource ZinkSubText}"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Grid.Column="1" Style="{StaticResource SignalCardStyle}">
+                                        <StackPanel Spacing="6">
+                                            <FontIcon Glyph="&#xE8A7;" FontFamily="Segoe Fluent Icons" Foreground="{StaticResource YellowBrush}" FontSize="20"/>
+                                            <TextBlock Text="Logs" Foreground="White" FontWeight="SemiBold"/>
+                                            <TextBlock Text="Device diagnostics" Style="{StaticResource ZinkSubText}"/>
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Grid x:Name="RecentActivitySection" RowSpacing="10">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <Grid>
+                                <TextBlock Text="Recent"
+                                           FontSize="22"
+                                           FontWeight="SemiBold"
+                                           Foreground="White"/>
+                                <Button HorizontalAlignment="Right"
+                                        Style="{StaticResource PillButtonStyle}"
+                                        MinHeight="36"
+                                        Padding="12,0"
+                                        Click="ClearRecent_Click">
+                                    <StackPanel Orientation="Horizontal" Spacing="7">
+                                        <FontIcon Glyph="&#xE74D;" FontFamily="Segoe Fluent Icons" FontSize="13"/>
+                                        <TextBlock Text="Clear"/>
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+
+                            <Border Grid.Row="1"
+                                    Style="{StaticResource GlassPanelStyle}"
+                                    Padding="8"
+                                    MaxHeight="330"
+                                    Background="#73131D28">
+                                <ListView x:Name="RecentList"
+                                          Background="Transparent"
+                                          BorderThickness="0"
+                                          IsItemClickEnabled="True"
+                                          ItemClick="RecentList_ItemClick"
+                                          SelectionMode="Single">
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Padding="10" ColumnSpacing="12">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <Border Width="38" Height="38" CornerRadius="15" Background="#263846" BorderBrush="#24FFFFFF" BorderThickness="1">
+                                                    <FontIcon Glyph="&#xE8D4;"
+                                                              FontFamily="Segoe Fluent Icons"
+                                                              Foreground="White"
+                                                              FontSize="15"
+                                                              HorizontalAlignment="Center"
+                                                              VerticalAlignment="Center"/>
+                                                </Border>
+
+                                                <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Title}" Foreground="White" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock Text="{Binding Subtitle}" Foreground="{StaticResource MutedTextBrush}" FontSize="12" TextTrimming="CharacterEllipsis"/>
+                                                </StackPanel>
+
+                                                <TextBlock Grid.Column="2"
+                                                           Text="{Binding RightText}"
+                                                           Foreground="{StaticResource MutedTextBrush}"
+                                                           VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
+                            </Border>
+                        </Grid>
+                    </StackPanel>
                 </Grid>
 
                 <StackPanel x:Name="PowerToolsSection"
                             Grid.Row="2"
                             Spacing="14">
-                    <Border Style="{StaticResource GlassPanelStyle}"
-                            Padding="18"
-                            Background="#7A101820">
-                        <Grid ColumnSpacing="18">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="Zink launch deck"
-                                           FontSize="24"
-                                           FontWeight="SemiBold"
-                                           Foreground="White"/>
-                                <TextBlock Text="One dashboard for playback, libraries, social calls, screen share support, web spaces, gaming and app tuning."
-                                           Foreground="{StaticResource MutedTextBrush}"
-                                           TextWrapping="WrapWholeWords"/>
-                            </StackPanel>
-                            <Border Grid.Column="1"
-                                    CornerRadius="999"
-                                    Padding="14,7"
-                                    Background="#2634E6A7"
-                                    BorderBrush="#4450E6D7"
-                                    BorderThickness="1"
-                                    VerticalAlignment="Center">
-                                <TextBlock Text="Zink 3"
-                                           Foreground="#D7FFF9"
-                                           FontWeight="SemiBold"/>
-                            </Border>
-                        </Grid>
-                    </Border>
-
-                    <Grid ColumnSpacing="12"
-                          RowSpacing="12">
+                    <Grid ColumnSpacing="14">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
 
                         <Button x:Name="TileBtn_MusicPlayer" Style="{StaticResource GlassTileButtonStyle}" Click="MusicPlayer_Click">
-                            <Grid Padding="16" ColumnSpacing="12">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                <Border Width="56" Height="56" CornerRadius="18" Background="#20FFFFFF" BorderBrush="#28FFFFFF" BorderThickness="1">
-                                    <Image Source="ms-appx:///Assets/QuickAccess/music-player.png" Width="42" Height="42" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Border>
-                                <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
-                                    <TextBlock Text="Music Player" Foreground="White" FontWeight="SemiBold"/>
-                                    <TextBlock Text="Local music queue and playback" Style="{StaticResource ZinkSubText}"/>
+                            <Grid Padding="16" RowSpacing="10">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <FontIcon Glyph="&#xEC4F;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource CyanBrush}"/>
+                                <StackPanel Grid.Row="1" Spacing="3">
+                                    <TextBlock Text="Music" Foreground="White" FontWeight="SemiBold"/>
+                                    <TextBlock Text="Player" Style="{StaticResource ZinkSubText}"/>
                                 </StackPanel>
                             </Grid>
                         </Button>
 
                         <Button x:Name="TileBtn_VideoPlayer" Grid.Column="1" Style="{StaticResource GlassTileButtonStyle}" Click="VideoPlayer_Click">
-                            <Grid Padding="16" ColumnSpacing="12">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                <Border Width="56" Height="56" CornerRadius="18" Background="#20FFFFFF" BorderBrush="#28FFFFFF" BorderThickness="1">
-                                    <Image Source="ms-appx:///Assets/QuickAccess/video-player.png" Width="42" Height="42" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Border>
-                                <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
-                                    <TextBlock Text="Video Player" Foreground="White" FontWeight="SemiBold"/>
-                                    <TextBlock Text="Films, clips, subtitles, fullscreen" Style="{StaticResource ZinkSubText}"/>
+                            <Grid Padding="16" RowSpacing="10">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <FontIcon Glyph="&#xE714;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource BlueBrush}"/>
+                                <StackPanel Grid.Row="1" Spacing="3">
+                                    <TextBlock Text="Video" Foreground="White" FontWeight="SemiBold"/>
+                                    <TextBlock Text="Player" Style="{StaticResource ZinkSubText}"/>
                                 </StackPanel>
                             </Grid>
                         </Button>
 
                         <Button x:Name="TileBtn_Radio" Grid.Column="2" Style="{StaticResource GlassTileButtonStyle}" Click="Radio_Click">
-                            <Grid Padding="16" ColumnSpacing="12">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                <Border Width="56" Height="56" CornerRadius="18" Background="#20FFFFFF" BorderBrush="#28FFFFFF" BorderThickness="1">
-                                    <Image Source="ms-appx:///Assets/QuickAccess/radio.png" Width="42" Height="42" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Border>
-                                <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+                            <Grid Padding="16" RowSpacing="10">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <FontIcon Glyph="&#xE7F6;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource YellowBrush}"/>
+                                <StackPanel Grid.Row="1" Spacing="3">
                                     <TextBlock Text="Radio" Foreground="White" FontWeight="SemiBold"/>
-                                    <TextBlock Text="Live stations and liked radio songs" Style="{StaticResource ZinkSubText}"/>
+                                    <TextBlock Text="Live stations" Style="{StaticResource ZinkSubText}"/>
                                 </StackPanel>
                             </Grid>
                         </Button>
 
-                        <Button x:Name="TileBtn_VideoLibrary" Grid.Column="3" Style="{StaticResource GlassTileButtonStyle}" Click="VideoLibrary_Click">
-                            <Grid Padding="16" ColumnSpacing="12">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                <Border Width="56" Height="56" CornerRadius="18" Background="#20FFFFFF" BorderBrush="#28FFFFFF" BorderThickness="1">
-                                    <Image Source="ms-appx:///Assets/QuickAccess/video-library.png" Width="42" Height="42" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Border>
-                                <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
-                                    <TextBlock Text="Video Library" Foreground="White" FontWeight="SemiBold"/>
-                                    <TextBlock Text="Your video collection and folders" Style="{StaticResource ZinkSubText}"/>
-                                </StackPanel>
-                            </Grid>
-                        </Button>
-
-                        <Button x:Name="TileBtn_MusicLibrary" Grid.Row="1" Style="{StaticResource GlassTileButtonStyle}" Click="MusicLibrary_Click">
-                            <Grid Padding="16" ColumnSpacing="12">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                <Border Width="56" Height="56" CornerRadius="18" Background="#20FFFFFF" BorderBrush="#28FFFFFF" BorderThickness="1">
-                                    <Image Source="ms-appx:///Assets/QuickAccess/music-library.png" Width="42" Height="42" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Border>
-                                <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
-                                    <TextBlock Text="Music Library" Foreground="White" FontWeight="SemiBold"/>
-                                    <TextBlock Text="Songs, folders, albums and files" Style="{StaticResource ZinkSubText}"/>
-                                </StackPanel>
-                            </Grid>
-                        </Button>
-
-                        <Button x:Name="TileBtn_Equalizer" Grid.Row="1" Grid.Column="1" Style="{StaticResource GlassTileButtonStyle}" Click="Equalizer_Click">
-                            <Grid Padding="16" ColumnSpacing="12">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                <Border Width="56" Height="56" CornerRadius="18" Background="#20FFFFFF" BorderBrush="#28FFFFFF" BorderThickness="1">
-                                    <Image Source="ms-appx:///Assets/QuickAccess/equalizer.png" Width="42" Height="42" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Border>
-                                <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
-                                    <TextBlock Text="Equalizer" Foreground="White" FontWeight="SemiBold"/>
-                                    <TextBlock Text="Shape playback for music and films" Style="{StaticResource ZinkSubText}"/>
-                                </StackPanel>
-                            </Grid>
-                        </Button>
-
-                        <Button x:Name="TileBtn_Visualizer" Grid.Row="1" Grid.Column="2" Style="{StaticResource GlassTileButtonStyle}" Click="Visualizer_Click">
-                            <Grid Padding="16" ColumnSpacing="12">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                <Border Width="56" Height="56" CornerRadius="18" Background="#20FFFFFF" BorderBrush="#28FFFFFF" BorderThickness="1">
-                                    <Image Source="ms-appx:///Assets/QuickAccess/visualizer.png" Width="42" Height="42" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Border>
-                                <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
-                                    <TextBlock Text="Visualizer" Foreground="White" FontWeight="SemiBold"/>
-                                    <TextBlock Text="Reactive visuals for playback" Style="{StaticResource ZinkSubText}"/>
-                                </StackPanel>
-                            </Grid>
-                        </Button>
-
-                        <Button x:Name="TileBtn_Settings" Grid.Row="1" Grid.Column="3" Style="{StaticResource GlassTileButtonStyle}" Click="Settings_Click">
-                            <Grid Padding="16" ColumnSpacing="12">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                <Border Width="56" Height="56" CornerRadius="18" Background="#20FFFFFF" BorderBrush="#28FFFFFF" BorderThickness="1">
-                                    <Image Source="ms-appx:///Assets/QuickAccess/settings.png" Width="42" Height="42" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Border>
-                                <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
-                                    <TextBlock Text="Settings" Foreground="White" FontWeight="SemiBold"/>
-                                    <TextBlock Text="Diagnostics, startup and app options" Style="{StaticResource ZinkSubText}"/>
-                                </StackPanel>
-                            </Grid>
-                        </Button>
-
-                        <Button x:Name="TileBtn_VersionHistory" Grid.Row="2" Style="{StaticResource GlassTileButtonStyle}" Click="VersionHistory_Click">
-                            <Grid Padding="16" ColumnSpacing="12">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                <Border Width="56" Height="56" CornerRadius="18" Background="#20FFFFFF" BorderBrush="#28FFFFFF" BorderThickness="1">
-                                    <Image Source="ms-appx:///Assets/QuickAccess/version-history.png" Width="42" Height="42" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Border>
-                                <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
-                                    <TextBlock Text="Version history" Foreground="White" FontWeight="SemiBold"/>
-                                    <TextBlock Text="Updates, fixes and release notes" Style="{StaticResource ZinkSubText}"/>
-                                </StackPanel>
-                            </Grid>
-                        </Button>
-
-                        <Button x:Name="TileBtn_Spotify" Grid.Row="2" Grid.Column="1" Style="{StaticResource GlassTileButtonStyle}" Click="Spotify_Click">
-                            <Grid Padding="16" ColumnSpacing="12">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                <Border Width="56" Height="56" CornerRadius="18" Background="#20FFFFFF" BorderBrush="#28FFFFFF" BorderThickness="1">
-                                    <Image Source="ms-appx:///Assets/QuickAccess/spotify.png" Width="42" Height="42" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Border>
-                                <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+                        <Button x:Name="TileBtn_Spotify" Grid.Column="3" Style="{StaticResource GlassTileButtonStyle}" Click="Spotify_Click">
+                            <Grid Padding="16" RowSpacing="10">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <FontIcon Glyph="&#xE768;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource GreenBrush}"/>
+                                <StackPanel Grid.Row="1" Spacing="3">
                                     <TextBlock Text="Spotify" Foreground="White" FontWeight="SemiBold"/>
-                                    <TextBlock Text="Desktop now playing and playlists" Style="{StaticResource ZinkSubText}"/>
+                                    <TextBlock Text="Now playing" Style="{StaticResource ZinkSubText}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+                    </Grid>
+
+                    <Grid ColumnSpacing="14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Button x:Name="TileBtn_MusicLibrary" Style="{StaticResource GlassTileButtonStyle}" Click="MusicLibrary_Click">
+                            <Grid Padding="16" RowSpacing="10">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <FontIcon Glyph="&#xE8F1;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource CyanBrush}"/>
+                                <StackPanel Grid.Row="1" Spacing="3">
+                                    <TextBlock Text="Music Library" Foreground="White" FontWeight="SemiBold"/>
+                                    <TextBlock Text="Files and albums" Style="{StaticResource ZinkSubText}"/>
                                 </StackPanel>
                             </Grid>
                         </Button>
 
-                        <Button x:Name="TileBtn_Twitch" Grid.Row="2" Grid.Column="2" Style="{StaticResource GlassTileButtonStyle}" Click="Twitch_Click">
-                            <Grid Padding="16" ColumnSpacing="12">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                <Border Width="56" Height="56" CornerRadius="18" Background="#20FFFFFF" BorderBrush="#28FFFFFF" BorderThickness="1">
-                                    <Image Source="ms-appx:///Assets/QuickAccess/twitch.png" Width="42" Height="42" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Border>
-                                <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+                        <Button x:Name="TileBtn_VideoLibrary" Grid.Column="1" Style="{StaticResource GlassTileButtonStyle}" Click="VideoLibrary_Click">
+                            <Grid Padding="16" RowSpacing="10">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <FontIcon Glyph="&#xE8B7;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource BlueBrush}"/>
+                                <StackPanel Grid.Row="1" Spacing="3">
+                                    <TextBlock Text="Video Library" Foreground="White" FontWeight="SemiBold"/>
+                                    <TextBlock Text="Folders" Style="{StaticResource ZinkSubText}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+
+                        <Button x:Name="TileBtn_Equalizer" Grid.Column="2" Style="{StaticResource GlassTileButtonStyle}" Click="Equalizer_Click">
+                            <Grid Padding="16" RowSpacing="10">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <FontIcon Glyph="&#xE9E9;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource YellowBrush}"/>
+                                <StackPanel Grid.Row="1" Spacing="3">
+                                    <TextBlock Text="Equalizer" Foreground="White" FontWeight="SemiBold"/>
+                                    <TextBlock Text="Audio tuning" Style="{StaticResource ZinkSubText}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+
+                        <Button x:Name="TileBtn_Visualizer" Grid.Column="3" Style="{StaticResource GlassTileButtonStyle}" Click="Visualizer_Click">
+                            <Grid Padding="16" RowSpacing="10">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <FontIcon Glyph="&#xE9D9;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource GreenBrush}"/>
+                                <StackPanel Grid.Row="1" Spacing="3">
+                                    <TextBlock Text="Visualizer" Foreground="White" FontWeight="SemiBold"/>
+                                    <TextBlock Text="Reactive playback" Style="{StaticResource ZinkSubText}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+                    </Grid>
+
+                    <Grid ColumnSpacing="14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Button x:Name="TileBtn_Twitch" Style="{StaticResource GlassTileButtonStyle}" Click="Twitch_Click">
+                            <Grid Padding="16" RowSpacing="10">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <FontIcon Glyph="&#xE8A7;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource RedBrush}"/>
+                                <StackPanel Grid.Row="1" Spacing="3">
                                     <TextBlock Text="Twitch" Foreground="White" FontWeight="SemiBold"/>
-                                    <TextBlock Text="Streams and creator pages" Style="{StaticResource ZinkSubText}"/>
+                                    <TextBlock Text="Streams" Style="{StaticResource ZinkSubText}"/>
                                 </StackPanel>
                             </Grid>
                         </Button>
 
-                        <Button x:Name="TileBtn_Xbox" Grid.Row="2" Grid.Column="3" Style="{StaticResource GlassTileButtonStyle}" Click="Xbox_Click">
-                            <Grid Padding="16" ColumnSpacing="12">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                <Border Width="56" Height="56" CornerRadius="18" Background="#20FFFFFF" BorderBrush="#28FFFFFF" BorderThickness="1">
-                                    <Image Source="ms-appx:///Assets/QuickAccess/xbox.png" Width="42" Height="42" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Border>
-                                <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+                        <Button x:Name="TileBtn_Xbox" Grid.Column="1" Style="{StaticResource GlassTileButtonStyle}" Click="Xbox_Click">
+                            <Grid Padding="16" RowSpacing="10">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <FontIcon Glyph="&#xE7FC;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource GreenBrush}"/>
+                                <StackPanel Grid.Row="1" Spacing="3">
                                     <TextBlock Text="Xbox" Foreground="White" FontWeight="SemiBold"/>
-                                    <TextBlock Text="Gaming profile and tools" Style="{StaticResource ZinkSubText}"/>
+                                    <TextBlock Text="Gaming" Style="{StaticResource ZinkSubText}"/>
                                 </StackPanel>
                             </Grid>
                         </Button>
 
-                        <Button x:Name="TileBtn_Discord" Grid.Row="3" Style="{StaticResource GlassTileButtonStyle}" Click="Discord_Click">
-                            <Grid Padding="16" ColumnSpacing="12">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                <Border Width="56" Height="56" CornerRadius="18" Background="#20FFFFFF" BorderBrush="#28FFFFFF" BorderThickness="1">
-                                    <Image Source="ms-appx:///Assets/QuickAccess/discord.png" Width="42" Height="42" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Border>
-                                <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+                        <Button x:Name="TileBtn_Discord" Grid.Column="2" Style="{StaticResource GlassTileButtonStyle}" Click="Discord_Click">
+                            <Grid Padding="16" RowSpacing="10">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <FontIcon Glyph="&#xE13D;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource BlueBrush}"/>
+                                <StackPanel Grid.Row="1" Spacing="3">
                                     <TextBlock Text="Discord" Foreground="White" FontWeight="SemiBold"/>
-                                    <TextBlock Text="Presence, calls and community" Style="{StaticResource ZinkSubText}"/>
+                                    <TextBlock Text="Presence" Style="{StaticResource ZinkSubText}"/>
                                 </StackPanel>
                             </Grid>
                         </Button>
 
-                        <Button x:Name="TileBtn_YouTube" Grid.Row="3" Grid.Column="1" Style="{StaticResource GlassTileButtonStyle}" Click="YouTube_Click">
-                            <Grid Padding="16" ColumnSpacing="12">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                <Border Width="56" Height="56" CornerRadius="18" Background="#20FFFFFF" BorderBrush="#28FFFFFF" BorderThickness="1">
-                                    <Image Source="ms-appx:///Assets/QuickAccess/youtube.png" Width="42" Height="42" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Border>
-                                <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+                        <Button x:Name="TileBtn_YouTube" Grid.Column="3" Style="{StaticResource GlassTileButtonStyle}" Click="YouTube_Click">
+                            <Grid Padding="16" RowSpacing="10">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <FontIcon Glyph="&#xE714;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource RedBrush}"/>
+                                <StackPanel Grid.Row="1" Spacing="3">
                                     <TextBlock Text="YouTube" Foreground="White" FontWeight="SemiBold"/>
-                                    <TextBlock Text="Watch videos and music pages" Style="{StaticResource ZinkSubText}"/>
+                                    <TextBlock Text="Watch" Style="{StaticResource ZinkSubText}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+                    </Grid>
+
+                    <Grid ColumnSpacing="14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Button x:Name="TileBtn_Settings" Style="{StaticResource GlassTileButtonStyle}" Click="Settings_Click">
+                            <Grid Padding="16" RowSpacing="10">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <FontIcon Glyph="&#xE713;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="White"/>
+                                <StackPanel Grid.Row="1" Spacing="3">
+                                    <TextBlock Text="Settings" Foreground="White" FontWeight="SemiBold"/>
+                                    <TextBlock Text="Control" Style="{StaticResource ZinkSubText}"/>
                                 </StackPanel>
                             </Grid>
                         </Button>
 
-                        <Button x:Name="TileBtn_Customise" Grid.Row="3" Grid.Column="2" Style="{StaticResource GlassTileButtonStyle}" Click="Customise_Click">
-                            <Grid Padding="16" ColumnSpacing="12">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                <Border Width="56" Height="56" CornerRadius="18" Background="#20FFFFFF" BorderBrush="#28FFFFFF" BorderThickness="1">
-                                    <Image Source="ms-appx:///Assets/QuickAccess/customise.png" Width="42" Height="42" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Border>
-                                <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+                        <Button x:Name="TileBtn_Customise" Grid.Column="1" Style="{StaticResource GlassTileButtonStyle}" Click="Customise_Click">
+                            <Grid Padding="16" RowSpacing="10">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <FontIcon Glyph="&#xE790;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource CyanBrush}"/>
+                                <StackPanel Grid.Row="1" Spacing="3">
                                     <TextBlock Text="Customise" Foreground="White" FontWeight="SemiBold"/>
-                                    <TextBlock Text="Glass style, layout and dashboard" Style="{StaticResource ZinkSubText}"/>
+                                    <TextBlock Text="Glass and layout" Style="{StaticResource ZinkSubText}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+
+                        <Button x:Name="TileBtn_VersionHistory" Grid.Column="2" Style="{StaticResource GlassTileButtonStyle}" Click="VersionHistory_Click">
+                            <Grid Padding="16" RowSpacing="10">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <FontIcon Glyph="&#xE81C;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource YellowBrush}"/>
+                                <StackPanel Grid.Row="1" Spacing="3">
+                                    <TextBlock Text="Updates" Foreground="White" FontWeight="SemiBold"/>
+                                    <TextBlock Text="Version history" Style="{StaticResource ZinkSubText}"/>
                                 </StackPanel>
                             </Grid>
                         </Button>
                     </Grid>
                 </StackPanel>
-
-                <Grid x:Name="RecentActivitySection"
-                      Grid.Row="3"
-                      Visibility="Visible"
-                      RowSpacing="12">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-
-                    <Grid ColumnSpacing="12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-
-                        <TextBlock Text="Recent Zink activity"
-                                   FontSize="22"
-                                   FontWeight="SemiBold"
-                                   Foreground="White"/>
-
-                        <Button Grid.Column="1"
-                                Style="{StaticResource PillButtonStyle}"
-                                HorizontalAlignment="Right"
-                                Click="ClearRecent_Click">
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <FontIcon Glyph="&#xE74D;" FontSize="14"/>
-                                <TextBlock Text="Clear"/>
-                            </StackPanel>
-                        </Button>
-                    </Grid>
-
-                    <Border Grid.Row="1"
-                            Style="{StaticResource GlassPanelStyle}"
-                            Padding="10"
-                            Background="#8C101820">
-                        <ListView x:Name="RecentList"
-                                  Background="Transparent"
-                                  BorderThickness="0"
-                                  IsItemClickEnabled="True"
-                                  ItemClick="RecentList_ItemClick"
-                                  SelectionMode="Single">
-
-                            <ListView.ItemTemplate>
-                                <DataTemplate>
-                                    <Grid Padding="10"
-                                          ColumnSpacing="12">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-
-                                        <Grid Width="38" Height="38">
-                                            <Ellipse Fill="#263847"/>
-                                            <FontIcon Glyph="&#xE8D4;"
-                                                      Foreground="White"
-                                                      FontSize="15"
-                                                      HorizontalAlignment="Center"
-                                                      VerticalAlignment="Center"/>
-                                        </Grid>
-
-                                        <StackPanel Grid.Column="1"
-                                                    Spacing="2"
-                                                    VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding Title}"
-                                                       Foreground="White"
-                                                       FontWeight="SemiBold"
-                                                       TextTrimming="CharacterEllipsis"/>
-                                            <TextBlock Text="{Binding Subtitle}"
-                                                       Foreground="{StaticResource MutedTextBrush}"
-                                                       FontSize="12"
-                                                       TextTrimming="CharacterEllipsis"/>
-                                        </StackPanel>
-
-                                        <TextBlock Grid.Column="2"
-                                                   Text="{Binding RightText}"
-                                                   Foreground="{StaticResource MutedTextBrush}"
-                                                   VerticalAlignment="Center"/>
-                                    </Grid>
-                                </DataTemplate>
-                            </ListView.ItemTemplate>
-                        </ListView>
-                    </Border>
-                </Grid>
             </Grid>
         </ScrollViewer>
     </Grid>
