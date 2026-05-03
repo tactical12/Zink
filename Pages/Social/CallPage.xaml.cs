@@ -42,6 +42,8 @@ namespace Zink.Pages.Social
         private bool _isLocalPreviewHidden;
         private bool _isScreenShareSoundEnabled = true;
         private bool _screenShareFeedbackDialogOpen;
+        private bool _callFeedbackDialogOpen;
+        private string _lastCallFeedbackPromptKey = "";
         private long _localUserId;
         private const int MaxCallParticipants = 10;
         private readonly HashSet<long> _callParticipantIds = new();
@@ -515,6 +517,7 @@ namespace Zink.Pages.Social
 
             return new ScreenShareReportContext
             {
+                SessionType = "Screen share",
                 Experience = experience,
                 Notes = notes,
                 CallId = session.CallId ?? "",
@@ -657,6 +660,7 @@ namespace Zink.Pages.Social
         {
             return new ScreenShareReportContext
             {
+                SessionType = snapshot.SessionType,
                 Experience = experience,
                 Notes = notes,
                 CallId = snapshot.CallId,
@@ -679,6 +683,176 @@ namespace Zink.Pages.Social
                 AudioDevice = snapshot.AudioDevice,
                 AudioPacketsSent = snapshot.AudioPacketsSent
             };
+        }
+
+        private ScreenShareReportContext BuildCallReportContext(string experience, string notes)
+        {
+            var session = NativeCallCoordinator.Instance.CurrentSession;
+            var duration = _connectedAtUtc.HasValue
+                ? DateTimeOffset.UtcNow - _connectedAtUtc.Value
+                : TimeSpan.Zero;
+            var remoteUserId = session.RemoteUserId > 0
+                ? session.RemoteUserId
+                : _callParticipantIds.FirstOrDefault(id => id > 0 && id != _localUserId);
+
+            return new ScreenShareReportContext
+            {
+                SessionType = "Call",
+                Experience = experience,
+                Notes = notes,
+                CallId = session.CallId,
+                Quality = _isSharingScreen || _screenShareLastWidth > 0 ? $"Screen share {_screenShareLastQuality}" : "Voice call",
+                LocalUser = _localUserId > 0 ? GetParticipantDisplayName(_localUserId) : "You",
+                RemoteUser = remoteUserId > 0 ? GetParticipantDisplayName(remoteUserId) : "Remote participant",
+                Duration = duration <= TimeSpan.Zero ? "-" : duration.ToString(@"hh\:mm\:ss"),
+                SenderFps = _screenShareObservedFps,
+                ReceiverFps = _remotePlaybackObservedFps,
+                LastWidth = _screenShareLastWidth,
+                LastHeight = _screenShareLastHeight,
+                LastBytes = _screenShareLastBytes,
+                SentFrames = _screenShareTransmitCounter,
+                ReceivedFrames = _remoteRtpFrameCount,
+                RenderedFrames = _remoteRenderedFrameCount,
+                DroppedSendFrames = _screenShareDroppedFrames,
+                DroppedReceiveFrames = _screenShareDroppedReceiveFrames,
+                DecodeFailures = _remoteDecodeFailureCount,
+                DecoderResets = _remoteDecoderResetCount,
+                AudioDevice = _selectedScreenShareSoundDevice,
+                AudioPacketsSent = _screenShareSoundPacketsSent
+            };
+        }
+
+        private async Task PromptForCallExperienceOnceAsync(string reason)
+        {
+            var session = NativeCallCoordinator.Instance.CurrentSession;
+            var key = !string.IsNullOrWhiteSpace(session.CallId)
+                ? session.CallId
+                : $"{session.RemoteUserId}:{session.TargetUserId}:{_connectedAtUtc:O}";
+
+            if (string.IsNullOrWhiteSpace(key) ||
+                string.Equals(_lastCallFeedbackPromptKey, key, StringComparison.Ordinal) ||
+                _callFeedbackDialogOpen ||
+                XamlRoot == null)
+            {
+                return;
+            }
+
+            _lastCallFeedbackPromptKey = key;
+            await ShowCallExperienceDialogAsync(BuildCallReportContext(reason, ""));
+        }
+
+        private async Task ShowCallExperienceDialogAsync(ScreenShareReportContext snapshot)
+        {
+            if (_callFeedbackDialogOpen || XamlRoot == null)
+                return;
+
+            _callFeedbackDialogOpen = true;
+
+            try
+            {
+                var dialog = new ContentDialog
+                {
+                    XamlRoot = XamlRoot,
+                    Title = "How was your Zink call?",
+                    Content = new TextBlock
+                    {
+                        Text = "Your answer can upload the call report and logs so support can check audio, screen share, lag, connection, and device issues.",
+                        TextWrapping = TextWrapping.WrapWholeWords
+                    },
+                    PrimaryButtonText = "Good",
+                    SecondaryButtonText = "Bad experience",
+                    CloseButtonText = "Not now",
+                    DefaultButton = ContentDialogButton.Primary
+                };
+
+                var result = await dialog.ShowAsync();
+
+                if (result == ContentDialogResult.Primary)
+                {
+                    await UploadCallFeedbackAsync(snapshot, "good", "User marked the call as good.");
+                    return;
+                }
+
+                if (result == ContentDialogResult.Secondary)
+                    await ShowBadCallExperienceDialogAsync(snapshot);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Call:Report] Feedback dialog failed: {ex}");
+                NativeCallCoordinator.Instance.SetStatus(
+                    NativeCallCoordinator.Instance.CurrentSession.State,
+                    $"Call feedback failed: {ex.Message}");
+            }
+            finally
+            {
+                _callFeedbackDialogOpen = false;
+            }
+        }
+
+        private async Task ShowBadCallExperienceDialogAsync(ScreenShareReportContext snapshot)
+        {
+            if (XamlRoot == null)
+                return;
+
+            var notesBox = new TextBox
+            {
+                Header = "What went wrong?",
+                PlaceholderText = "Audio stutter, delay, call dropped, screen share lag, no sound...",
+                AcceptsReturn = true,
+                TextWrapping = TextWrapping.Wrap,
+                MinHeight = 120
+            };
+
+            var dialog = new ContentDialog
+            {
+                XamlRoot = XamlRoot,
+                Title = "Upload call report to support?",
+                Content = new StackPanel
+                {
+                    Spacing = 12,
+                    Children =
+                    {
+                        new TextBlock
+                        {
+                            Text = "Zink will upload a focused call report and recent diagnostic logs to the Zink call server. No upload happens unless you choose Upload report.",
+                            TextWrapping = TextWrapping.WrapWholeWords
+                        },
+                        notesBox
+                    }
+                },
+                PrimaryButtonText = "Upload report",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Primary
+            };
+
+            var result = await dialog.ShowAsync();
+            if (result == ContentDialogResult.Primary)
+                await UploadCallFeedbackAsync(snapshot, "bad", notesBox.Text);
+        }
+
+        private async Task UploadCallFeedbackAsync(ScreenShareReportContext snapshot, string experience, string notes)
+        {
+            try
+            {
+                NativeCallCoordinator.Instance.SetStatus(
+                    NativeCallCoordinator.Instance.CurrentSession.State,
+                    "Uploading call report...");
+
+                var context = WithScreenShareFeedback(snapshot, experience, notes);
+                var bundlePath = await ScreenShareReportService.CreateBundleAsync(context);
+                var result = await DiagnosticsUploadService.UploadSupportBundleAsync(bundlePath);
+
+                NativeCallCoordinator.Instance.SetStatus(
+                    NativeCallCoordinator.Instance.CurrentSession.State,
+                    $"Call report uploaded. Report id: {result.ReportId}");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Call:Report] Upload failed: {ex}");
+                NativeCallCoordinator.Instance.SetStatus(
+                    NativeCallCoordinator.Instance.CurrentSession.State,
+                    $"Call report upload failed: {ex.Message}");
+            }
         }
 
         private async Task<bool> TryStartScreenShareSoundAsync(NativeCallSession session, bool showSuccessStatus)
@@ -3620,6 +3794,7 @@ namespace Zink.Pages.Social
 
                 SyncPageStateFromSession(session);
                 ApplySessionToUi(session);
+                _ = PromptForCallExperienceOnceAsync("remote-ended");
             });
         }
 
@@ -3644,6 +3819,7 @@ namespace Zink.Pages.Social
                 LocalPreviewPlaceholder.Visibility = Visibility.Visible;
                 _isLocalPreviewHidden = false;
                 ApplyLocalPreviewVisibility();
+                await PromptForCallExperienceOnceAsync("local-ended");
             }
             catch (Exception ex)
             {

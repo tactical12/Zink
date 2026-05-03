@@ -53,6 +53,14 @@
             <Setter Property="TextWrapping" Value="WrapWholeWords"/>
             <Setter Property="MaxLines" Value="2"/>
         </Style>
+
+        <Style x:Key="SignalCardStyle" TargetType="Border">
+            <Setter Property="CornerRadius" Value="18"/>
+            <Setter Property="Padding" Value="14"/>
+            <Setter Property="Background" Value="#5C101820"/>
+            <Setter Property="BorderBrush" Value="#2EFFFFFF"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
     </Page.Resources>
 
     <Grid RequestedTheme="Dark">
@@ -77,9 +85,11 @@
                 </Grid.RowDefinitions>
 
                 <Border Style="{StaticResource GlassPanelStyle}"
-                        Padding="18">
+                        Padding="22"
+                        Background="#AA071018"
+                        BorderBrush="#4450E6D7">
                     <Grid ColumnSpacing="18"
-                          RowSpacing="14">
+                          RowSpacing="18">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
@@ -89,36 +99,73 @@
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
-                        <StackPanel Spacing="3">
+                        <StackPanel Spacing="8">
                             <StackPanel Orientation="Horizontal"
-                                        Spacing="10">
-                                <Border Width="34"
-                                        Height="34"
-                                        CornerRadius="10"
-                                        Background="#334EF0E5"
-                                        BorderBrush="#6650E6D7"
+                                        Spacing="12">
+                                <Border Width="48"
+                                        Height="48"
+                                        CornerRadius="15"
+                                        Background="#254EF0E5"
+                                        BorderBrush="#8050E6D7"
                                         BorderThickness="1">
                                     <FontIcon Glyph="&#xE8D4;"
-                                              FontSize="16"
+                                              FontSize="22"
                                               Foreground="{StaticResource ZinkAccentBrush}"
                                               HorizontalAlignment="Center"
                                               VerticalAlignment="Center"/>
                                 </Border>
-                                <TextBlock Text="Zink"
-                                           FontSize="28"
-                                           FontWeight="SemiBold"
-                                           Foreground="White"
-                                           VerticalAlignment="Center"/>
+                                <StackPanel VerticalAlignment="Center"
+                                            Spacing="0">
+                                    <TextBlock Text="Zink Command Centre"
+                                               FontSize="32"
+                                               FontWeight="SemiBold"
+                                               Foreground="White"/>
+                                    <TextBlock Text="Media, calls, screen share, gaming tools and diagnostics running from one glass surface."
+                                               Foreground="{StaticResource MutedTextBrush}"
+                                               TextWrapping="WrapWholeWords"/>
+                                </StackPanel>
                             </StackPanel>
-                            <TextBlock Text="Your media, calls, screen share, gaming tools and diagnostics in one place."
-                                       Foreground="{StaticResource MutedTextBrush}"
-                                       TextWrapping="WrapWholeWords"/>
+
+                            <Grid ColumnSpacing="10"
+                                  Margin="60,6,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <Border CornerRadius="999" Padding="12,6" Background="#2534E6A7" BorderBrush="#4450E6D7" BorderThickness="1">
+                                    <StackPanel Orientation="Horizontal" Spacing="7">
+                                        <FontIcon Glyph="&#xE768;" FontSize="13" Foreground="{StaticResource ZinkAccentBrush}"/>
+                                        <TextBlock Text="Now playing aware" Foreground="#D7FFF9" FontSize="12" FontWeight="SemiBold"/>
+                                    </StackPanel>
+                                </Border>
+                                <Border Grid.Column="1" CornerRadius="999" Padding="12,6" Background="#222E8DFF" BorderBrush="#552E8DFF" BorderThickness="1">
+                                    <StackPanel Orientation="Horizontal" Spacing="7">
+                                        <FontIcon Glyph="&#xE717;" FontSize="13" Foreground="#BFDFFF"/>
+                                        <TextBlock Text="Zink Social ready" Foreground="#EAF5FF" FontSize="12" FontWeight="SemiBold"/>
+                                    </StackPanel>
+                                </Border>
+                                <Border Grid.Column="2" CornerRadius="999" Padding="12,6" Background="#2263F4A8" BorderBrush="#5563F4A8" BorderThickness="1">
+                                    <StackPanel Orientation="Horizontal" Spacing="7">
+                                        <FontIcon Glyph="&#xE8B7;" FontSize="13" Foreground="{StaticResource ZinkGreenBrush}"/>
+                                        <TextBlock Text="Reports and logs" Foreground="#E9FFF3" FontSize="12" FontWeight="SemiBold"/>
+                                    </StackPanel>
+                                </Border>
+                                <Border Grid.Column="3" CornerRadius="999" Padding="12,6" Background="#22FFFFFF" BorderBrush="#2EFFFFFF" BorderThickness="1">
+                                    <StackPanel Orientation="Horizontal" Spacing="7">
+                                        <FontIcon Glyph="&#xE7FC;" FontSize="13" Foreground="White"/>
+                                        <TextBlock Text="Game overlay tools" Foreground="White" FontSize="12" FontWeight="SemiBold"/>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
                         </StackPanel>
 
                         <AutoSuggestBox x:Name="HomeSearchBox"
                                         Grid.Row="1"
                                         MinHeight="46"
-                                        PlaceholderText="Search Zink: songs, videos, stations, web pages and tools"
+                                        PlaceholderText="Search Zink: music, films, stations, calls, settings, reports and tools"
                                         QuerySubmitted="HomeSearchBox_QuerySubmitted"/>
 
                         <Button x:Name="NotificationsButton"
@@ -187,16 +234,18 @@
                             Background="{StaticResource GlassPanelStrongBrush}">
                         <Grid ColumnSpacing="24">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="280"/>
                                 <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="360"/>
                             </Grid.ColumnDefinitions>
 
                             <Border CornerRadius="24"
+                                    Grid.Column="1"
                                     BorderThickness="1"
                                     BorderBrush="#4050E6D7"
                                     Background="#97101820"
-                                    Width="280"
-                                    Height="280">
+                                    Width="340"
+                                    Height="300"
+                                    HorizontalAlignment="Right">
                                 <Grid>
                                     <Image x:Name="HeroThumb"
                                            Stretch="UniformToFill"
@@ -210,13 +259,13 @@
                                                 <Ellipse Fill="#273B45"/>
                                                 <Ellipse Stroke="#8050E6D7"
                                                          StrokeThickness="1"/>
-                                                <FontIcon Glyph="&#xE189;"
-                                                          FontSize="34"
+                                                <FontIcon Glyph="&#xE8D4;"
+                                                          FontSize="36"
                                                           Foreground="{StaticResource ZinkAccentBrush}"
                                                           HorizontalAlignment="Center"
                                                           VerticalAlignment="Center"/>
                                             </Grid>
-                                            <TextBlock Text="Zink live surface"
+                                            <TextBlock Text="Live Zink surface"
                                                        Foreground="White"
                                                        FontSize="15"
                                                        FontWeight="SemiBold"
@@ -226,8 +275,8 @@
                                 </Grid>
                             </Border>
 
-                                <Grid Grid.Column="1"
-                                      RowSpacing="16">
+                            <Grid Grid.Column="0"
+                                  RowSpacing="16">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
@@ -265,7 +314,7 @@
                                             Padding="12,5"
                                             BorderBrush="#4450E6D7"
                                             BorderThickness="1">
-                                        <TextBlock Text="Media + Calls + Gaming"
+                                        <TextBlock Text="Live session"
                                                    Foreground="#D7FFF9"
                                                    FontSize="12"
                                                    FontWeight="SemiBold"/>
@@ -276,14 +325,14 @@
                                             Spacing="6">
                                     <TextBlock x:Name="HeroTitle"
                                                Text="Your Zink session starts here"
-                                               FontSize="38"
+                                               FontSize="44"
                                                FontWeight="SemiBold"
                                                Foreground="White"
                                                TextTrimming="CharacterEllipsis"
                                                MaxLines="2"/>
                                     <TextBlock x:Name="HeroSubtitle"
-                                               Text="Play music, watch video, stream your screen, join calls, and keep diagnostics ready when something needs fixing."
-                                               FontSize="15"
+                                               Text="Start playback, jump into a call, share your screen, open gaming tools, or send diagnostics when something feels off."
+                                               FontSize="16"
                                                Foreground="{StaticResource MutedTextBrush}"
                                                TextWrapping="WrapWholeWords"
                                                MaxLines="3"/>
@@ -303,7 +352,7 @@
                                             BorderBrush="#24FFFFFF"
                                             BorderThickness="1">
                                         <StackPanel Spacing="2">
-                                            <TextBlock Text="Surface"
+                                            <TextBlock Text="Zink surface"
                                                        Foreground="{StaticResource MutedTextBrush}"
                                                        FontSize="12"/>
                                             <TextBlock x:Name="HeroTypeValue"
@@ -320,7 +369,7 @@
                                             BorderBrush="#24FFFFFF"
                                             BorderThickness="1">
                                         <StackPanel Spacing="2">
-                                            <TextBlock Text="State"
+                                            <TextBlock Text="Live state"
                                                        Foreground="{StaticResource MutedTextBrush}"
                                                        FontSize="12"/>
                                             <TextBlock x:Name="HeroPlaybackValue"
@@ -337,7 +386,7 @@
                                             BorderBrush="#24FFFFFF"
                                             BorderThickness="1">
                                         <StackPanel Spacing="2">
-                                            <TextBlock Text="Session"
+                                            <TextBlock Text="Session time"
                                                        Foreground="{StaticResource MutedTextBrush}"
                                                        FontSize="12"/>
                                             <TextBlock x:Name="HeroDurationValue"
@@ -377,6 +426,39 @@
                                         </StackPanel>
                                     </Button>
                                 </StackPanel>
+
+                                <Grid Grid.Row="5"
+                                      ColumnSpacing="10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <Border Style="{StaticResource SignalCardStyle}">
+                                        <StackPanel Spacing="5">
+                                            <FontIcon Glyph="&#xE717;" Foreground="{StaticResource ZinkBlueBrush}" FontSize="18"/>
+                                            <TextBlock Text="Calls" Foreground="White" FontWeight="SemiBold"/>
+                                            <TextBlock Text="Voice, screen share and support reports" Style="{StaticResource ZinkSubText}"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Grid.Column="1" Style="{StaticResource SignalCardStyle}">
+                                        <StackPanel Spacing="5">
+                                            <FontIcon Glyph="&#xE8D4;" Foreground="{StaticResource ZinkAccentBrush}" FontSize="18"/>
+                                            <TextBlock Text="Stream" Foreground="White" FontWeight="SemiBold"/>
+                                            <TextBlock Text="Quality, FPS, audio and diagnostics" Style="{StaticResource ZinkSubText}"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Grid.Column="2" Style="{StaticResource SignalCardStyle}">
+                                        <StackPanel Spacing="5">
+                                            <FontIcon Glyph="&#xE7FC;" Foreground="{StaticResource ZinkGreenBrush}" FontSize="18"/>
+                                            <TextBlock Text="Gaming" Foreground="White" FontWeight="SemiBold"/>
+                                            <TextBlock Text="FPS recorder and overlay-ready tools" Style="{StaticResource ZinkSubText}"/>
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
 
                                 <Border x:Name="HomeRadioVolumePanel"
                                         Grid.Row="4"
@@ -431,16 +513,37 @@
 
                 <StackPanel x:Name="PowerToolsSection"
                             Grid.Row="2"
-                            Spacing="12">
-                    <StackPanel Spacing="4">
-                        <TextBlock Text="Zink spaces"
-                                   FontSize="22"
-                                   FontWeight="SemiBold"
-                                   Foreground="White"/>
-                        <TextBlock Text="Jump into the parts of Zink you actually use: listening, watching, sharing, calling, gaming and tuning."
-                                   Foreground="{StaticResource MutedTextBrush}"
-                                   TextWrapping="WrapWholeWords"/>
-                    </StackPanel>
+                            Spacing="14">
+                    <Border Style="{StaticResource GlassPanelStyle}"
+                            Padding="18"
+                            Background="#7A101820">
+                        <Grid ColumnSpacing="18">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Zink launch deck"
+                                           FontSize="24"
+                                           FontWeight="SemiBold"
+                                           Foreground="White"/>
+                                <TextBlock Text="One dashboard for playback, libraries, social calls, screen share support, web spaces, gaming and app tuning."
+                                           Foreground="{StaticResource MutedTextBrush}"
+                                           TextWrapping="WrapWholeWords"/>
+                            </StackPanel>
+                            <Border Grid.Column="1"
+                                    CornerRadius="999"
+                                    Padding="14,7"
+                                    Background="#2634E6A7"
+                                    BorderBrush="#4450E6D7"
+                                    BorderThickness="1"
+                                    VerticalAlignment="Center">
+                                <TextBlock Text="Zink 3"
+                                           Foreground="#D7FFF9"
+                                           FontWeight="SemiBold"/>
+                            </Border>
+                        </Grid>
+                    </Border>
 
                     <Grid ColumnSpacing="12"
                           RowSpacing="12">
@@ -656,8 +759,7 @@
 
                 <Grid x:Name="RecentActivitySection"
                       Grid.Row="3"
-                      Height="0"
-                      Visibility="Collapsed"
+                      Visibility="Visible"
                       RowSpacing="12">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -670,7 +772,7 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <TextBlock Text="Recent activity"
+                        <TextBlock Text="Recent Zink activity"
                                    FontSize="22"
                                    FontWeight="SemiBold"
                                    Foreground="White"/>
@@ -688,7 +790,8 @@
 
                     <Border Grid.Row="1"
                             Style="{StaticResource GlassPanelStyle}"
-                            Padding="10">
+                            Padding="10"
+                            Background="#8C101820">
                         <ListView x:Name="RecentList"
                                   Background="Transparent"
                                   BorderThickness="0"

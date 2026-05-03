@@ -11,6 +11,7 @@ namespace Zink.Services
 {
     public sealed class ScreenShareReportContext
     {
+        public string SessionType { get; init; } = "Screen share";
         public string Experience { get; init; } = "";
         public string Notes { get; init; } = "";
         public string CallId { get; init; } = "";
@@ -47,8 +48,11 @@ namespace Zink.Services
 
             var stamp = DateTimeOffset.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
             var deviceName = DiagnosticLogService.DeviceName;
-            var reportPath = Path.Combine(DiagnosticLogService.LogDirectoryPath, $"zink-screen-share-{deviceName}-{stamp}.txt");
-            var bundlePath = Path.Combine(DiagnosticLogService.LogDirectoryPath, $"zink-screen-share-{deviceName}-{stamp}.zip");
+            var reportPrefix = string.Equals(context.SessionType, "Call", StringComparison.OrdinalIgnoreCase)
+                ? "zink-call"
+                : "zink-screen-share";
+            var reportPath = Path.Combine(DiagnosticLogService.LogDirectoryPath, $"{reportPrefix}-{deviceName}-{stamp}.txt");
+            var bundlePath = Path.Combine(DiagnosticLogService.LogDirectoryPath, $"{reportPrefix}-{deviceName}-{stamp}.zip");
 
             await File.WriteAllTextAsync(reportPath, await BuildReportAsync(context), Utf8NoBom);
 
@@ -73,7 +77,7 @@ namespace Zink.Services
             var userInfo = await TokenStore.Instance.GetUserInfoAsync();
 
             var builder = new StringBuilder();
-            builder.AppendLine("Zink screen-share feedback report");
+            builder.AppendLine($"Zink {context.SessionType.ToLowerInvariant()} feedback report");
             builder.AppendLine("Generated: " + DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm:ss.fff zzz", CultureInfo.InvariantCulture));
             builder.AppendLine("Device: " + Environment.MachineName);
             builder.AppendLine("Windows user: " + Environment.UserName);
@@ -82,6 +86,7 @@ namespace Zink.Services
             builder.AppendLine("Notes: " + (string.IsNullOrWhiteSpace(context.Notes) ? "-" : context.Notes.Trim()));
             builder.AppendLine();
             builder.AppendLine("Session");
+            builder.AppendLine("  Type: " + context.SessionType);
             builder.AppendLine("  Call id: " + context.CallId);
             builder.AppendLine("  Local user: " + context.LocalUser);
             builder.AppendLine("  Remote user: " + context.RemoteUser);

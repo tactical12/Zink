@@ -971,7 +971,7 @@ namespace Zink.Pages
             {
                 HeroInsightsSection.Visibility = ReadBool(K_ShowHeroInsights, true) ? Visibility.Visible : Visibility.Collapsed;
                 PowerToolsSection.Visibility = ReadBool(K_ShowPowerTools, true) ? Visibility.Visible : Visibility.Collapsed;
-                RecentActivitySection.Visibility = Visibility.Collapsed;
+                RecentActivitySection.Visibility = Visibility.Visible;
 
                 SetTileVisibility(TileBtn_MusicPlayer, "MusicPlayer");
                 SetTileVisibility(TileBtn_VideoPlayer, "VideoPlayer");
@@ -1007,8 +1007,8 @@ namespace Zink.Pages
         {
             try
             {
-                HeroTitle.Text = "Nothing playing yet";
-                HeroSubtitle.Text = "Play music, radio or a film and it will appear here";
+                HeroTitle.Text = "Your Zink session starts here";
+                HeroSubtitle.Text = "Start playback, jump into a call, share your screen, open gaming tools, or send diagnostics when something feels off.";
                 HeroKindText.Text = "Idle";
                 HeroMetaText.Text = "Nothing active";
                 HeroTypeValue.Text = "Nothing";

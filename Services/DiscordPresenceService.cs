@@ -203,7 +203,7 @@ namespace Zink.Services
             if (!TryEnsureClient(nameof(SetMusicPresence)))
                 return;
 
-            var cleanSource = NormalizePresencePart(sourceName, "Zink Music");
+            var cleanSource = NormalizePresencePart(sourceName, "Zink");
             var cleanTitle = NormalizePresencePart(songTitle, "Music");
             var trackText = BuildRadioState(cleanTitle, artistName);
             var state = isPlaying ? trackText : $"Paused - {trackText}";

@@ -120,8 +120,8 @@
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="Version 2.4.1.0" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                                    <Button x:Name="LearnMore241Button" Grid.Column="1" Style="{StaticResource GlassButtonStyle}" Content="Learn More" Click="LearnMore241Button_Click"/>
+                                    <TextBlock Text="Version 3.0.0.0" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                    <Button x:Name="LearnMore300Button" Grid.Column="1" Style="{StaticResource GlassButtonStyle}" Content="Learn More" Click="LearnMore300Button_Click"/>
                                 </Grid>
                             </Border>
 

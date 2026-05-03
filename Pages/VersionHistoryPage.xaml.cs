@@ -11,7 +11,20 @@ namespace Zink.Pages
         private readonly Dictionary<string, (string Title, DateTime? Released, string Notes)> _changelog =
             new(StringComparer.OrdinalIgnoreCase)
             {
-                // 2.4.1.0 (NEW)
+                // 3.0.0.0 (NEW)
+                ["3.0.0.0"] = (
+                    Title: "Version 3.0.0.0",
+                    Released: new DateTime(2026, 05, 03),
+                    Notes:
+@"Version 3.0.0.0
+- Rebranded the app to Zink across the visible product experience.
+- Revamped the home dashboard around Zink's media, calling, screen sharing, gaming and diagnostics identity.
+- Stabilised native calling and screen sharing with richer diagnostics and report upload support.
+- Added stronger Discord Rich Presence, Spotify now playing surfaces, health checks, FPS tools, and support-ready logs.
+- Refreshed the package versioning and Fluent glass branding assets for the Zink 3 milestone."
+                ),
+
+                // 2.4.1.0
                 ["2.4.1.0"] = (
     Title: "Version 2.4.1.0",
     Released: new DateTime(2026, 02, 11),   // <-- set build date here

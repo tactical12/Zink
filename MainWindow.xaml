@@ -124,7 +124,7 @@
 
                             <NavigationViewItem.MenuItems>
 
-                                <NavigationViewItem Content="Zink Music" Tag="MusicPlayer">
+                                <NavigationViewItem Content="Zink" Tag="MusicPlayer">
                                     <NavigationViewItem.Icon>
                                         <FontIcon Glyph="&#xE189;" FontFamily="Segoe Fluent Icons"/>
                                     </NavigationViewItem.Icon>
