@@ -619,18 +619,18 @@ namespace Zink
                     await NativeCallCoordinator.Instance.EndAsync("closed-app");
                 });
 
-                if (!endTask.Wait(TimeSpan.FromSeconds(2)))
+                if (!endTask.Wait(TimeSpan.FromMilliseconds(650)))
                 {
-                    System.Diagnostics.Debug.WriteLine("Timed out while notifying call end during app exit.");
+                    DiagnosticLogService.WriteLine("Timed out quickly while notifying call end during app exit; continuing shutdown.");
                 }
                 else
                 {
-                    endTask.GetAwaiter().GetResult();
+                    DiagnosticLogService.WriteLine("Call end notification completed during app exit.");
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine("Failed to notify call end during app exit: " + ex);
+                DiagnosticLogService.WriteLine("Failed to notify call end during app exit: " + ex);
             }
         }
 

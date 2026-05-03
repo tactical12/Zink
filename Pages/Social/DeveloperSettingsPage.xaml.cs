@@ -9,6 +9,7 @@ namespace Zink.Pages.Social
 {
     public sealed partial class DeveloperSettingsPage : Page
     {
+        private const string DeveloperSettingsPassword = "++773317";
         private const string OfflineModeKey = "DeveloperSettings.OfflineMode";
         private const string MockCallsKey = "DeveloperSettings.MockCalls";
         private const string DisplayNameKey = "DeveloperSettings.DisplayName";
@@ -17,11 +18,55 @@ namespace Zink.Pages.Social
         private const string CallServerKey = "DeveloperSettings.CallServer";
 
         private bool _isLoading;
+        private bool _isUnlocked;
+        private bool _passwordPromptOpen;
 
         public DeveloperSettingsPage()
         {
             InitializeComponent();
-            LoadSettings();
+            Loaded += DeveloperSettingsPage_Loaded;
+        }
+
+        private async void DeveloperSettingsPage_Loaded(object sender, RoutedEventArgs e)
+        {
+            if (_isUnlocked || _passwordPromptOpen)
+                return;
+
+            _passwordPromptOpen = true;
+
+            try
+            {
+                var passwordBox = new PasswordBox
+                {
+                    Header = "Developer password",
+                    PlaceholderText = "Enter password"
+                };
+
+                var dialog = new ContentDialog
+                {
+                    XamlRoot = XamlRoot,
+                    Title = "Developer settings locked",
+                    Content = passwordBox,
+                    PrimaryButtonText = "Unlock",
+                    CloseButtonText = "Cancel",
+                    DefaultButton = ContentDialogButton.Primary
+                };
+
+                var result = await dialog.ShowAsync();
+                if (result == ContentDialogResult.Primary &&
+                    string.Equals(passwordBox.Password, DeveloperSettingsPassword, StringComparison.Ordinal))
+                {
+                    _isUnlocked = true;
+                    LoadSettings();
+                    return;
+                }
+
+                Frame.Navigate(typeof(RegisterPage));
+            }
+            finally
+            {
+                _passwordPromptOpen = false;
+            }
         }
 
         private void LoadSettings()

@@ -33,7 +33,6 @@ namespace Zink
         private const double SidebarOpenPaneLength = 232;
         private const double SidebarCompactPaneLength = 76;
 
-        private bool _hasShownUpdateDialog;
         private bool _isSidebarCompact;
 
         private bool _savedSidebarStateExists = false;
@@ -50,18 +49,7 @@ namespace Zink
         private DesktopAcrylicController? _acrylicController;
         private SystemBackdropConfiguration? _backdropConfig;
 
-        private bool _hasCheckedWhatsNewDialog = false;
-
         private bool _windowIsActivated = false;
-
-        private bool _contentFrameLoaded = false;
-        private readonly TaskCompletionSource<bool> _activatedTcs =
-            new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        private readonly TaskCompletionSource<bool> _loadedTcs =
-            new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        private static readonly SemaphoreSlim _dialogGate = new(1, 1);
 
         private bool _incomingCallDialogShowing = false;
         private bool _realtimeConnectAttempted = false;
@@ -85,13 +73,9 @@ namespace Zink
             SidebarNav.IsPaneOpen = true;
             SetSidebarColumnForPaneState(true);
 
-            ContentFrame.Loaded += ContentFrame_Loaded;
-
             ContentFrame.Navigate(typeof(HomeDashboardPage));
 
             TrySelectHomeItem();
-
-            BeginWhatsNewDialogCheck();
 
             ContentFrame.Navigated += ContentFrame_Navigated;
 
@@ -526,168 +510,6 @@ namespace Zink
             catch { }
         }
 
-        private void ContentFrame_Loaded(object sender, RoutedEventArgs e)
-        {
-            _contentFrameLoaded = true;
-            _loadedTcs.TrySetResult(true);
-        }
-
-        private void BeginWhatsNewDialogCheck()
-        {
-            DispatcherQueue.TryEnqueue(async () =>
-            {
-                try
-                {
-                    await EnsureAndShowWhatsNewDialogAsync();
-                }
-                catch
-                {
-                }
-            });
-        }
-
-        private async Task EnsureAndShowWhatsNewDialogAsync()
-        {
-            if (_hasCheckedWhatsNewDialog)
-                return;
-
-            await Task.Yield();
-
-            const int maxWaitMs = 15000;
-
-            var readyTask = Task.WhenAll(_activatedTcs.Task, _loadedTcs.Task);
-            var completed = await Task.WhenAny(readyTask, Task.Delay(maxWaitMs));
-            if (completed != readyTask)
-                return;
-
-            if (!_windowIsActivated || !_contentFrameLoaded || ContentFrame?.XamlRoot == null)
-                return;
-
-            const string LastVersionKey = "LastAppVersion";
-            const string SuppressWhatsNewKey = "SuppressWhatsNewVersion";
-
-            ApplicationDataContainer settings;
-            try
-            {
-                settings = ApplicationData.Current.LocalSettings;
-            }
-            catch
-            {
-                return;
-            }
-
-            var vid = Package.Current.Id.Version;
-            var currentVersion = $"{vid.Major}.{vid.Minor}.{vid.Build}.{vid.Revision}";
-
-            var suppressedVersion = settings.Values[SuppressWhatsNewKey] as string;
-            if (suppressedVersion == currentVersion)
-            {
-                settings.Values[LastVersionKey] = currentVersion;
-                _hasCheckedWhatsNewDialog = true;
-                return;
-            }
-
-            var shown = await ShowWhatsNewDialogAsync();
-            if (shown)
-            {
-                settings.Values[LastVersionKey] = currentVersion;
-                _hasCheckedWhatsNewDialog = true;
-            }
-        }
-
-        private async Task<bool> ShowWhatsNewDialogAsync()
-        {
-            await _dialogGate.WaitAsync();
-            try
-            {
-                ApplicationDataContainer settings;
-                try
-                {
-                    settings = ApplicationData.Current.LocalSettings;
-                }
-                catch
-                {
-                    return false;
-                }
-
-                var vid = Package.Current.Id.Version;
-                var currentVersion = $"{vid.Major}.{vid.Minor}.{vid.Build}.{vid.Revision}";
-
-                var changelog = @"
-Version 2.4.1.0 
-- Added Twitch.tv to the social tab.
-- Added twitch to the power tools section on the homedashboard page.
-- Added a new customisation page.
-- Added a new home dashboard customisation page where you can edit all of the things on the dashboard to your own liking
-- Added an app customisation theme control page where you can change the theme of Zink from dark to light or from light to dark or even set it to your windows theme.
-- Updated the leave a review page.
-- Added a new pop up message for the video library page.
-- Added a new pop up message for the music library page.
-- Added a search button to the sidebar
-- Added a search page after you click the search button to search on Zink.
-- Added a photo viewer page to zink.";
-
-                var textBlock = new TextBlock
-                {
-                    Text = changelog,
-                    TextWrapping = TextWrapping.WrapWholeWords,
-                    Margin = new Thickness(12, 0, 12, 12)
-                };
-
-                var scrollViewer = new ScrollViewer
-                {
-                    Content = textBlock,
-                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                    HorizontalScrollMode = ScrollMode.Disabled,
-                    HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-                    Width = 440,
-                    Height = 580
-                };
-
-                var dialogHost = new Grid
-                {
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center
-                };
-                dialogHost.Children.Add(scrollViewer);
-
-                if (ContentFrame?.XamlRoot == null)
-                    return false;
-
-                var dialog = new ContentDialog
-                {
-                    Title = "Version Notes",
-                    Content = dialogHost,
-                    CloseButtonText = "OK",
-                    PrimaryButtonText = "Don't show this message again",
-                    DefaultButton = ContentDialogButton.Close,
-                    XamlRoot = ContentFrame.XamlRoot
-                };
-
-                if (Microsoft.UI.Xaml.Application.Current.Resources.TryGetValue("AccentButtonStyle", out var styleObj) &&
-                    styleObj is Style foundAccentStyle)
-                {
-                    dialog.CloseButtonStyle = foundAccentStyle;
-                }
-
-                var result = await dialog.ShowAsync();
-                if (result == ContentDialogResult.Primary)
-                {
-                    settings.Values["SuppressWhatsNewVersion"] = currentVersion;
-                }
-
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
-            finally
-            {
-                try { _dialogGate.Release(); } catch { }
-            }
-        }
-
         [DllImport("user32.dll")]
         private static extern bool ShowWindow(nint hWnd, int nCmdShow);
 
@@ -1042,9 +864,6 @@ Version 2.4.1.0
         private void MainWindow_Activated(object sender, WindowActivatedEventArgs args)
         {
             _windowIsActivated = args.WindowActivationState != WindowActivationState.Deactivated;
-
-            if (_windowIsActivated)
-                _activatedTcs.TrySetResult(true);
 
             if (_backdropConfig == null) return;
 
