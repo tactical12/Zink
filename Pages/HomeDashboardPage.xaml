@@ -10,6 +10,9 @@
         <SolidColorBrush x:Key="GlassTileBrush" Color="#8F101820"/>
         <SolidColorBrush x:Key="GlassPanelBorderBrush" Color="#33FFFFFF"/>
         <SolidColorBrush x:Key="MutedTextBrush" Color="#B7C8D2DC"/>
+        <SolidColorBrush x:Key="ZinkAccentBrush" Color="#50E6D7"/>
+        <SolidColorBrush x:Key="ZinkBlueBrush" Color="#2E8DFF"/>
+        <SolidColorBrush x:Key="ZinkGreenBrush" Color="#63F4A8"/>
 
         <Style x:Key="GlassPanelStyle" TargetType="Border">
             <Setter Property="CornerRadius" Value="24"/>
@@ -21,7 +24,7 @@
         <Style x:Key="GlassTileButtonStyle" TargetType="Button">
             <Setter Property="MinHeight" Value="88"/>
             <Setter Property="Padding" Value="0"/>
-            <Setter Property="CornerRadius" Value="20"/>
+            <Setter Property="CornerRadius" Value="18"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="BorderBrush" Value="#28FFFFFF"/>
             <Setter Property="Background" Value="{StaticResource GlassTileBrush}"/>
@@ -55,9 +58,10 @@
     <Grid RequestedTheme="Dark">
         <Grid.Background>
             <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                <GradientStop Color="#0D171F" Offset="0"/>
-                <GradientStop Color="#162737" Offset="0.48"/>
-                <GradientStop Color="#070A0F" Offset="1"/>
+                <GradientStop Color="#081017" Offset="0"/>
+                <GradientStop Color="#102333" Offset="0.42"/>
+                <GradientStop Color="#071513" Offset="0.72"/>
+                <GradientStop Color="#04070B" Offset="1"/>
             </LinearGradientBrush>
         </Grid.Background>
 
@@ -74,19 +78,52 @@
 
                 <Border Style="{StaticResource GlassPanelStyle}"
                         Padding="18">
-                    <Grid ColumnSpacing="18">
+                    <Grid ColumnSpacing="18"
+                          RowSpacing="14">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <StackPanel Spacing="3">
+                            <StackPanel Orientation="Horizontal"
+                                        Spacing="10">
+                                <Border Width="34"
+                                        Height="34"
+                                        CornerRadius="10"
+                                        Background="#334EF0E5"
+                                        BorderBrush="#6650E6D7"
+                                        BorderThickness="1">
+                                    <FontIcon Glyph="&#xE8D4;"
+                                              FontSize="16"
+                                              Foreground="{StaticResource ZinkAccentBrush}"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                                </Border>
+                                <TextBlock Text="Zink"
+                                           FontSize="28"
+                                           FontWeight="SemiBold"
+                                           Foreground="White"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <TextBlock Text="Your media, calls, screen share, gaming tools and diagnostics in one place."
+                                       Foreground="{StaticResource MutedTextBrush}"
+                                       TextWrapping="WrapWholeWords"/>
+                        </StackPanel>
 
                         <AutoSuggestBox x:Name="HomeSearchBox"
+                                        Grid.Row="1"
                                         MinHeight="46"
-                                        PlaceholderText="Search songs, albums, artists, videos, stations"
+                                        PlaceholderText="Search Zink: songs, videos, stations, web pages and tools"
                                         QuerySubmitted="HomeSearchBox_QuerySubmitted"/>
 
                         <Button x:Name="NotificationsButton"
                                 Grid.Column="1"
+                                Grid.RowSpan="2"
                                 MinWidth="54"
                                 MinHeight="46"
                                 Padding="14,0"
@@ -95,7 +132,8 @@
                                 BorderBrush="#55FFFFFF"
                                 Background="#33FFFFFF"
                                 Foreground="White"
-                                HorizontalAlignment="Right">
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Top">
                             <Button.Flyout>
                                 <Flyout Placement="BottomEdgeAlignedRight">
                                     <Border Width="360"
@@ -145,19 +183,20 @@
                 <Grid x:Name="HeroInsightsSection"
                       Grid.Row="1">
                     <Border Style="{StaticResource GlassPanelStyle}"
-                            Padding="22">
+                            Padding="22"
+                            Background="{StaticResource GlassPanelStrongBrush}">
                         <Grid ColumnSpacing="24">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="260"/>
+                                <ColumnDefinition Width="280"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
 
                             <Border CornerRadius="24"
                                     BorderThickness="1"
-                                    BorderBrush="#30FFFFFF"
-                                    Background="{StaticResource GlassPanelStrongBrush}"
-                                    Width="260"
-                                    Height="260">
+                                    BorderBrush="#4050E6D7"
+                                    Background="#97101820"
+                                    Width="280"
+                                    Height="280">
                                 <Grid>
                                     <Image x:Name="HeroThumb"
                                            Stretch="UniformToFill"
@@ -168,14 +207,16 @@
                                                     VerticalAlignment="Center"
                                                     Spacing="12">
                                             <Grid Width="78" Height="78">
-                                                <Ellipse Fill="#263847"/>
+                                                <Ellipse Fill="#273B45"/>
+                                                <Ellipse Stroke="#8050E6D7"
+                                                         StrokeThickness="1"/>
                                                 <FontIcon Glyph="&#xE189;"
                                                           FontSize="34"
-                                                          Foreground="White"
+                                                          Foreground="{StaticResource ZinkAccentBrush}"
                                                           HorizontalAlignment="Center"
                                                           VerticalAlignment="Center"/>
                                             </Grid>
-                                            <TextBlock Text="Now Playing"
+                                            <TextBlock Text="Zink live surface"
                                                        Foreground="White"
                                                        FontSize="15"
                                                        FontWeight="SemiBold"
@@ -185,8 +226,8 @@
                                 </Grid>
                             </Border>
 
-                            <Grid Grid.Column="1"
-                                  RowSpacing="16">
+                                <Grid Grid.Column="1"
+                                      RowSpacing="16">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
@@ -218,19 +259,30 @@
                                                    Foreground="{StaticResource MutedTextBrush}"
                                                    FontSize="12"/>
                                     </Border>
+
+                                    <Border Background="#2434E6A7"
+                                            CornerRadius="999"
+                                            Padding="12,5"
+                                            BorderBrush="#4450E6D7"
+                                            BorderThickness="1">
+                                        <TextBlock Text="Media + Calls + Gaming"
+                                                   Foreground="#D7FFF9"
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold"/>
+                                    </Border>
                                 </StackPanel>
 
                                 <StackPanel Grid.Row="1"
                                             Spacing="6">
                                     <TextBlock x:Name="HeroTitle"
-                                               Text="Nothing playing yet"
+                                               Text="Your Zink session starts here"
                                                FontSize="38"
                                                FontWeight="SemiBold"
                                                Foreground="White"
                                                TextTrimming="CharacterEllipsis"
                                                MaxLines="2"/>
                                     <TextBlock x:Name="HeroSubtitle"
-                                               Text="Play music, radio or a film and it will appear here"
+                                               Text="Play music, watch video, stream your screen, join calls, and keep diagnostics ready when something needs fixing."
                                                FontSize="15"
                                                Foreground="{StaticResource MutedTextBrush}"
                                                TextWrapping="WrapWholeWords"
@@ -246,12 +298,12 @@
                                     </Grid.ColumnDefinitions>
 
                                     <Border Padding="14"
-                                            CornerRadius="18"
+                                            CornerRadius="16"
                                             Background="{StaticResource GlassTileBrush}"
                                             BorderBrush="#24FFFFFF"
                                             BorderThickness="1">
                                         <StackPanel Spacing="2">
-                                            <TextBlock Text="Type"
+                                            <TextBlock Text="Surface"
                                                        Foreground="{StaticResource MutedTextBrush}"
                                                        FontSize="12"/>
                                             <TextBlock x:Name="HeroTypeValue"
@@ -263,12 +315,12 @@
 
                                     <Border Grid.Column="1"
                                             Padding="14"
-                                            CornerRadius="18"
+                                            CornerRadius="16"
                                             Background="{StaticResource GlassTileBrush}"
                                             BorderBrush="#24FFFFFF"
                                             BorderThickness="1">
                                         <StackPanel Spacing="2">
-                                            <TextBlock Text="Playback"
+                                            <TextBlock Text="State"
                                                        Foreground="{StaticResource MutedTextBrush}"
                                                        FontSize="12"/>
                                             <TextBlock x:Name="HeroPlaybackValue"
@@ -280,12 +332,12 @@
 
                                     <Border Grid.Column="2"
                                             Padding="14"
-                                            CornerRadius="18"
+                                            CornerRadius="16"
                                             Background="{StaticResource GlassTileBrush}"
                                             BorderBrush="#24FFFFFF"
                                             BorderThickness="1">
                                         <StackPanel Spacing="2">
-                                            <TextBlock Text="Duration"
+                                            <TextBlock Text="Session"
                                                        Foreground="{StaticResource MutedTextBrush}"
                                                        FontSize="12"/>
                                             <TextBlock x:Name="HeroDurationValue"
@@ -380,12 +432,15 @@
                 <StackPanel x:Name="PowerToolsSection"
                             Grid.Row="2"
                             Spacing="12">
-                    <Grid>
-                        <TextBlock Text="Quick Access"
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Zink spaces"
                                    FontSize="22"
                                    FontWeight="SemiBold"
                                    Foreground="White"/>
-                    </Grid>
+                        <TextBlock Text="Jump into the parts of Zink you actually use: listening, watching, sharing, calling, gaming and tuning."
+                                   Foreground="{StaticResource MutedTextBrush}"
+                                   TextWrapping="WrapWholeWords"/>
+                    </StackPanel>
 
                     <Grid ColumnSpacing="12"
                           RowSpacing="12">
@@ -410,7 +465,7 @@
                                 </Border>
                                 <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
                                     <TextBlock Text="Music Player" Foreground="White" FontWeight="SemiBold"/>
-                                    <TextBlock Text="Queue, playback, controls" Style="{StaticResource ZinkSubText}"/>
+                                    <TextBlock Text="Local music queue and playback" Style="{StaticResource ZinkSubText}"/>
                                 </StackPanel>
                             </Grid>
                         </Button>
@@ -423,7 +478,7 @@
                                 </Border>
                                 <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
                                     <TextBlock Text="Video Player" Foreground="White" FontWeight="SemiBold"/>
-                                    <TextBlock Text="Subtitles, progress, fullscreen" Style="{StaticResource ZinkSubText}"/>
+                                    <TextBlock Text="Films, clips, subtitles, fullscreen" Style="{StaticResource ZinkSubText}"/>
                                 </StackPanel>
                             </Grid>
                         </Button>
@@ -436,7 +491,7 @@
                                 </Border>
                                 <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
                                     <TextBlock Text="Radio" Foreground="White" FontWeight="SemiBold"/>
-                                    <TextBlock Text="Stations, likes, history" Style="{StaticResource ZinkSubText}"/>
+                                    <TextBlock Text="Live stations and liked radio songs" Style="{StaticResource ZinkSubText}"/>
                                 </StackPanel>
                             </Grid>
                         </Button>
@@ -449,7 +504,7 @@
                                 </Border>
                                 <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
                                     <TextBlock Text="Video Library" Foreground="White" FontWeight="SemiBold"/>
-                                    <TextBlock Text="Browse and manage videos" Style="{StaticResource ZinkSubText}"/>
+                                    <TextBlock Text="Your video collection and folders" Style="{StaticResource ZinkSubText}"/>
                                 </StackPanel>
                             </Grid>
                         </Button>
@@ -462,7 +517,7 @@
                                 </Border>
                                 <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
                                     <TextBlock Text="Music Library" Foreground="White" FontWeight="SemiBold"/>
-                                    <TextBlock Text="Browse and manage music" Style="{StaticResource ZinkSubText}"/>
+                                    <TextBlock Text="Songs, folders, albums and files" Style="{StaticResource ZinkSubText}"/>
                                 </StackPanel>
                             </Grid>
                         </Button>
@@ -475,7 +530,7 @@
                                 </Border>
                                 <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
                                     <TextBlock Text="Equalizer" Foreground="White" FontWeight="SemiBold"/>
-                                    <TextBlock Text="Tune your sound" Style="{StaticResource ZinkSubText}"/>
+                                    <TextBlock Text="Shape playback for music and films" Style="{StaticResource ZinkSubText}"/>
                                 </StackPanel>
                             </Grid>
                         </Button>
@@ -488,7 +543,7 @@
                                 </Border>
                                 <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
                                     <TextBlock Text="Visualizer" Foreground="White" FontWeight="SemiBold"/>
-                                    <TextBlock Text="Live effects while playing" Style="{StaticResource ZinkSubText}"/>
+                                    <TextBlock Text="Reactive visuals for playback" Style="{StaticResource ZinkSubText}"/>
                                 </StackPanel>
                             </Grid>
                         </Button>
@@ -501,7 +556,7 @@
                                 </Border>
                                 <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
                                     <TextBlock Text="Settings" Foreground="White" FontWeight="SemiBold"/>
-                                    <TextBlock Text="App, playback, hub options" Style="{StaticResource ZinkSubText}"/>
+                                    <TextBlock Text="Diagnostics, startup and app options" Style="{StaticResource ZinkSubText}"/>
                                 </StackPanel>
                             </Grid>
                         </Button>
@@ -514,7 +569,7 @@
                                 </Border>
                                 <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
                                     <TextBlock Text="Version history" Foreground="White" FontWeight="SemiBold"/>
-                                    <TextBlock Text="What's new and changes" Style="{StaticResource ZinkSubText}"/>
+                                    <TextBlock Text="Updates, fixes and release notes" Style="{StaticResource ZinkSubText}"/>
                                 </StackPanel>
                             </Grid>
                         </Button>
@@ -527,7 +582,7 @@
                                 </Border>
                                 <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
                                     <TextBlock Text="Spotify" Foreground="White" FontWeight="SemiBold"/>
-                                    <TextBlock Text="Music, playlists, discovery" Style="{StaticResource ZinkSubText}"/>
+                                    <TextBlock Text="Desktop now playing and playlists" Style="{StaticResource ZinkSubText}"/>
                                 </StackPanel>
                             </Grid>
                         </Button>
@@ -540,7 +595,7 @@
                                 </Border>
                                 <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
                                     <TextBlock Text="Twitch" Foreground="White" FontWeight="SemiBold"/>
-                                    <TextBlock Text="Live streams and creators" Style="{StaticResource ZinkSubText}"/>
+                                    <TextBlock Text="Streams and creator pages" Style="{StaticResource ZinkSubText}"/>
                                 </StackPanel>
                             </Grid>
                         </Button>
@@ -553,7 +608,7 @@
                                 </Border>
                                 <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
                                     <TextBlock Text="Xbox" Foreground="White" FontWeight="SemiBold"/>
-                                    <TextBlock Text="Profile, achievements, games" Style="{StaticResource ZinkSubText}"/>
+                                    <TextBlock Text="Gaming profile and tools" Style="{StaticResource ZinkSubText}"/>
                                 </StackPanel>
                             </Grid>
                         </Button>
@@ -566,7 +621,7 @@
                                 </Border>
                                 <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
                                     <TextBlock Text="Discord" Foreground="White" FontWeight="SemiBold"/>
-                                    <TextBlock Text="Calls, chat, community" Style="{StaticResource ZinkSubText}"/>
+                                    <TextBlock Text="Presence, calls and community" Style="{StaticResource ZinkSubText}"/>
                                 </StackPanel>
                             </Grid>
                         </Button>
@@ -579,7 +634,7 @@
                                 </Border>
                                 <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
                                     <TextBlock Text="YouTube" Foreground="White" FontWeight="SemiBold"/>
-                                    <TextBlock Text="Videos, music, creators" Style="{StaticResource ZinkSubText}"/>
+                                    <TextBlock Text="Watch videos and music pages" Style="{StaticResource ZinkSubText}"/>
                                 </StackPanel>
                             </Grid>
                         </Button>
@@ -592,7 +647,7 @@
                                 </Border>
                                 <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
                                     <TextBlock Text="Customise" Foreground="White" FontWeight="SemiBold"/>
-                                    <TextBlock Text="Personalise dashboard and layout" Style="{StaticResource ZinkSubText}"/>
+                                    <TextBlock Text="Glass style, layout and dashboard" Style="{StaticResource ZinkSubText}"/>
                                 </StackPanel>
                             </Grid>
                         </Button>
