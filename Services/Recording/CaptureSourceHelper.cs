@@ -58,28 +58,6 @@ namespace Zink.Services.Recording
             return item;
         }
 
-        public static async Task<GraphicsCaptureItem?> GetWithSystemPickerAsync(IntPtr hwnd)
-        {
-            if (!GraphicsCaptureSession.IsSupported())
-                return null;
-
-            try
-            {
-                var picker = new GraphicsCapturePicker();
-                InitializeWithWindow.Initialize(picker, hwnd);
-                var item = await picker.PickSingleItemAsync();
-                Debug.WriteLine(item == null
-                    ? "[ScreenShare:WGC] System picker was cancelled."
-                    : $"[ScreenShare:WGC] System picker selected capture item {item.Size.Width}x{item.Size.Height}.");
-                return item;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[ScreenShare:WGC] System picker failed: {ex}");
-                return null;
-            }
-        }
-
         public static async Task<GraphicsCaptureItem?> GetPrimaryScreenOrPromptAsync(IntPtr hwnd)
         {
             if (!GraphicsCaptureSession.IsSupported())

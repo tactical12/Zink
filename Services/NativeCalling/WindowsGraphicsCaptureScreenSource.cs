@@ -63,9 +63,7 @@ namespace Zink.Services.NativeCalling
                 DiagnosticLogService.Flush();
 
                 var hwnd = App.MainWindow?.GetWindowHandle() ?? IntPtr.Zero;
-                var item = IsArm64Process
-                    ? await CaptureSourceHelper.GetWithSystemPickerAsync(hwnd)
-                    : await CaptureSourceHelper.GetPrimaryScreenOrPromptAsync(hwnd);
+                var item = await CaptureSourceHelper.GetPrimaryScreenOrPromptAsync(hwnd);
                 if (item == null)
                 {
                     Debug.WriteLine("[ScreenShare:WGC] No Windows Graphics Capture item was created.");
@@ -90,21 +88,13 @@ namespace Zink.Services.NativeCalling
                 DiagnosticLogService.WriteLine("[ScreenShare:WGC] WinRT Direct3D device created.");
                 DiagnosticLogService.Flush();
 
-                _framePool = IsArm64Process
-                    ? Direct3D11CaptureFramePool.Create(
-                        _winRtDevice,
-                        DirectXPixelFormat.B8G8R8A8UIntNormalized,
-                        2,
-                        item.Size)
-                    : Direct3D11CaptureFramePool.CreateFreeThreaded(
-                        _winRtDevice,
-                        DirectXPixelFormat.B8G8R8A8UIntNormalized,
-                        2,
-                        item.Size);
+                _framePool = Direct3D11CaptureFramePool.CreateFreeThreaded(
+                    _winRtDevice,
+                    DirectXPixelFormat.B8G8R8A8UIntNormalized,
+                    2,
+                    item.Size);
 
-                DiagnosticLogService.WriteLine(IsArm64Process
-                    ? "[ScreenShare:WGC] Dispatcher-backed frame pool created for ARM64."
-                    : "[ScreenShare:WGC] Free-threaded frame pool created.");
+                DiagnosticLogService.WriteLine("[ScreenShare:WGC] Free-threaded frame pool created.");
                 DiagnosticLogService.Flush();
 
                 _session = _framePool.CreateCaptureSession(item);
