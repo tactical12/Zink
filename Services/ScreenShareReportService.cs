@@ -62,9 +62,10 @@ namespace Zink.Services
             using var archive = ZipFile.Open(bundlePath, ZipArchiveMode.Create);
             AddFileIfExists(archive, reportPath, Path.GetFileName(reportPath));
 
-            foreach (var logPath in Directory.EnumerateFiles(DiagnosticLogService.LogDirectoryPath, "zink-diagnostics-*.txt")
+            foreach (var logPath in Directory.EnumerateFiles(DiagnosticLogService.LogDirectoryPath, "*.txt")
+                .Where(IsSupportEvidenceFile)
                 .OrderByDescending(File.GetLastWriteTimeUtc)
-                .Take(8))
+                .Take(24))
             {
                 AddFileIfExists(archive, logPath, "logs/" + Path.GetFileName(logPath));
             }
@@ -123,6 +124,15 @@ namespace Zink.Services
                 return;
 
             archive.CreateEntryFromFile(sourcePath, entryName, CompressionLevel.Fastest);
+        }
+
+        private static bool IsSupportEvidenceFile(string path)
+        {
+            var name = Path.GetFileName(path);
+            return name.StartsWith("zink-diagnostics-", StringComparison.OrdinalIgnoreCase) ||
+                name.StartsWith("zink-screen-share-", StringComparison.OrdinalIgnoreCase) ||
+                name.StartsWith("zink-call-", StringComparison.OrdinalIgnoreCase) ||
+                name.StartsWith("CrashLog", StringComparison.OrdinalIgnoreCase);
         }
     }
 }

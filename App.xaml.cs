@@ -54,7 +54,9 @@ namespace Zink
                 try
                 {
                     DiagnosticLogService.WriteLine("Unhandled exception: " + e.Exception);
-                    File.WriteAllText("CrashLog.txt", e.Exception.Message + "\n" + e.Exception.StackTrace);
+                    Directory.CreateDirectory(DiagnosticLogService.LogDirectoryPath);
+                    var crashLogPath = Path.Combine(DiagnosticLogService.LogDirectoryPath, $"CrashLog-{DiagnosticLogService.DeviceName}-latest.txt");
+                    File.WriteAllText(crashLogPath, e.Exception + Environment.NewLine);
                 }
                 catch { }
                 finally

@@ -13,6 +13,7 @@ using System.Linq;
 using System.Runtime.InteropServices.WindowsRuntime;
 using System.Threading;
 using System.Threading.Tasks;
+using Windows.ApplicationModel.DataTransfer;
 using Windows.Media.Core;
 using Windows.Media.MediaProperties;
 using Windows.Media.Playback;
@@ -641,7 +642,19 @@ namespace Zink.Pages.Social
 
                 var context = WithScreenShareFeedback(snapshot, experience, notes);
                 var bundlePath = await ScreenShareReportService.CreateBundleAsync(context);
-                var result = await DiagnosticsUploadService.UploadSupportBundleAsync(bundlePath);
+                var result = await DiagnosticsUploadService.TryUploadSupportBundleAsync(bundlePath);
+
+                if (!result.Success)
+                {
+                    NativeCallCoordinator.Instance.SetStatus(
+                        NativeCallCoordinator.Instance.CurrentSession.State,
+                        $"Screen-share report saved locally. Upload failed: {result.Error}");
+                    await ShowSupportBundleSavedDialogAsync(
+                        "Screen-share report saved locally",
+                        bundlePath,
+                        "Zink could not upload the report to the call server, but it saved the full support bundle on this device.");
+                    return;
+                }
 
                 NativeCallCoordinator.Instance.SetStatus(
                     NativeCallCoordinator.Instance.CurrentSession.State,
@@ -840,7 +853,19 @@ namespace Zink.Pages.Social
 
                 var context = WithScreenShareFeedback(snapshot, experience, notes);
                 var bundlePath = await ScreenShareReportService.CreateBundleAsync(context);
-                var result = await DiagnosticsUploadService.UploadSupportBundleAsync(bundlePath);
+                var result = await DiagnosticsUploadService.TryUploadSupportBundleAsync(bundlePath);
+
+                if (!result.Success)
+                {
+                    NativeCallCoordinator.Instance.SetStatus(
+                        NativeCallCoordinator.Instance.CurrentSession.State,
+                        $"Call report saved locally. Upload failed: {result.Error}");
+                    await ShowSupportBundleSavedDialogAsync(
+                        "Call report saved locally",
+                        bundlePath,
+                        "Zink could not upload the report to the call server, but it saved the full support bundle on this device.");
+                    return;
+                }
 
                 NativeCallCoordinator.Instance.SetStatus(
                     NativeCallCoordinator.Instance.CurrentSession.State,
@@ -852,6 +877,51 @@ namespace Zink.Pages.Social
                 NativeCallCoordinator.Instance.SetStatus(
                     NativeCallCoordinator.Instance.CurrentSession.State,
                     $"Call report upload failed: {ex.Message}");
+            }
+        }
+
+        private async Task ShowSupportBundleSavedDialogAsync(string title, string bundlePath, string message)
+        {
+            if (XamlRoot == null)
+                return;
+
+            var pathBox = new TextBox
+            {
+                Header = "Support bundle",
+                Text = bundlePath,
+                IsReadOnly = true,
+                TextWrapping = TextWrapping.Wrap
+            };
+
+            var dialog = new ContentDialog
+            {
+                XamlRoot = XamlRoot,
+                Title = title,
+                Content = new StackPanel
+                {
+                    Spacing = 12,
+                    Children =
+                    {
+                        new TextBlock
+                        {
+                            Text = message + " Copy this path from the device that had the problem and send the zip file.",
+                            TextWrapping = TextWrapping.WrapWholeWords
+                        },
+                        pathBox
+                    }
+                },
+                PrimaryButtonText = "Copy path",
+                CloseButtonText = "OK",
+                DefaultButton = ContentDialogButton.Primary
+            };
+
+            var result = await dialog.ShowAsync();
+            if (result == ContentDialogResult.Primary)
+            {
+                var package = new DataPackage();
+                package.SetText(bundlePath);
+                Clipboard.SetContent(package);
+                Clipboard.Flush();
             }
         }
 
