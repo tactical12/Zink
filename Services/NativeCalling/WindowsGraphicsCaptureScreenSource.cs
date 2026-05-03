@@ -5,10 +5,12 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Windows.Graphics.Capture;
 using Windows.Graphics.DirectX;
 using Windows.Graphics.DirectX.Direct3D11;
+using Zink.Services;
 using Zink.Services.Recording;
 
 namespace Zink.Services.NativeCalling
@@ -37,6 +39,10 @@ namespace Zink.Services.NativeCalling
 
         public SharpDX.Direct3D11.Device? CaptureDevice => _sharpDxDevice;
 
+        private static bool IsArm64Process =>
+            RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ||
+            RuntimeInformation.OSArchitecture == Architecture.Arm64;
+
         public async Task<bool> StartAsync()
         {
             if (_started)
@@ -53,27 +59,53 @@ namespace Zink.Services.NativeCalling
                     return false;
                 }
 
+                DiagnosticLogService.WriteLine("[ScreenShare:WGC] StartAsync entered.");
+                DiagnosticLogService.Flush();
+
                 var hwnd = App.MainWindow?.GetWindowHandle() ?? IntPtr.Zero;
-                var item = await CaptureSourceHelper.GetPrimaryScreenOrPromptAsync(hwnd);
+                var item = IsArm64Process
+                    ? await CaptureSourceHelper.GetWithSystemPickerAsync(hwnd)
+                    : await CaptureSourceHelper.GetPrimaryScreenOrPromptAsync(hwnd);
                 if (item == null)
                 {
-                    System.Diagnostics.Debug.WriteLine("[ScreenShare:WGC] No Windows Graphics Capture item was created.");
+                    Debug.WriteLine("[ScreenShare:WGC] No Windows Graphics Capture item was created.");
+                    DiagnosticLogService.WriteLine("[ScreenShare:WGC] No Windows Graphics Capture item was created.");
                     _disabled = true;
                     return false;
                 }
 
                 _ = TryRequestBorderlessCaptureAccessAsync();
 
-                _sharpDxDevice = new SharpDX.Direct3D11.Device(
-                    SharpDX.Direct3D.DriverType.Hardware,
-                    DeviceCreationFlags.BgraSupport | DeviceCreationFlags.VideoSupport);
+                DiagnosticLogService.WriteLine($"[ScreenShare:WGC] Capture item ready {item.Size.Width}x{item.Size.Height}; arm64={IsArm64Process}.");
+                DiagnosticLogService.Flush();
+
+                _sharpDxDevice = CreateCaptureDevice();
                 EnableMultithreadProtection(_sharpDxDevice);
+
+                DiagnosticLogService.WriteLine("[ScreenShare:WGC] D3D11 capture device created.");
+                DiagnosticLogService.Flush();
+
                 _winRtDevice = Direct3D11Helpers.CreateD3DDevice(_sharpDxDevice);
-                _framePool = Direct3D11CaptureFramePool.CreateFreeThreaded(
-                    _winRtDevice,
-                    DirectXPixelFormat.B8G8R8A8UIntNormalized,
-                    2,
-                    item.Size);
+
+                DiagnosticLogService.WriteLine("[ScreenShare:WGC] WinRT Direct3D device created.");
+                DiagnosticLogService.Flush();
+
+                _framePool = IsArm64Process
+                    ? Direct3D11CaptureFramePool.Create(
+                        _winRtDevice,
+                        DirectXPixelFormat.B8G8R8A8UIntNormalized,
+                        2,
+                        item.Size)
+                    : Direct3D11CaptureFramePool.CreateFreeThreaded(
+                        _winRtDevice,
+                        DirectXPixelFormat.B8G8R8A8UIntNormalized,
+                        2,
+                        item.Size);
+
+                DiagnosticLogService.WriteLine(IsArm64Process
+                    ? "[ScreenShare:WGC] Dispatcher-backed frame pool created for ARM64."
+                    : "[ScreenShare:WGC] Free-threaded frame pool created.");
+                DiagnosticLogService.Flush();
 
                 _session = _framePool.CreateCaptureSession(item);
                 TryDisableCaptureBorder(_session);
@@ -88,14 +120,39 @@ namespace Zink.Services.NativeCalling
                 _started = true;
 
                 Debug.WriteLine($"[ScreenShare:WGC] Windows Graphics Capture started {item.Size.Width}x{item.Size.Height} via native D3D11 GPU capture device.");
+                DiagnosticLogService.WriteLine($"[ScreenShare:WGC] Windows Graphics Capture started {item.Size.Width}x{item.Size.Height} via native D3D11 GPU capture device.");
                 return true;
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"[ScreenShare:WGC] Failed to start Windows Graphics Capture: {ex}");
+                DiagnosticLogService.WriteLine($"[ScreenShare:WGC] Failed to start Windows Graphics Capture: {ex}");
+                DiagnosticLogService.Flush();
                 _disabled = true;
                 Dispose();
                 return false;
+            }
+        }
+
+        private static SharpDX.Direct3D11.Device CreateCaptureDevice()
+        {
+            var flags = DeviceCreationFlags.BgraSupport;
+            if (!IsArm64Process)
+                flags |= DeviceCreationFlags.VideoSupport;
+
+            try
+            {
+                return new SharpDX.Direct3D11.Device(
+                    SharpDX.Direct3D.DriverType.Hardware,
+                    flags);
+            }
+            catch (Exception ex) when ((flags & DeviceCreationFlags.VideoSupport) != 0)
+            {
+                Debug.WriteLine($"[ScreenShare:WGC] D3D11 capture device with VideoSupport failed; retrying BGRA-only: {ex.Message}");
+                DiagnosticLogService.WriteLine($"[ScreenShare:WGC] D3D11 capture device with VideoSupport failed; retrying BGRA-only: {ex.Message}");
+                return new SharpDX.Direct3D11.Device(
+                    SharpDX.Direct3D.DriverType.Hardware,
+                    DeviceCreationFlags.BgraSupport);
             }
         }
 
