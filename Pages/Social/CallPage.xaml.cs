@@ -41,6 +41,7 @@ namespace Zink.Pages.Social
         private bool _isFullscreen;
         private bool _isLocalPreviewHidden;
         private bool _isScreenShareSoundEnabled = true;
+        private bool _screenShareFeedbackDialogOpen;
         private long _localUserId;
         private const int MaxCallParticipants = 10;
         private readonly HashSet<long> _callParticipantIds = new();
@@ -415,13 +416,19 @@ namespace Zink.Pages.Social
             }
         }
 
-        private async Task StopLocalScreenShareAsync(bool notifyRemote)
+        private async Task StopLocalScreenShareAsync(bool notifyRemote, bool promptForFeedback = false)
         {
+            var shouldPromptForFeedback = false;
+            ScreenShareReportContext? feedbackContext = null;
+
             await _screenShareLifecycleLock.WaitAsync();
             try
             {
                 var wasRunning = NativeScreenShareStreamingService.Instance.IsRunning;
                 Debug.WriteLine($"[ScreenShare:H264] StopLocalScreenShareAsync begin; notifyRemote={notifyRemote}; wasRunning={wasRunning}; uiSharing={_isSharingScreen}.");
+
+                if (wasRunning)
+                    feedbackContext = BuildScreenShareReportContext("pending", "");
 
                 try
                 {
@@ -466,6 +473,8 @@ namespace Zink.Pages.Social
                 if (!wasRunning || !notifyRemote)
                     return;
 
+                shouldPromptForFeedback = promptForFeedback;
+
                 var session = NativeCallCoordinator.Instance.CurrentSession;
                 if (!string.IsNullOrWhiteSpace(session.CallId))
                 {
@@ -488,6 +497,188 @@ namespace Zink.Pages.Social
                 DiagnosticLogService.Flush();
                 _screenShareLifecycleLock.Release();
             }
+
+            if (shouldPromptForFeedback && feedbackContext != null)
+                await ShowScreenShareExperienceDialogAsync(feedbackContext);
+        }
+
+        private ScreenShareReportContext BuildScreenShareReportContext(string experience, string notes)
+        {
+            var session = NativeCallCoordinator.Instance.CurrentSession;
+            var duration = _screenShareStartedAtUtc.HasValue
+                ? DateTimeOffset.UtcNow - _screenShareStartedAtUtc.Value
+                : TimeSpan.Zero;
+
+            var remoteUserId = session.RemoteUserId > 0
+                ? session.RemoteUserId
+                : session.TargetUserId;
+
+            return new ScreenShareReportContext
+            {
+                Experience = experience,
+                Notes = notes,
+                CallId = session.CallId ?? "",
+                Quality = _screenShareLastQuality,
+                LocalUser = _localUserId > 0 ? GetParticipantDisplayName(_localUserId) : "You",
+                RemoteUser = remoteUserId > 0 ? GetParticipantDisplayName(remoteUserId) : "Remote participant",
+                Duration = duration <= TimeSpan.Zero ? "-" : duration.ToString(@"hh\:mm\:ss"),
+                SenderFps = _screenShareObservedFps,
+                ReceiverFps = _remotePlaybackObservedFps,
+                LastWidth = _screenShareLastWidth,
+                LastHeight = _screenShareLastHeight,
+                LastBytes = _screenShareLastBytes,
+                SentFrames = _screenShareTransmitCounter,
+                ReceivedFrames = _remoteRtpFrameCount,
+                RenderedFrames = _remoteRenderedFrameCount,
+                DroppedSendFrames = _screenShareDroppedFrames,
+                DroppedReceiveFrames = _screenShareDroppedReceiveFrames,
+                DecodeFailures = _remoteDecodeFailureCount,
+                DecoderResets = _remoteDecoderResetCount,
+                AudioDevice = _selectedScreenShareSoundDevice,
+                AudioPacketsSent = _screenShareSoundPacketsSent
+            };
+        }
+
+        private async Task ShowScreenShareExperienceDialogAsync(ScreenShareReportContext snapshot)
+        {
+            if (_screenShareFeedbackDialogOpen || XamlRoot == null)
+                return;
+
+            _screenShareFeedbackDialogOpen = true;
+
+            try
+            {
+                var dialog = new ContentDialog
+                {
+                    XamlRoot = XamlRoot,
+                    Title = "How was your screen share?",
+                    Content = new TextBlock
+                    {
+                        Text = "Your feedback can upload the screen-share report and logs so support can look at quality, stutter, audio, and connection issues.",
+                        TextWrapping = TextWrapping.WrapWholeWords
+                    },
+                    PrimaryButtonText = "Good",
+                    SecondaryButtonText = "Bad experience",
+                    CloseButtonText = "Not now",
+                    DefaultButton = ContentDialogButton.Primary
+                };
+
+                var result = await dialog.ShowAsync();
+
+                if (result == ContentDialogResult.Primary)
+                {
+                    await UploadScreenShareFeedbackAsync(snapshot, "good", "User marked the screen share as good.");
+                    return;
+                }
+
+                if (result == ContentDialogResult.Secondary)
+                    await ShowBadScreenShareExperienceDialogAsync(snapshot);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ScreenShare:Report] Feedback dialog failed: {ex}");
+                NativeCallCoordinator.Instance.SetStatus(
+                    NativeCallCoordinator.Instance.CurrentSession.State,
+                    $"Screen-share feedback failed: {ex.Message}");
+            }
+            finally
+            {
+                _screenShareFeedbackDialogOpen = false;
+            }
+        }
+
+        private async Task ShowBadScreenShareExperienceDialogAsync(ScreenShareReportContext snapshot)
+        {
+            if (XamlRoot == null)
+                return;
+
+            var notesBox = new TextBox
+            {
+                Header = "What went wrong?",
+                PlaceholderText = "Lag, freezing, audio stutter, bad colours, 1080p issue...",
+                AcceptsReturn = true,
+                TextWrapping = TextWrapping.Wrap,
+                MinHeight = 120
+            };
+
+            var dialog = new ContentDialog
+            {
+                XamlRoot = XamlRoot,
+                Title = "Upload screen-share report to support?",
+                Content = new StackPanel
+                {
+                    Spacing = 12,
+                    Children =
+                    {
+                        new TextBlock
+                        {
+                            Text = "Zink will upload a focused screen-share report and recent diagnostic logs to the Zink call server. No upload happens unless you choose Upload report.",
+                            TextWrapping = TextWrapping.WrapWholeWords
+                        },
+                        notesBox
+                    }
+                },
+                PrimaryButtonText = "Upload report",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Primary
+            };
+
+            var result = await dialog.ShowAsync();
+            if (result == ContentDialogResult.Primary)
+                await UploadScreenShareFeedbackAsync(snapshot, "bad", notesBox.Text);
+        }
+
+        private async Task UploadScreenShareFeedbackAsync(ScreenShareReportContext snapshot, string experience, string notes)
+        {
+            try
+            {
+                NativeCallCoordinator.Instance.SetStatus(
+                    NativeCallCoordinator.Instance.CurrentSession.State,
+                    "Uploading screen-share report...");
+
+                var context = WithScreenShareFeedback(snapshot, experience, notes);
+                var bundlePath = await ScreenShareReportService.CreateBundleAsync(context);
+                var result = await DiagnosticsUploadService.UploadSupportBundleAsync(bundlePath);
+
+                NativeCallCoordinator.Instance.SetStatus(
+                    NativeCallCoordinator.Instance.CurrentSession.State,
+                    $"Screen-share report uploaded. Report id: {result.ReportId}");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ScreenShare:Report] Upload failed: {ex}");
+                NativeCallCoordinator.Instance.SetStatus(
+                    NativeCallCoordinator.Instance.CurrentSession.State,
+                    $"Screen-share report upload failed: {ex.Message}");
+            }
+        }
+
+        private static ScreenShareReportContext WithScreenShareFeedback(ScreenShareReportContext snapshot, string experience, string notes)
+        {
+            return new ScreenShareReportContext
+            {
+                Experience = experience,
+                Notes = notes,
+                CallId = snapshot.CallId,
+                Quality = snapshot.Quality,
+                LocalUser = snapshot.LocalUser,
+                RemoteUser = snapshot.RemoteUser,
+                Duration = snapshot.Duration,
+                SenderFps = snapshot.SenderFps,
+                ReceiverFps = snapshot.ReceiverFps,
+                LastWidth = snapshot.LastWidth,
+                LastHeight = snapshot.LastHeight,
+                LastBytes = snapshot.LastBytes,
+                SentFrames = snapshot.SentFrames,
+                ReceivedFrames = snapshot.ReceivedFrames,
+                RenderedFrames = snapshot.RenderedFrames,
+                DroppedSendFrames = snapshot.DroppedSendFrames,
+                DroppedReceiveFrames = snapshot.DroppedReceiveFrames,
+                DecodeFailures = snapshot.DecodeFailures,
+                DecoderResets = snapshot.DecoderResets,
+                AudioDevice = snapshot.AudioDevice,
+                AudioPacketsSent = snapshot.AudioPacketsSent
+            };
         }
 
         private async Task<bool> TryStartScreenShareSoundAsync(NativeCallSession session, bool showSuccessStatus)
@@ -3596,7 +3787,7 @@ namespace Zink.Pages.Social
                     }
                     else
                     {
-                        await StopLocalScreenShareAsync(true);
+                        await StopLocalScreenShareAsync(true, promptForFeedback: true);
                         LocalPreviewImage.Source = null;
                         LocalPreviewPlaceholder.Visibility = Visibility.Visible;
                     }
