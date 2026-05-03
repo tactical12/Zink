@@ -84,6 +84,10 @@ namespace Zink.Services.NativeCalling
         public int RecoveryKeyFrameRequests { get; private set; }
         public int HardwareEncoderFallbackCount { get; private set; }
 
+        private static bool IsArm64Process =>
+            RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ||
+            RuntimeInformation.OSArchitecture == Architecture.Arm64;
+
         public event EventHandler<NativeScreenFrameEventArgs>? FrameReady;
         public event EventHandler<string>? StreamingFailed;
 
@@ -128,8 +132,23 @@ namespace Zink.Services.NativeCalling
                 Interlocked.Exchange(ref _pendingRecoveryKeyFrame, 0);
             }
 
-            _wgcCapture = new WindowsGraphicsCaptureScreenSource();
-            await _wgcCapture.StartAsync();
+            if (IsArm64Process)
+            {
+                DiagnosticLogService.WriteLine(
+                    "[ScreenShare:UI] ARM64 sender detected; skipping WGC/SharpDX startup capture path and using the crash-safe bitmap capture path for this device.");
+                EncoderGpuDeviceMode = RequireHardwareEncoder
+                    ? "ARM64 sender safety mode; GPU encoder may be used after bitmap capture"
+                    : "ARM64 sender safety mode; software encoder fallback allowed";
+            }
+            else
+            {
+                DiagnosticLogService.WriteLine("[ScreenShare:UI] Starting Windows Graphics Capture source.");
+                DiagnosticLogService.Flush();
+                _wgcCapture = new WindowsGraphicsCaptureScreenSource();
+                var wgcStarted = await _wgcCapture.StartAsync();
+                DiagnosticLogService.WriteLine($"[ScreenShare:UI] Windows Graphics Capture source start result: {wgcStarted}; available={_wgcCapture.IsAvailable}.");
+            }
+
             WriteGpuStreamDiagnostics("start");
             DiagnosticLogService.Flush();
             _captureTask = Task.Factory
@@ -706,6 +725,7 @@ namespace Zink.Services.NativeCalling
         private CapturedGpuFrame? CaptureGpuFrameWithBestAvailablePath(MediaFoundationH264Encoder encoder)
         {
             if (!EnableDirectGpuTexturePath ||
+                IsArm64Process ||
                 _wgcCapture?.IsAvailable != true ||
                 !encoder.CanEncodeGpuTexture)
             {
@@ -797,6 +817,9 @@ namespace Zink.Services.NativeCalling
 
                 return null;
             }
+
+            if (IsArm64Process)
+                return CaptureBitmap(quality);
 
             if (RequireDirectX12CapturePath)
                 throw new InvalidOperationException("DirectX 12 Windows Graphics Capture is required, but it is not available.");
