@@ -35,6 +35,7 @@
         </Style>
 
         <Style x:Key="GlassTileButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="158"/>
             <Setter Property="MinHeight" Value="92"/>
             <Setter Property="Padding" Value="0"/>
             <Setter Property="CornerRadius" Value="22"/>
@@ -42,6 +43,7 @@
             <Setter Property="BorderBrush" Value="#30FFFFFF"/>
             <Setter Property="Background" Value="{StaticResource GlassTileBrush}"/>
             <Setter Property="Foreground" Value="White"/>
+            <Setter Property="HorizontalAlignment" Value="Left"/>
             <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
             <Setter Property="VerticalContentAlignment" Value="Stretch"/>
         </Style>
@@ -74,6 +76,18 @@
             <Setter Property="Background" Value="#51131D28"/>
             <Setter Property="BorderBrush" Value="#2CFFFFFF"/>
             <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+
+        <Style x:Key="PulseButtonStyle" TargetType="Button">
+            <Setter Property="MinHeight" Value="108"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="CornerRadius" Value="20"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#2CFFFFFF"/>
+            <Setter Property="Background" Value="#51131D28"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="VerticalContentAlignment" Value="Stretch"/>
         </Style>
     </Page.Resources>
 
@@ -405,20 +419,20 @@
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
-                                    <Border Style="{StaticResource SignalCardStyle}">
-                                        <StackPanel Spacing="6">
+                                    <Button Style="{StaticResource PulseButtonStyle}" Click="PulseCalls_Click">
+                                        <StackPanel Padding="15" Spacing="6">
                                             <FontIcon Glyph="&#xE717;" FontFamily="Segoe Fluent Icons" Foreground="{StaticResource BlueBrush}" FontSize="20"/>
                                             <TextBlock Text="Calls" Foreground="White" FontWeight="SemiBold"/>
                                             <TextBlock Text="Voice and screen share" Style="{StaticResource ZinkSubText}"/>
                                         </StackPanel>
-                                    </Border>
-                                    <Border Grid.Column="1" Style="{StaticResource SignalCardStyle}">
-                                        <StackPanel Spacing="6">
+                                    </Button>
+                                    <Button Grid.Column="1" Style="{StaticResource PulseButtonStyle}" Click="PulseFps_Click">
+                                        <StackPanel Padding="15" Spacing="6">
                                             <FontIcon Glyph="&#xE7FC;" FontFamily="Segoe Fluent Icons" Foreground="{StaticResource GreenBrush}" FontSize="20"/>
                                             <TextBlock Text="FPS" Foreground="White" FontWeight="SemiBold"/>
                                             <TextBlock Text="Overlay and capture" Style="{StaticResource ZinkSubText}"/>
                                         </StackPanel>
-                                    </Border>
+                                    </Button>
                                 </Grid>
 
                                 <Grid ColumnSpacing="10">
@@ -426,20 +440,20 @@
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
-                                    <Border Style="{StaticResource SignalCardStyle}">
-                                        <StackPanel Spacing="6">
+                                    <Button Style="{StaticResource PulseButtonStyle}" Click="PulseStream_Click">
+                                        <StackPanel Padding="15" Spacing="6">
                                             <FontIcon Glyph="&#xE8D4;" FontFamily="Segoe Fluent Icons" Foreground="{StaticResource CyanBrush}" FontSize="20"/>
                                             <TextBlock Text="Stream" Foreground="White" FontWeight="SemiBold"/>
                                             <TextBlock Text="Quality and reports" Style="{StaticResource ZinkSubText}"/>
                                         </StackPanel>
-                                    </Border>
-                                    <Border Grid.Column="1" Style="{StaticResource SignalCardStyle}">
-                                        <StackPanel Spacing="6">
+                                    </Button>
+                                    <Button Grid.Column="1" Style="{StaticResource PulseButtonStyle}" Click="PulseLogs_Click">
+                                        <StackPanel Padding="15" Spacing="6">
                                             <FontIcon Glyph="&#xE8A7;" FontFamily="Segoe Fluent Icons" Foreground="{StaticResource YellowBrush}" FontSize="20"/>
                                             <TextBlock Text="Logs" Foreground="White" FontWeight="SemiBold"/>
                                             <TextBlock Text="Device diagnostics" Style="{StaticResource ZinkSubText}"/>
                                         </StackPanel>
-                                    </Border>
+                                    </Button>
                                 </Grid>
                             </StackPanel>
                         </Border>
@@ -516,14 +530,8 @@
 
                 <StackPanel x:Name="PowerToolsSection"
                             Grid.Row="2"
-                            Spacing="14">
-                    <Grid ColumnSpacing="14">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
+                            Spacing="10">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
 
                         <Button x:Name="TileBtn_MusicPlayer" Style="{StaticResource GlassTileButtonStyle}" Click="MusicPlayer_Click">
                             <Grid Padding="16" RowSpacing="10">
@@ -568,15 +576,9 @@
                                 </StackPanel>
                             </Grid>
                         </Button>
-                    </Grid>
+                    </StackPanel>
 
-                    <Grid ColumnSpacing="14">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal" Spacing="10">
 
                         <Button x:Name="TileBtn_MusicLibrary" Style="{StaticResource GlassTileButtonStyle}" Click="MusicLibrary_Click">
                             <Grid Padding="16" RowSpacing="10">
@@ -621,15 +623,9 @@
                                 </StackPanel>
                             </Grid>
                         </Button>
-                    </Grid>
+                    </StackPanel>
 
-                    <Grid ColumnSpacing="14">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal" Spacing="10">
 
                         <Button x:Name="TileBtn_Twitch" Style="{StaticResource GlassTileButtonStyle}" Click="Twitch_Click">
                             <Grid Padding="16" RowSpacing="10">
@@ -674,15 +670,9 @@
                                 </StackPanel>
                             </Grid>
                         </Button>
-                    </Grid>
+                    </StackPanel>
 
-                    <Grid ColumnSpacing="14">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal" Spacing="10">
 
                         <Button x:Name="TileBtn_Settings" Style="{StaticResource GlassTileButtonStyle}" Click="Settings_Click">
                             <Grid Padding="16" RowSpacing="10">
@@ -716,7 +706,7 @@
                                 </StackPanel>
                             </Grid>
                         </Button>
-                    </Grid>
+                    </StackPanel>
                 </StackPanel>
             </Grid>
         </ScrollViewer>

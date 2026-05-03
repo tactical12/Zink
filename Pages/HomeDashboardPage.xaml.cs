@@ -1764,6 +1764,10 @@ namespace Zink.Pages
         private void Visualizer_Click(object sender, RoutedEventArgs e) => App.MainWindow.MainFrame.Navigate(typeof(VisualizerPage));
         private void Settings_Click(object sender, RoutedEventArgs e) => App.MainWindow.MainFrame.Navigate(typeof(SettingsPage));
         private void VersionHistory_Click(object sender, RoutedEventArgs e) => App.MainWindow.MainFrame.Navigate(typeof(VersionHistoryPage));
+        private void PulseCalls_Click(object sender, RoutedEventArgs e) => App.MainWindow.MainFrame.Navigate(typeof(Social.CallPage));
+        private void PulseStream_Click(object sender, RoutedEventArgs e) => App.MainWindow.MainFrame.Navigate(typeof(Social.CallPage));
+        private void PulseFps_Click(object sender, RoutedEventArgs e) => App.MainWindow.MainFrame.Navigate(typeof(FpsRecorderPage));
+        private void PulseLogs_Click(object sender, RoutedEventArgs e) => App.MainWindow.MainFrame.Navigate(typeof(SettingsPage));
 
         private void Spotify_Click(object sender, RoutedEventArgs e)
         {
