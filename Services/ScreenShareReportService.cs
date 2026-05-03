@@ -123,7 +123,14 @@ namespace Zink.Services
             if (!File.Exists(sourcePath))
                 return;
 
-            archive.CreateEntryFromFile(sourcePath, entryName, CompressionLevel.Fastest);
+            var entry = archive.CreateEntry(entryName, CompressionLevel.Fastest);
+            using var source = new FileStream(
+                sourcePath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            using var destination = entry.Open();
+            source.CopyTo(destination);
         }
 
         private static bool IsSupportEvidenceFile(string path)

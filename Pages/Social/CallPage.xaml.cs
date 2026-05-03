@@ -357,14 +357,21 @@ namespace Zink.Pages.Social
 
         private async Task StartLocalScreenShareAsync()
         {
+            DiagnosticLogService.WriteLine(
+                $"[ScreenShare:UI] StartLocalScreenShareAsync requested; processArch={System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture}; osArch={System.Runtime.InteropServices.RuntimeInformation.OSArchitecture}; is64Bit={Environment.Is64BitProcess}; packageBase={AppContext.BaseDirectory}");
+            DiagnosticLogService.Flush();
+
             await _screenShareLifecycleLock.WaitAsync();
             try
             {
                 var session = NativeCallCoordinator.Instance.CurrentSession;
+                DiagnosticLogService.WriteLine(
+                    $"[ScreenShare:UI] StartLocalScreenShareAsync entered; state={session.State}; callId={session.CallId}; localSharing={_isSharingScreen}; nativeRunning={NativeScreenShareStreamingService.Instance.IsRunning}; requestedQuality={NativeScreenShareStreamingService.Instance.RequestedQuality.Name}");
                 if (session.State != NativeCallState.Connected)
                     throw new InvalidOperationException("Start or accept the call before sharing your screen.");
 
                 var participants = GetCallParticipants(session).ToList();
+                DiagnosticLogService.WriteLine($"[ScreenShare:UI] Start participants={participants.Count}; participantIds={string.Join(",", participants)}");
                 if (participants.Count == 0 || string.IsNullOrWhiteSpace(session.CallId))
                     throw new InvalidOperationException("No remote users are connected for screen share.");
 
@@ -392,12 +399,19 @@ namespace Zink.Pages.Social
                     .ToList();
 
                 await startStreamingTask;
+                DiagnosticLogService.WriteLine("[ScreenShare:UI] Native screen-share streaming service started.");
                 Debug.WriteLine("[ScreenShare:H264] Using WebRTC RTP plus continuous WebSocket H.264 for live screen-share transport.");
 
                 await Task.WhenAll(signalingTasks);
 
                 if (_isScreenShareSoundEnabled)
                     await TryStartScreenShareSoundAsync(session, showSuccessStatus: false);
+            }
+            catch (Exception ex)
+            {
+                DiagnosticLogService.WriteLine("[ScreenShare:UI] StartLocalScreenShareAsync failed: " + ex);
+                DiagnosticLogService.Flush();
+                throw;
             }
             finally
             {
@@ -4003,6 +4017,10 @@ namespace Zink.Pages.Social
 
         private async void ScreenShareToggleButton_Click(object sender, RoutedEventArgs e)
         {
+            DiagnosticLogService.WriteLine(
+                $"[ScreenShare:UI] Toggle clicked; state={NativeCallCoordinator.Instance.CurrentSession.State}; currentSharing={_isSharingScreen}; nativeRunning={NativeScreenShareStreamingService.Instance.IsRunning}");
+            DiagnosticLogService.Flush();
+
             if (NativeCallCoordinator.Instance.CurrentSession.State != NativeCallState.Connected)
             {
                 NativeCallCoordinator.Instance.SetStatus(
@@ -4040,6 +4058,9 @@ namespace Zink.Pages.Social
                 }
                 catch (Exception ex)
                 {
+                    DiagnosticLogService.WriteLine("[ScreenShare:UI] Toggle failed: " + ex);
+                    DiagnosticLogService.Flush();
+
                     _isSharingScreen = !_isSharingScreen;
                     _isScreenShare = _isSharingScreen;
                     NativeCallCoordinator.Instance.CurrentSession.IsScreenShare = _isSharingScreen;
