@@ -47,8 +47,8 @@ namespace Zink.Services
 
             using var request = new HttpRequestMessage(HttpMethod.Post, uploadUrl);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            request.Headers.Add("X-Zink-App-Base", AppContext.BaseDirectory);
-            request.Headers.Add("X-Zink-Log-Path", DiagnosticLogService.CurrentLogPath);
+            request.Headers.TryAddWithoutValidation("X-Zink-App-Base", AppContext.BaseDirectory);
+            request.Headers.TryAddWithoutValidation("X-Zink-Log-Path", DiagnosticLogService.CurrentLogPath);
 
             await using var stream = File.OpenRead(bundlePath);
             request.Content = new StreamContent(stream);

@@ -1,5 +1,3 @@
-using Microsoft.Web.WebView2.Core;
-using SharpDX.MediaFoundation;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -14,7 +12,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Windows.ApplicationModel;
 using Windows.Networking.Connectivity;
-using Zink.Services.NativeCalling;
 
 namespace Zink.Services
 {
@@ -120,31 +117,47 @@ namespace Zink.Services
                     return $"GET {ConnectivityProbeUrl} -> {(int)response.StatusCode} {response.ReasonPhrase}";
                 }, warningOnly: true);
 
-                await Check("WebView2 runtime", writer, () =>
+                await Check("WebView2 dependency", writer, () =>
                 {
-                    var version = CoreWebView2Environment.GetAvailableBrowserVersionString();
-                    return string.IsNullOrWhiteSpace(version)
-                        ? throw new InvalidOperationException("WebView2 runtime version string was empty.")
-                        : "WebView2 runtime " + version;
+                    var loaded = AppDomain.CurrentDomain.GetAssemblies()
+                        .Any(assembly => assembly.GetName().Name?.Contains("WebView2", StringComparison.OrdinalIgnoreCase) == true);
+
+                    return loaded
+                        ? "WebView2 assemblies are loaded by the app."
+                        : "WebView2 assemblies are not loaded yet; this is normal until a WebView page opens.";
                 }, warningOnly: true);
 
-                await Check("Media Foundation startup", writer, () =>
+                await Check("Screen-share diagnostics readiness", writer, () =>
                 {
-                    MediaManager.Startup();
-                    return "Media Foundation startup completed.";
+                    return "Native screen-share/GPU encoder probes are intentionally non-invasive. The health check inspects logs instead of creating a Media Foundation encoder, so the diagnostics button cannot crash the app while testing GPU drivers.";
                 });
 
-                await Check("H.264 encoder probe", writer, () =>
+                await Check("Recent screen-share log signals", writer, () =>
                 {
-                    using var encoder = new MediaFoundationH264Encoder(
-                        width: 1280,
-                        height: 720,
-                        bitrate: 6_000_000,
-                        preferHardware: true,
-                        requireHardware: false);
+                    var currentLogPath = DiagnosticLogService.CurrentLogPath;
+                    if (!File.Exists(currentLogPath))
+                        throw new FileNotFoundException("The latest diagnostic log does not exist yet.", currentLogPath);
 
-                    return $"mode={encoder.EncoderMode}; hardware={encoder.IsHardwareAccelerated}; input={encoder.InputFormat}; dxgi={encoder.DxgiDeviceManagerAttached}; gpuManager={encoder.GpuDeviceManagerMode}";
-                });
+                    var recentLines = ReadRecentLines(currentLogPath, 2500);
+                    var screenShareLines = recentLines
+                        .Where(line =>
+                            line.Contains("[ScreenShare:", StringComparison.OrdinalIgnoreCase) ||
+                            line.Contains("[Call]", StringComparison.OrdinalIgnoreCase))
+                        .TakeLast(80)
+                        .ToList();
+
+                    if (screenShareLines.Count == 0)
+                        return "No recent screen-share/call log lines were found. Start a call or screen share, then run the health check again.";
+
+                    var failures = screenShareLines.Count(line =>
+                        line.Contains("failed", StringComparison.OrdinalIgnoreCase) ||
+                        line.Contains("exception", StringComparison.OrdinalIgnoreCase) ||
+                        line.Contains("stutter", StringComparison.OrdinalIgnoreCase) ||
+                        line.Contains("freeze", StringComparison.OrdinalIgnoreCase));
+
+                    return $"Found {screenShareLines.Count} recent call/screen-share log lines; flagged {failures} possible failure lines. Recent signals: " +
+                        string.Join(" | ", screenShareLines.TakeLast(12));
+                }, warningOnly: true);
 
                 await Check("Latest diagnostic logs", writer, () =>
                 {
@@ -236,6 +249,21 @@ namespace Zink.Services
                 return;
 
             archive.CreateEntryFromFile(sourcePath, entryName, CompressionLevel.Fastest);
+        }
+
+        private static List<string> ReadRecentLines(string path, int maxLines)
+        {
+            var queue = new Queue<string>(Math.Max(1, maxLines));
+
+            foreach (var line in File.ReadLines(path))
+            {
+                if (queue.Count >= maxLines)
+                    queue.Dequeue();
+
+                queue.Enqueue(line);
+            }
+
+            return queue.ToList();
         }
 
         private static string RuntimeInformationSafe()
