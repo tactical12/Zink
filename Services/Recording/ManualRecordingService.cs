@@ -17,8 +17,8 @@ namespace Zink.Services.Recording
 
         private readonly TimeSpan _replayBufferDuration = TimeSpan.FromSeconds(45);
 
-        // Keep active raw segment short so 4K/60 replay stays disk/CPU based and less RAM based.
-        private readonly TimeSpan _segmentDuration = TimeSpan.FromMilliseconds(500);
+        // Keep active raw segment short so high-resolution 60 fps replay stays off the managed heap.
+        private readonly TimeSpan _segmentDuration = TimeSpan.FromMilliseconds(250);
 
         private CaptureEngine? _captureEngine;
         private IAudioCaptureService? _systemAudioCapture;
@@ -42,6 +42,7 @@ namespace Zink.Services.Recording
         private int _nextSegmentIndex;
 
         private Task? _segmentWriteTask;
+        private long _droppedVideoFrames;
 
         public bool IsRecording { get; private set; }
         public bool IsReplayMode { get; private set; }
@@ -151,6 +152,7 @@ namespace Zink.Services.Recording
                 IsRecording = true;
                 IsReplayMode = replayMode;
                 _isSavingReplay = false;
+                _droppedVideoFrames = 0;
             }
 
             try
@@ -213,7 +215,14 @@ namespace Zink.Services.Recording
 
             lock (_gate)
             {
+                long beforeBytes = _activeVideoBuffer?.TotalBufferedBytes ?? 0;
                 _activeVideoBuffer?.Add(packet);
+                long afterBytes = _activeVideoBuffer?.TotalBufferedBytes ?? 0;
+
+                if (afterBytes < beforeBytes)
+                {
+                    _droppedVideoFrames++;
+                }
 
                 bool writeBusy = _segmentWriteTask != null && !_segmentWriteTask.IsCompleted;
 
@@ -657,6 +666,8 @@ namespace Zink.Services.Recording
 
         private async Task FinalizeSegmentAsync(SegmentBatch batch)
         {
+            var finalizeStartedUtc = DateTimeOffset.UtcNow;
+
             List<VideoFramePacket> videoFrames = batch.VideoBuffer.Snapshot()
                 .Where(f => f.Bgra32Bytes is not null)
                 .OrderBy(f => f.Timestamp)
@@ -685,6 +696,9 @@ namespace Zink.Services.Recording
 
             try
             {
+                await RecorderLog.InfoAsync(nameof(ManualRecordingService),
+                    $"Finalizing segment. Replay={batch.IsReplaySegment}, VideoFrames={videoFrames.Count}, SystemPackets={systemPackets?.Count ?? 0}, MicPackets={micPackets?.Count ?? 0}, ManagedMemoryMB={GC.GetTotalMemory(false) / 1024 / 1024}, DroppedFrames={_droppedVideoFrames}");
+
                 var origin = AvSyncHelpers.ComputeCommonOrigin(videoFrames, systemPackets, micPackets);
 
                 syncedVideo = AvSyncHelpers.ShiftVideo(videoFrames, origin);
@@ -737,6 +751,10 @@ namespace Zink.Services.Recording
                         }
                     }
                 }
+
+                var elapsed = DateTimeOffset.UtcNow - finalizeStartedUtc;
+                await RecorderLog.InfoAsync(nameof(ManualRecordingService),
+                    $"Segment finalized. Replay={batch.IsReplaySegment}, ElapsedMs={elapsed.TotalMilliseconds:F0}, Output='{batch.OutputPath}'");
             }
             finally
             {

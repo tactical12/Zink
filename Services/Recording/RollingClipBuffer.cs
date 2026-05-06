@@ -12,7 +12,7 @@ namespace Zink.Services.Recording
 
         // Hard byte budget for raw BGRA replay frames.
         // This is much safer than a frame-count cap because 4K frames are vastly larger than 1080p frames.
-        private const long MaxBufferedBytes = 1536L * 1024L * 1024L; // 1.5 GB
+        private const long MaxBufferedBytes = 384L * 1024L * 1024L; // 384 MB
 
         private long _totalBufferedBytes;
 

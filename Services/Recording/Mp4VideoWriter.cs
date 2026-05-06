@@ -62,6 +62,19 @@ namespace Zink.Services.Recording
             await RecorderLog.InfoAsync(nameof(Mp4VideoWriter),
                 $"Starting video-only write. Output='{outputPath}', SourceFrames={orderedFrames.Count}, SourceSize={sourceWidth}x{sourceHeight}, OutputSize={width}x{height}, Fps={outputFps}, Bitrate={bitrate}");
 
+            if (width == sourceWidth && height == sourceHeight)
+            {
+                try
+                {
+                    await WriteNativeAsync(orderedFrames, outputPath, (int)width, (int)height, (int)outputFps);
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    await RecorderLog.ErrorAsync(nameof(Mp4VideoWriter), ex, "Native video writer failed; falling back to MediaTranscoder");
+                }
+            }
+
             string folderPath = Path.GetDirectoryName(outputPath)
                 ?? throw new InvalidOperationException("Output folder path could not be determined.");
 
@@ -190,6 +203,60 @@ namespace Zink.Services.Recording
         {
             double bitsPerSecond = width * (double)height * fps * 0.16;
             return (uint)Math.Clamp(bitsPerSecond, 12_000_000, 100_000_000);
+        }
+
+        private static async Task WriteNativeAsync(
+            IReadOnlyList<VideoFramePacket> frames,
+            string outputPath,
+            int width,
+            int height,
+            int fps)
+        {
+            IntPtr writer = NativeMuxWriter.znk_writer_create(
+                outputPath,
+                width,
+                height,
+                fps,
+                48000,
+                2,
+                16);
+
+            if (writer == IntPtr.Zero)
+                throw new InvalidOperationException("Native writer could not be created.");
+
+            try
+            {
+                TimeSpan start = frames[0].Timestamp;
+
+                foreach (var frame in frames)
+                {
+                    if (frame.Bgra32Bytes is null)
+                        continue;
+
+                    long timestamp100ns = (frame.Timestamp - start).Ticks;
+
+                    int hr = NativeMuxWriter.znk_writer_write_video_frame(
+                        writer,
+                        frame.Bgra32Bytes,
+                        frame.Bgra32Bytes.Length,
+                        frame.Width,
+                        frame.Height,
+                        timestamp100ns);
+
+                    NativeMuxWriter.ThrowIfFailed(hr, nameof(NativeMuxWriter.znk_writer_write_video_frame));
+                }
+
+                NativeMuxWriter.ThrowIfFailed(
+                    NativeMuxWriter.znk_writer_finalize(writer),
+                    nameof(NativeMuxWriter.znk_writer_finalize));
+
+                await RecorderLog.InfoAsync(nameof(Mp4VideoWriter),
+                    $"Native video-only write completed. Output='{outputPath}', Frames={frames.Count}, Size={width}x{height}, Fps={fps}");
+            }
+            finally
+            {
+                NativeMuxWriter.znk_writer_destroy(writer);
+            }
         }
     }
 }

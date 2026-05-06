@@ -28,6 +28,7 @@ namespace Zink.Pages
             TargetText.Text = _manager.LastCaptureTargetText;
             ManualStateText.Text = $"Manual recording: {(_manager.IsManualRecording ? "Running" : "Stopped")}";
             BackgroundStateText.Text = $"Background clipping: {(_manager.IsBackgroundClipping ? "Running" : "Stopped")}";
+            UpdateLiveRecordingIndicator();
             UpdateBackgroundReplayControls();
 
             var renderDevices = await AudioDeviceService.GetRenderDevicesAsync();
@@ -130,6 +131,7 @@ namespace Zink.Pages
             await DispatcherQueue.EnqueueAsync(() =>
             {
                 ManualStateText.Text = $"Manual recording: {(isRunning ? "Running" : "Stopped")}";
+                UpdateLiveRecordingIndicator();
             });
         }
 
@@ -138,6 +140,7 @@ namespace Zink.Pages
             await DispatcherQueue.EnqueueAsync(() =>
             {
                 BackgroundStateText.Text = $"Background clipping: {(isRunning ? "Running" : "Stopped")}";
+                UpdateLiveRecordingIndicator();
                 UpdateBackgroundReplayControls();
             });
         }
@@ -152,6 +155,13 @@ namespace Zink.Pages
             {
                 BackgroundStateText.Text = "Background clipping: Off in Settings";
             }
+        }
+
+        private void UpdateLiveRecordingIndicator()
+        {
+            LiveRecordingPill.Visibility = _manager.IsManualRecording
+                ? Visibility.Visible
+                : Visibility.Collapsed;
         }
     }
 }

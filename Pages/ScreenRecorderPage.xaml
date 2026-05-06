@@ -57,6 +57,22 @@
                                 Orientation="Horizontal"
                                 Spacing="8"
                                 VerticalAlignment="Center">
+                        <Border x:Name="LiveRecordingPill"
+                                Padding="12,7"
+                                CornerRadius="999"
+                                Background="#66FF2E3D"
+                                BorderBrush="#AAFF8A92"
+                                BorderThickness="1"
+                                Visibility="Collapsed">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Ellipse Width="9"
+                                         Height="9"
+                                         Fill="{StaticResource RecorderDangerBrush}"/>
+                                <TextBlock Text="Recording your screen"
+                                           Foreground="{StaticResource RecorderStrongTextBrush}"
+                                           FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Border>
                         <Border Padding="12,7"
                                 CornerRadius="999"
                                 Background="#3342D7B5">

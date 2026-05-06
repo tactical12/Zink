@@ -9,7 +9,7 @@ namespace Zink.Services.Recording
         private static int _count;
 
         // Keep this small on purpose. We want reuse, not "cache every frame forever".
-        private const int MaxBuffersToKeep = 12;
+        private const int MaxBuffersToKeep = 3;
 
         public static byte[] Rent(int size)
         {
