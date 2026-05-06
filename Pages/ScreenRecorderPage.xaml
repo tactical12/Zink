@@ -5,351 +5,376 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
-    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+    Background="#FF071017">
 
     <Page.Resources>
-        <LinearGradientBrush x:Key="RecorderPageBackgroundBrush" StartPoint="0,0" EndPoint="1,1">
-            <GradientStop Color="#FF0A101A" Offset="0"/>
-            <GradientStop Color="#FF132338" Offset="0.48"/>
-            <GradientStop Color="#FF101823" Offset="1"/>
+        <LinearGradientBrush x:Key="RecorderSurfaceBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#FF061017" Offset="0"/>
+            <GradientStop Color="#FF163642" Offset="0.45"/>
+            <GradientStop Color="#FF161923" Offset="1"/>
         </LinearGradientBrush>
-        <SolidColorBrush x:Key="RecorderGlassFillBrush" Color="#66FFFFFF"/>
-        <SolidColorBrush x:Key="RecorderGlassStrokeBrush" Color="#59FFFFFF"/>
-        <SolidColorBrush x:Key="RecorderMutedTextBrush" Color="#B8FFFFFF"/>
-        <SolidColorBrush x:Key="RecorderStrongTextBrush" Color="#FFFFFFFF"/>
-        <SolidColorBrush x:Key="RecorderAccentBrush" Color="#FF42D7B5"/>
-        <SolidColorBrush x:Key="RecorderDangerBrush" Color="#FFFF5D6C"/>
+        <SolidColorBrush x:Key="GlassPanelBrush" Color="#36FFFFFF"/>
+        <SolidColorBrush x:Key="GlassPanelStrongBrush" Color="#52FFFFFF"/>
+        <SolidColorBrush x:Key="GlassStrokeBrush" Color="#50FFFFFF"/>
+        <SolidColorBrush x:Key="TextPrimaryBrush" Color="#FFFFFFFF"/>
+        <SolidColorBrush x:Key="TextSecondaryBrush" Color="#B8FFFFFF"/>
+        <SolidColorBrush x:Key="TextMutedBrush" Color="#78FFFFFF"/>
+        <SolidColorBrush x:Key="AccentBrush" Color="#FF42D7B5"/>
+        <SolidColorBrush x:Key="DangerBrush" Color="#FFFF5264"/>
+        <SolidColorBrush x:Key="SoftAccentBrush" Color="#3042D7B5"/>
+        <SolidColorBrush x:Key="SoftDangerBrush" Color="#38FF5264"/>
+
+        <Style x:Key="GlassCardStyle" TargetType="Border">
+            <Setter Property="CornerRadius" Value="16"/>
+            <Setter Property="Background" Value="{StaticResource GlassPanelBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource GlassStrokeBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="14"/>
+        </Style>
     </Page.Resources>
 
-    <ScrollViewer>
-        <Grid Padding="28"
-              RowSpacing="18"
-              Background="{StaticResource RecorderPageBackgroundBrush}">
+    <Grid Background="{StaticResource RecorderSurfaceBrush}" Padding="22" RowSpacing="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Grid ColumnSpacing="14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Spacing="2" VerticalAlignment="Center">
+                <TextBlock Text="Zink Recorder"
+                           Foreground="{StaticResource TextPrimaryBrush}"
+                           FontSize="30"
+                           FontWeight="SemiBold"/>
+                <TextBlock Text="Ready when you are."
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           FontSize="13"/>
+            </StackPanel>
+
+            <StackPanel Grid.Column="1"
+                        Orientation="Horizontal"
+                        Spacing="8"
+                        VerticalAlignment="Center">
+                <Border x:Name="LiveRecordingPill"
+                        Padding="12,7"
+                        CornerRadius="999"
+                        Background="{StaticResource SoftDangerBrush}"
+                        BorderBrush="#A0FF8A92"
+                        BorderThickness="1"
+                        Visibility="Collapsed">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Ellipse Width="9" Height="9" Fill="{StaticResource DangerBrush}"/>
+                        <TextBlock Text="Recording your screen"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   FontWeight="SemiBold"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Padding="10,7"
+                        CornerRadius="999"
+                        Background="{StaticResource SoftAccentBrush}">
+                    <StackPanel Orientation="Horizontal" Spacing="7">
+                        <FontIcon Glyph="&#xE7F4;"
+                                  FontSize="14"
+                                  Foreground="{StaticResource AccentBrush}"/>
+                        <TextBlock Text="Native"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   FontWeight="SemiBold"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Grid>
+
+        <Grid Grid.Row="1" ColumnSpacing="12" RowSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.25*"/>
+                <ColumnDefinition Width="0.9*"/>
+            </Grid.ColumnDefinitions>
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <Border Grid.Row="0"
-                    Padding="24"
-                    CornerRadius="24"
-                    Background="{StaticResource RecorderGlassFillBrush}"
-                    BorderBrush="{StaticResource RecorderGlassStrokeBrush}"
-                    BorderThickness="1">
-                <Grid ColumnSpacing="20">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
+            <Border Style="{StaticResource GlassCardStyle}"
+                    Background="{StaticResource GlassPanelStrongBrush}">
+                <Grid RowSpacing="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
 
-                    <StackPanel Spacing="8">
-                        <TextBlock Text="Screen Recorder"
-                                   Foreground="{StaticResource RecorderStrongTextBrush}"
-                                   FontSize="34"
-                                   FontWeight="SemiBold"/>
-                        <TextBlock Text="Borderless native-resolution 60 fps capture with instant replay"
-                                   Foreground="{StaticResource RecorderMutedTextBrush}"
-                                   FontSize="15"/>
-                    </StackPanel>
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
 
-                    <StackPanel Grid.Column="1"
-                                Orientation="Horizontal"
-                                Spacing="8"
-                                VerticalAlignment="Center">
-                        <Border x:Name="LiveRecordingPill"
-                                Padding="12,7"
-                                CornerRadius="999"
-                                Background="#66FF2E3D"
-                                BorderBrush="#AAFF8A92"
-                                BorderThickness="1"
-                                Visibility="Collapsed">
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Ellipse Width="9"
-                                         Height="9"
-                                         Fill="{StaticResource RecorderDangerBrush}"/>
-                                <TextBlock Text="Recording your screen"
-                                           Foreground="{StaticResource RecorderStrongTextBrush}"
+                        <Border Width="52"
+                                Height="52"
+                                CornerRadius="16"
+                                Background="{StaticResource SoftAccentBrush}">
+                            <FontIcon Glyph="&#xE8B7;"
+                                      FontSize="24"
+                                      Foreground="{StaticResource AccentBrush}"/>
+                        </Border>
+
+                        <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+                            <TextBlock x:Name="StatusText"
+                                       Text="Idle"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       FontSize="20"
+                                       FontWeight="SemiBold"
+                                       TextTrimming="CharacterEllipsis"/>
+                            <TextBlock x:Name="TargetText"
+                                       Text="No capture target selected."
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid Grid.Row="1" ColumnSpacing="10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="0.78*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Border CornerRadius="12"
+                                Padding="12"
+                                Background="#22FFFFFF">
+                            <StackPanel Spacing="4" VerticalAlignment="Center">
+                                <TextBlock Text="Manual"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           FontSize="12"/>
+                                <TextBlock x:Name="ManualStateText"
+                                           Text="Manual recording: Stopped"
+                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           FontWeight="SemiBold"
+                                           TextWrapping="WrapWholeWords"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Grid.Column="1"
+                                CornerRadius="12"
+                                Padding="12"
+                                Background="#22FFFFFF">
+                            <StackPanel Spacing="4" VerticalAlignment="Center">
+                                <TextBlock Text="Replay"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           FontSize="12"/>
+                                <TextBlock x:Name="BackgroundStateText"
+                                           Text="Background clipping: Stopped"
+                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           FontWeight="SemiBold"
+                                           TextWrapping="WrapWholeWords"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Grid.Column="2"
+                                CornerRadius="12"
+                                Padding="12"
+                                Background="#1D42D7B5">
+                            <StackPanel Spacing="4" VerticalAlignment="Center">
+                                <TextBlock Text="Hotkey"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           FontSize="12"/>
+                                <TextBlock Text="Shift + R"
+                                           Foreground="{StaticResource TextPrimaryBrush}"
                                            FontWeight="SemiBold"/>
                             </StackPanel>
                         </Border>
-                        <Border Padding="12,7"
-                                CornerRadius="999"
-                                Background="#3342D7B5">
-                            <TextBlock Text="Native resolution"
-                                       Foreground="{StaticResource RecorderStrongTextBrush}"
-                                       FontWeight="SemiBold"/>
-                        </Border>
-                        <Border Padding="12,7"
-                                CornerRadius="999"
-                                Background="#33FFFFFF">
-                            <TextBlock Text="Auto FPS"
-                                       Foreground="{StaticResource RecorderStrongTextBrush}"
-                                       FontWeight="SemiBold"/>
-                        </Border>
-                    </StackPanel>
-                </Grid>
-            </Border>
+                    </Grid>
 
-            <Grid Grid.Row="1" ColumnSpacing="18">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="1.15*"/>
-                    <ColumnDefinition Width="0.85*"/>
-                </Grid.ColumnDefinitions>
-
-                <Border Padding="22"
-                        CornerRadius="22"
-                        Background="{StaticResource RecorderGlassFillBrush}"
-                        BorderBrush="{StaticResource RecorderGlassStrokeBrush}"
-                        BorderThickness="1">
-                    <StackPanel Spacing="18">
-                        <Grid ColumnSpacing="14">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-
-                            <Border Width="48"
-                                    Height="48"
-                                    CornerRadius="16"
-                                    Background="#3342D7B5">
-                                <FontIcon Glyph="&#xE7F4;"
-                                          Foreground="{StaticResource RecorderAccentBrush}"
-                                          FontSize="22"/>
-                            </Border>
-
-                            <StackPanel Grid.Column="1" Spacing="3">
-                                <TextBlock Text="Live Status"
-                                           Foreground="{StaticResource RecorderStrongTextBrush}"
-                                           FontSize="22"
-                                           FontWeight="SemiBold"/>
-                                <TextBlock x:Name="StatusText"
-                                           Text="Idle"
-                                           Foreground="{StaticResource RecorderMutedTextBrush}"
-                                           TextWrapping="Wrap"/>
-                            </StackPanel>
-                        </Grid>
-
-                        <Grid ColumnSpacing="12" RowSpacing="12">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-
-                            <Border Grid.ColumnSpan="2"
-                                    Padding="14"
-                                    CornerRadius="14"
-                                    Background="#24FFFFFF">
-                                <TextBlock x:Name="TargetText"
-                                           Text="No capture target selected."
-                                           Foreground="{StaticResource RecorderStrongTextBrush}"
-                                           TextWrapping="Wrap"/>
-                            </Border>
-
-                            <Border Grid.Row="1"
-                                    Padding="14"
-                                    CornerRadius="14"
-                                    Background="#24FFFFFF">
-                                <StackPanel Spacing="4">
-                                    <TextBlock Text="Manual"
-                                               Foreground="{StaticResource RecorderMutedTextBrush}"
-                                               FontSize="12"/>
-                                    <TextBlock x:Name="ManualStateText"
-                                               Text="Manual recording: Stopped"
-                                               Foreground="{StaticResource RecorderStrongTextBrush}"
-                                               TextWrapping="Wrap"/>
-                                </StackPanel>
-                            </Border>
-
-                            <Border Grid.Row="1"
-                                    Grid.Column="1"
-                                    Padding="14"
-                                    CornerRadius="14"
-                                    Background="#24FFFFFF">
-                                <StackPanel Spacing="4">
-                                    <TextBlock Text="Replay"
-                                               Foreground="{StaticResource RecorderMutedTextBrush}"
-                                               FontSize="12"/>
-                                    <TextBlock x:Name="BackgroundStateText"
-                                               Text="Background clipping: Stopped"
-                                               Foreground="{StaticResource RecorderStrongTextBrush}"
-                                               TextWrapping="Wrap"/>
-                                </StackPanel>
-                            </Border>
-
-                            <Border Grid.Row="2"
-                                    Grid.ColumnSpan="2"
-                                    Padding="14"
-                                    CornerRadius="14"
-                                    Background="#1A42D7B5">
-                                <TextBlock Text="Hotkey: Shift + R"
-                                           Foreground="{StaticResource RecorderStrongTextBrush}"/>
-                            </Border>
-                        </Grid>
+                    <Grid Grid.Row="2" ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
 
                         <Button x:Name="PickSourceButton"
                                 Click="PickSourceButton_Click"
                                 HorizontalAlignment="Stretch"
-                                Padding="16,12"
-                                Background="{StaticResource RecorderAccentBrush}">
-                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                <FontIcon Glyph="&#xE8B7;" FontSize="16"/>
-                                <TextBlock Text="Pick Screen / Window"
-                                           FontWeight="SemiBold"/>
+                                Padding="12,10"
+                                Background="{StaticResource AccentBrush}">
+                            <StackPanel Orientation="Horizontal" Spacing="7" HorizontalAlignment="Center">
+                                <FontIcon Glyph="&#xE8B7;" FontSize="15"/>
+                                <TextBlock Text="Source" FontWeight="SemiBold"/>
                             </StackPanel>
                         </Button>
-                    </StackPanel>
-                </Border>
 
-                <Border Grid.Column="1"
-                        Padding="22"
-                        CornerRadius="22"
-                        Background="{StaticResource RecorderGlassFillBrush}"
-                        BorderBrush="{StaticResource RecorderGlassStrokeBrush}"
-                        BorderThickness="1">
-                    <StackPanel Spacing="16">
-                        <TextBlock Text="Audio"
-                                   Foreground="{StaticResource RecorderStrongTextBrush}"
-                                   FontSize="22"
-                                   FontWeight="SemiBold"/>
-
-                        <ToggleSwitch x:Name="IncludeSystemAudioToggle"
-                                      Header="Include system audio"
-                                      Foreground="{StaticResource RecorderStrongTextBrush}"
-                                      IsOn="True"/>
-
-                        <ComboBox x:Name="RenderDevicesComboBox"
-                                  Header="Sound source"
-                                  DisplayMemberPath="Name"
-                                  HorizontalAlignment="Stretch"/>
-
-                        <ToggleSwitch x:Name="IncludeMicrophoneToggle"
-                                      Header="Include microphone"
-                                      Foreground="{StaticResource RecorderStrongTextBrush}"
-                                      IsOn="False"/>
-
-                        <ComboBox x:Name="MicDevicesComboBox"
-                                  Header="Microphone"
-                                  DisplayMemberPath="Name"
-                                  HorizontalAlignment="Stretch"/>
-                    </StackPanel>
-                </Border>
-            </Grid>
-
-            <Grid Grid.Row="2" ColumnSpacing="18">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-
-                <Border Padding="22"
-                        CornerRadius="22"
-                        Background="{StaticResource RecorderGlassFillBrush}"
-                        BorderBrush="{StaticResource RecorderGlassStrokeBrush}"
-                        BorderThickness="1">
-                    <StackPanel Spacing="14">
-                        <TextBlock Text="Manual Recording"
-                                   Foreground="{StaticResource RecorderStrongTextBrush}"
-                                   FontSize="22"
-                                   FontWeight="SemiBold"/>
-                        <TextBlock Text="Record the selected source as a borderless native-resolution 60 fps MP4."
-                                   Foreground="{StaticResource RecorderMutedTextBrush}"
-                                   TextWrapping="Wrap"/>
-                        <Grid ColumnSpacing="12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Button x:Name="StartRecordingButton"
-                                    Click="StartRecordingButton_Click"
-                                    HorizontalAlignment="Stretch"
-                                    Padding="14,12"
-                                    Background="{StaticResource RecorderAccentBrush}">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <FontIcon Glyph="&#xE768;" FontSize="15"/>
-                                    <TextBlock Text="Start Recording" FontWeight="SemiBold"/>
-                                </StackPanel>
-                            </Button>
-                            <Button x:Name="StopRecordingButton"
-                                    Grid.Column="1"
-                                    Click="StopRecordingButton_Click"
-                                    HorizontalAlignment="Stretch"
-                                    Padding="14,12"
-                                    Background="{StaticResource RecorderDangerBrush}">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <FontIcon Glyph="&#xE71A;" FontSize="15"/>
-                                    <TextBlock Text="Stop Recording" FontWeight="SemiBold"/>
-                                </StackPanel>
-                            </Button>
-                        </Grid>
-                    </StackPanel>
-                </Border>
-
-                <Border Grid.Column="1"
-                        Padding="22"
-                        CornerRadius="22"
-                        Background="{StaticResource RecorderGlassFillBrush}"
-                        BorderBrush="{StaticResource RecorderGlassStrokeBrush}"
-                        BorderThickness="1">
-                    <StackPanel Spacing="14">
-                        <TextBlock Text="Instant Replay"
-                                   Foreground="{StaticResource RecorderStrongTextBrush}"
-                                   FontSize="22"
-                                   FontWeight="SemiBold"/>
-                        <TextBlock Text="Keep the last 45 seconds ready at the same native-resolution 60 fps quality."
-                                   Foreground="{StaticResource RecorderMutedTextBrush}"
-                                   TextWrapping="Wrap"/>
-
-                        <Grid ColumnSpacing="12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Button x:Name="StartBackgroundButton"
-                                    Click="StartBackgroundButton_Click"
-                                    HorizontalAlignment="Stretch"
-                                    Padding="14,12">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <FontIcon Glyph="&#xE7C8;" FontSize="15"/>
-                                    <TextBlock Text="Start Buffer" FontWeight="SemiBold"/>
-                                </StackPanel>
-                            </Button>
-                            <Button x:Name="StopBackgroundButton"
-                                    Grid.Column="1"
-                                    Click="StopBackgroundButton_Click"
-                                    HorizontalAlignment="Stretch"
-                                    Padding="14,12">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <FontIcon Glyph="&#xE711;" FontSize="15"/>
-                                    <TextBlock Text="Stop Buffer" FontWeight="SemiBold"/>
-                                </StackPanel>
-                            </Button>
-                        </Grid>
-
-                        <Button x:Name="SaveLast45SecondsButton"
-                                Click="SaveLast45SecondsButton_Click"
+                        <Button x:Name="StartRecordingButton"
+                                Grid.Column="1"
+                                Click="StartRecordingButton_Click"
                                 HorizontalAlignment="Stretch"
-                                Padding="16,12"
-                                Background="{StaticResource RecorderAccentBrush}">
-                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                <FontIcon Glyph="&#xE74E;" FontSize="16"/>
-                                <TextBlock Text="Save Last 45 Seconds"
-                                           FontWeight="SemiBold"/>
+                                Padding="12,10"
+                                Background="{StaticResource SoftAccentBrush}">
+                            <StackPanel Orientation="Horizontal" Spacing="7" HorizontalAlignment="Center">
+                                <FontIcon Glyph="&#xE768;" FontSize="15"/>
+                                <TextBlock Text="Record" FontWeight="SemiBold"/>
                             </StackPanel>
                         </Button>
 
-                        <ToggleSwitch x:Name="RunAtStartupToggle"
-                                      Header="Run at sign-in"
-                                      Foreground="{StaticResource RecorderStrongTextBrush}"
-                                      Toggled="RunAtStartupToggle_Toggled"/>
+                        <Button x:Name="StopRecordingButton"
+                                Grid.Column="2"
+                                Click="StopRecordingButton_Click"
+                                HorizontalAlignment="Stretch"
+                                Padding="12,10"
+                                Background="{StaticResource DangerBrush}">
+                            <StackPanel Orientation="Horizontal" Spacing="7" HorizontalAlignment="Center">
+                                <FontIcon Glyph="&#xE71A;" FontSize="15"/>
+                                <TextBlock Text="Stop" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <Border Grid.Column="1" Style="{StaticResource GlassCardStyle}">
+                <Grid RowSpacing="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.ColumnSpan="2"
+                               Text="Audio"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               FontSize="18"
+                               FontWeight="SemiBold"/>
+
+                    <ToggleSwitch x:Name="IncludeSystemAudioToggle"
+                                  Grid.Row="1"
+                                  Header="System"
+                                  Foreground="{StaticResource TextPrimaryBrush}"
+                                  IsOn="True"/>
+
+                    <ToggleSwitch x:Name="IncludeMicrophoneToggle"
+                                  Grid.Row="1"
+                                  Grid.Column="1"
+                                  Header="Mic"
+                                  Foreground="{StaticResource TextPrimaryBrush}"
+                                  IsOn="False"/>
+
+                    <StackPanel Grid.Row="2" Grid.ColumnSpan="2" Spacing="8">
+                        <ComboBox x:Name="RenderDevicesComboBox"
+                                  Header="Output"
+                                  DisplayMemberPath="Name"
+                                  HorizontalAlignment="Stretch"/>
+                        <ComboBox x:Name="MicDevicesComboBox"
+                                  Header="Input"
+                                  DisplayMemberPath="Name"
+                                  HorizontalAlignment="Stretch"/>
                     </StackPanel>
-                </Border>
-            </Grid>
+                </Grid>
+            </Border>
+
+            <Border Grid.Row="1"
+                    Grid.ColumnSpan="2"
+                    Style="{StaticResource GlassCardStyle}"
+                    Padding="14,12"
+                    Background="#42FFFFFF">
+                <Grid ColumnSpacing="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="Instant Replay"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"/>
+                        <TextBlock Text="45 seconds"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   FontSize="12"/>
+                    </StackPanel>
+
+                    <ToggleSwitch x:Name="RunAtStartupToggle"
+                                  Grid.Column="1"
+                                  Header="At sign-in"
+                                  Foreground="{StaticResource TextPrimaryBrush}"
+                                  Toggled="RunAtStartupToggle_Toggled"
+                                  VerticalAlignment="Center"/>
+
+                    <Button x:Name="StartBackgroundButton"
+                            Grid.Column="2"
+                            Click="StartBackgroundButton_Click"
+                            Padding="12,10">
+                        <StackPanel Orientation="Horizontal" Spacing="7">
+                            <FontIcon Glyph="&#xE7C8;" FontSize="15"/>
+                            <TextBlock Text="Start" FontWeight="SemiBold"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Button x:Name="StopBackgroundButton"
+                            Grid.Column="3"
+                            Click="StopBackgroundButton_Click"
+                            Padding="12,10">
+                        <StackPanel Orientation="Horizontal" Spacing="7">
+                            <FontIcon Glyph="&#xE711;" FontSize="15"/>
+                            <TextBlock Text="Stop" FontWeight="SemiBold"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Button x:Name="SaveLast45SecondsButton"
+                            Grid.Column="4"
+                            Click="SaveLast45SecondsButton_Click"
+                            Padding="14,10"
+                            Background="{StaticResource AccentBrush}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE74E;" FontSize="15"/>
+                            <TextBlock Text="Save 45s" FontWeight="SemiBold"/>
+                        </StackPanel>
+                    </Button>
+                </Grid>
+            </Border>
         </Grid>
-    </ScrollViewer>
+
+        <Grid Grid.Row="2" ColumnSpacing="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Text="Zink capture"
+                       Foreground="{StaticResource TextMutedBrush}"
+                       FontSize="12"
+                       VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis"/>
+            <Border Grid.Column="1"
+                    Padding="10,6"
+                    CornerRadius="999"
+                    Background="#20FFFFFF">
+                <TextBlock Text="Clean"
+                           Foreground="{StaticResource TextPrimaryBrush}"
+                           FontSize="12"
+                           FontWeight="SemiBold"/>
+            </Border>
+            <Border Grid.Column="2"
+                    Padding="10,6"
+                    CornerRadius="999"
+                    Background="#20FFFFFF">
+                <TextBlock Text="Native"
+                           Foreground="{StaticResource TextPrimaryBrush}"
+                           FontSize="12"
+                           FontWeight="SemiBold"/>
+            </Border>
+        </Grid>
+    </Grid>
 </Page>

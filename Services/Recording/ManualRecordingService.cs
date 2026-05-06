@@ -44,6 +44,17 @@ namespace Zink.Services.Recording
         private Task? _segmentWriteTask;
         private long _droppedVideoFrames;
 
+        private readonly object _directWriterGate = new();
+        private bool _useDirectManualWriter;
+        private bool _directManualWriterStarted;
+        private bool _directManualWriterFailed;
+        private TimeSpan? _directManualOrigin;
+        private int _directManualWidth;
+        private int _directManualHeight;
+        private int _directManualFps;
+        private long _directManualVideoFrames;
+        private long _directManualAudioPackets;
+
         public bool IsRecording { get; private set; }
         public bool IsReplayMode { get; private set; }
 
@@ -162,7 +173,17 @@ namespace Zink.Services.Recording
                     : await RecordingOutputService.CreateNewOutputPathAsync("Zink Recording");
 
                 await CreateNewSessionFolderAsync();
-                InitializeActiveSegmentBuffers();
+
+                lock (_gate)
+                {
+                    _useDirectManualWriter = !replayMode && ShouldUseDirectManualWriter(_options);
+                    ResetDirectManualWriterStateNoLock();
+                }
+
+                if (replayMode || !_useDirectManualWriter)
+                {
+                    InitializeActiveSegmentBuffers();
+                }
 
                 _captureEngine = new CaptureEngine();
                 _captureEngine.VideoFrameArrived += CaptureEngine_VideoFrameArrived;
@@ -183,7 +204,7 @@ namespace Zink.Services.Recording
                 }
 
                 await RecorderLog.InfoAsync(nameof(ManualRecordingService),
-                    $"Recording started. ReplayMode={replayMode}, SystemAudio={_options.IncludeSystemAudio}, Mic={_options.IncludeMicrophone}, SegmentDuration={_segmentDuration}");
+                    $"Recording started. ReplayMode={replayMode}, DirectManualWriter={_useDirectManualWriter}, SystemAudio={_options.IncludeSystemAudio}, Mic={_options.IncludeMicrophone}, SegmentDuration={_segmentDuration}");
 
                 StatusChanged?.Invoke(this,
                     replayMode
@@ -210,11 +231,19 @@ namespace Zink.Services.Recording
 
         private void CaptureEngine_VideoFrameArrived(object? sender, VideoFramePacket packet)
         {
+            if (TryWriteDirectManualVideo(packet))
+                return;
+
             SegmentBatch? batchToFinalize = null;
             Task? startedWriteTask = null;
 
             lock (_gate)
             {
+                if (_useDirectManualWriter && _directManualWriterFailed && _activeVideoBuffer is null)
+                {
+                    InitializeActiveSegmentBuffersNoLock();
+                }
+
                 long beforeBytes = _activeVideoBuffer?.TotalBufferedBytes ?? 0;
                 _activeVideoBuffer?.Add(packet);
                 long afterBytes = _activeVideoBuffer?.TotalBufferedBytes ?? 0;
@@ -254,6 +283,9 @@ namespace Zink.Services.Recording
 
         private void SystemAudioCapture_AudioPacketArrived(object? sender, AudioPacket packet)
         {
+            if (TryWriteDirectManualAudio(packet))
+                return;
+
             lock (_gate)
             {
                 _activeSystemAudioBuffer?.Add(packet);
@@ -416,6 +448,35 @@ namespace Zink.Services.Recording
 
                 await AwaitCurrentSegmentWriteAsync();
 
+                bool usedDirectWriter;
+                bool directWriterFailed;
+                lock (_gate)
+                {
+                    usedDirectWriter = _useDirectManualWriter;
+                    directWriterFailed = _directManualWriterFailed;
+                }
+
+                if (!localReplayMode && usedDirectWriter && !directWriterFailed)
+                {
+                    if (string.IsNullOrWhiteSpace(outputPath))
+                        throw new InvalidOperationException("Manual recording output path was not created.");
+
+                    await FinalizeDirectManualWriterAsync(outputPath);
+
+                    if (!File.Exists(outputPath))
+                        throw new InvalidOperationException("Manual recording finished but the output file was not created.");
+
+                    var directOutputInfo = new FileInfo(outputPath);
+                    if (!directOutputInfo.Exists || directOutputInfo.Length == 0)
+                        throw new InvalidOperationException("Manual recording finished but the output file is empty.");
+
+                    await CleanupSessionFolderAsync();
+                    ReleaseRecorderMemory();
+                    StatusChanged?.Invoke(this, $"Manual recording saved: {outputPath}");
+                    StatusChanged?.Invoke(this, "Manual recording stopped.");
+                    return;
+                }
+
                 SegmentBatch? finalBatch;
                 lock (_gate)
                 {
@@ -471,6 +532,7 @@ namespace Zink.Services.Recording
                 }
 
                 await CleanupSessionFolderAsync();
+                ReleaseRecorderMemory();
                 StatusChanged?.Invoke(this, "Manual recording stopped.");
             }
             catch (Exception ex)
@@ -541,6 +603,8 @@ namespace Zink.Services.Recording
             IsReplayMode = false;
             IsRecording = false;
             _resumeReplayAfterManual = false;
+            _useDirectManualWriter = false;
+            ResetDirectManualWriterStateNoLock();
 
             if (localEngine is not null)
             {
@@ -573,6 +637,244 @@ namespace Zink.Services.Recording
             _activeMicrophoneBuffer = null;
 
             await CleanupSessionFolderAsync();
+            ReleaseRecorderMemory();
+        }
+
+        private static bool ShouldUseDirectManualWriter(RecordingOptions options)
+        {
+            // The legacy native mux writer exposes one audio stream. Keep mic mixing on the
+            // existing segment path until the native writer can mix two live PCM sources.
+            return !options.IncludeMicrophone;
+        }
+
+        private void ResetDirectManualWriterStateNoLock()
+        {
+            lock (_directWriterGate)
+            {
+                if (_directManualWriterStarted)
+                {
+                    try
+                    {
+                        NativeMuxWriter.ZrmShutdownWriter();
+                    }
+                    catch
+                    {
+                    }
+                }
+
+                _directManualWriterStarted = false;
+                _directManualWriterFailed = false;
+                _directManualOrigin = null;
+                _directManualWidth = 0;
+                _directManualHeight = 0;
+                _directManualFps = 0;
+                _directManualVideoFrames = 0;
+                _directManualAudioPackets = 0;
+            }
+        }
+
+        private bool TryWriteDirectManualVideo(VideoFramePacket packet)
+        {
+            bool shouldUseDirect;
+            string? outputPath;
+
+            lock (_gate)
+            {
+                shouldUseDirect = IsManualRecording && _useDirectManualWriter && !_directManualWriterFailed;
+                outputPath = _currentOutputPath;
+            }
+
+            if (!shouldUseDirect || string.IsNullOrWhiteSpace(outputPath))
+                return false;
+
+            if (packet.Bgra32Bytes is null ||
+                packet.Width <= 0 ||
+                packet.Height <= 0 ||
+                packet.Bgra32Bytes.Length != packet.Width * packet.Height * 4)
+            {
+                packet.Dispose();
+                return true;
+            }
+
+            try
+            {
+                lock (_directWriterGate)
+                {
+                    if (_directManualWriterFailed)
+                        return false;
+
+                    if (!_directManualWriterStarted)
+                    {
+                        _directManualOrigin = packet.Timestamp;
+                        _directManualWidth = packet.Width;
+                        _directManualHeight = packet.Height;
+                        _directManualFps = CalculateDirectManualFps(packet.Width, packet.Height, _options.FrameRate);
+
+                        int hr = NativeMuxWriter.ZrmCreateWriter(
+                            outputPath,
+                            (uint)_directManualWidth,
+                            (uint)_directManualHeight,
+                            (uint)_directManualFps,
+                            1,
+                            CalculateDirectManualBitrate((uint)_directManualWidth, (uint)_directManualHeight, (uint)_directManualFps),
+                            48000,
+                            2,
+                            16);
+
+                        NativeMuxWriter.ThrowIfFailed(hr, nameof(NativeMuxWriter.ZrmCreateWriter));
+                        _directManualWriterStarted = true;
+
+                        _ = RecorderLog.InfoAsync(nameof(ManualRecordingService),
+                            $"Direct manual writer started. Output='{outputPath}', Size={_directManualWidth}x{_directManualHeight}, Fps={_directManualFps}");
+                    }
+
+                    long timestamp100ns = Math.Max(0, (packet.Timestamp - (_directManualOrigin ?? packet.Timestamp)).Ticks);
+                    long duration100ns = TimeSpan.FromMilliseconds(1000.0 / Math.Max(1, _directManualFps)).Ticks;
+
+                    int hrWrite = NativeMuxWriter.ZrmWriteVideoFrame(
+                        timestamp100ns,
+                        duration100ns,
+                        packet.Bgra32Bytes,
+                        (uint)packet.Bgra32Bytes.Length);
+
+                    NativeMuxWriter.ThrowIfFailed(hrWrite, nameof(NativeMuxWriter.ZrmWriteVideoFrame));
+                    _directManualVideoFrames++;
+                }
+
+                packet.Dispose();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                MarkDirectManualWriterFailed(ex, "Direct manual video writer failed; falling back to buffered segment writing.");
+                return false;
+            }
+        }
+
+        private bool TryWriteDirectManualAudio(AudioPacket packet)
+        {
+            bool shouldUseDirect;
+
+            lock (_gate)
+            {
+                shouldUseDirect = IsManualRecording && _useDirectManualWriter && !_directManualWriterFailed;
+            }
+
+            if (!shouldUseDirect)
+                return false;
+
+            try
+            {
+                lock (_directWriterGate)
+                {
+                    if (_directManualWriterFailed)
+                        return false;
+
+                    if (!_directManualWriterStarted || _directManualOrigin is null)
+                        return true;
+
+                    if (packet.PcmData.Length == 0)
+                        return true;
+
+                    long timestamp100ns = (packet.Timestamp - _directManualOrigin.Value).Ticks;
+                    if (timestamp100ns < 0)
+                        return true;
+
+                    int blockAlign = packet.Channels * (packet.BitsPerSample / 8);
+                    long duration100ns = blockAlign > 0 && packet.SampleRate > 0
+                        ? (10_000_000L * packet.PcmData.Length) / ((long)packet.SampleRate * blockAlign)
+                        : 0;
+
+                    int hr = NativeMuxWriter.ZrmWriteAudioPacket(
+                        timestamp100ns,
+                        duration100ns,
+                        packet.PcmData,
+                        (uint)packet.PcmData.Length);
+
+                    NativeMuxWriter.ThrowIfFailed(hr, nameof(NativeMuxWriter.ZrmWriteAudioPacket));
+                    _directManualAudioPackets++;
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                MarkDirectManualWriterFailed(ex, "Direct manual audio writer failed; falling back to buffered segment writing.");
+                return false;
+            }
+        }
+
+        private void MarkDirectManualWriterFailed(Exception ex, string message)
+        {
+            lock (_directWriterGate)
+            {
+                _directManualWriterFailed = true;
+
+                try
+                {
+                    NativeMuxWriter.ZrmShutdownWriter();
+                }
+                catch
+                {
+                }
+
+                _directManualWriterStarted = false;
+            }
+
+            lock (_gate)
+            {
+                _directManualWriterFailed = true;
+            }
+
+            _ = RecorderLog.ErrorAsync(nameof(ManualRecordingService), ex, message);
+        }
+
+        private async Task FinalizeDirectManualWriterAsync(string outputPath)
+        {
+            var finalizeStartedUtc = DateTimeOffset.UtcNow;
+            long videoFrames;
+            long audioPackets;
+
+            lock (_directWriterGate)
+            {
+                if (!_directManualWriterStarted || _directManualVideoFrames == 0)
+                    throw new InvalidOperationException("No direct manual frames were written.");
+
+                NativeMuxWriter.ThrowIfFailed(
+                    NativeMuxWriter.ZrmFinalizeWriter(),
+                    nameof(NativeMuxWriter.ZrmFinalizeWriter));
+
+                NativeMuxWriter.ZrmShutdownWriter();
+                videoFrames = _directManualVideoFrames;
+                audioPackets = _directManualAudioPackets;
+                _directManualWriterStarted = false;
+            }
+
+            await RecorderLog.InfoAsync(nameof(ManualRecordingService),
+                $"Direct manual writer finalized. Output='{outputPath}', VideoFrames={videoFrames}, AudioPackets={audioPackets}, ElapsedMs={(DateTimeOffset.UtcNow - finalizeStartedUtc).TotalMilliseconds:F0}");
+        }
+
+        private static int CalculateDirectManualFps(int width, int height, uint requestedFps)
+        {
+            int fps = (int)Math.Clamp(requestedFps == 0 ? 60 : requestedFps, 1u, 60u);
+            long pixels = (long)width * height;
+
+            return pixels > 3840L * 2160L
+                ? Math.Min(fps, 30)
+                : fps;
+        }
+
+        private static uint CalculateDirectManualBitrate(uint width, uint height, uint fps)
+        {
+            double bitsPerSecond = width * (double)height * Math.Max(1, fps) * 0.16;
+            return (uint)Math.Clamp(bitsPerSecond, 12_000_000, 100_000_000);
+        }
+
+        private static void ReleaseRecorderMemory()
+        {
+            FrameBufferPool.Clear();
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
         }
 
         private async Task CreateNewSessionFolderAsync()

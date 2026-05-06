@@ -95,24 +95,12 @@ namespace Zink.Services.Recording
             var windows = options.FindAll(option => option.Kind == CaptureSourceKind.Window);
             var selected = screens.Count > 0 ? screens[0] : windows[0];
 
-            var screensList = new ListView
-            {
-                ItemsSource = screens,
-                SelectedIndex = screens.Count > 0 ? 0 : -1,
-                SelectionMode = ListViewSelectionMode.Single,
-                MaxHeight = 190
-            };
-
-            var windowsList = new ListView
-            {
-                ItemsSource = windows,
-                SelectionMode = ListViewSelectionMode.Single,
-                MaxHeight = 260
-            };
+            var screensList = CreateSourceList(screens, selected);
+            var windowsList = CreateSourceList(windows, selected);
 
             screensList.SelectionChanged += (_, _) =>
             {
-                if (screensList.SelectedItem is CaptureSourceOption option)
+                if (screensList.SelectedItem is ListViewItem { Tag: CaptureSourceOption option })
                 {
                     selected = option;
                     windowsList.SelectedIndex = -1;
@@ -121,56 +109,103 @@ namespace Zink.Services.Recording
 
             windowsList.SelectionChanged += (_, _) =>
             {
-                if (windowsList.SelectedItem is CaptureSourceOption option)
+                if (windowsList.SelectedItem is ListViewItem { Tag: CaptureSourceOption option })
                 {
                     selected = option;
                     screensList.SelectedIndex = -1;
                 }
             };
 
-            var header = new TextBlock
+            var title = new TextBlock
             {
-                Text = "Choose what to share",
-                FontSize = 20,
+                Text = "Choose Capture Source",
+                Foreground = new SolidColorBrush(Microsoft.UI.Colors.White),
+                FontSize = 24,
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                Margin = new Thickness(0, 0, 0, 12)
+                Margin = new Thickness(0, 0, 0, 2)
             };
 
             var hint = new TextBlock
             {
-                Text = "Pick a screen or app window.",
-                Foreground = new SolidColorBrush(Microsoft.UI.Colors.Gray),
-                Margin = new Thickness(0, 0, 0, 12)
+                Text = "Pick a display or app window for Zink to record.",
+                Foreground = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(190, 255, 255, 255)),
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 10)
             };
 
-            var content = new StackPanel
+            var header = new Grid
             {
-                Spacing = 10,
+                ColumnSpacing = 12,
                 Children =
                 {
-                    header,
-                    hint
+                    new Border
+                    {
+                        Width = 48,
+                        Height = 48,
+                        CornerRadius = new CornerRadius(16),
+                        Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(46, 66, 215, 181)),
+                        Child = new FontIcon
+                        {
+                            Glyph = "\uE7F4",
+                            FontSize = 22,
+                            Foreground = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 66, 215, 181))
+                        }
+                    }
                 }
             };
 
+            header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            var titleStack = new StackPanel
+            {
+                Spacing = 2,
+                Children =
+                {
+                    title,
+                    hint
+                }
+            };
+            Grid.SetColumn(titleStack, 1);
+            header.Children.Add(titleStack);
+
+            var content = new Border
+            {
+                Padding = new Thickness(18),
+                CornerRadius = new CornerRadius(22),
+                Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(70, 255, 255, 255)),
+                BorderBrush = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(72, 255, 255, 255)),
+                BorderThickness = new Thickness(1),
+                Child = new StackPanel
+                {
+                    Spacing = 12,
+                    Children =
+                    {
+                        header
+                    }
+                }
+            };
+
+            var stack = (StackPanel)content.Child;
+
             if (screens.Count > 0)
             {
-                content.Children.Add(CreateSectionHeader("Screens"));
-                content.Children.Add(screensList);
+                stack.Children.Add(CreateSectionHeader("Displays", screens.Count));
+                stack.Children.Add(screensList);
             }
 
             if (windows.Count > 0)
             {
-                content.Children.Add(CreateSectionHeader("Windows"));
-                content.Children.Add(windowsList);
+                stack.Children.Add(CreateSectionHeader("Windows", windows.Count));
+                stack.Children.Add(windowsList);
             }
 
             var dialog = new ContentDialog
             {
                 XamlRoot = root.XamlRoot,
-                Title = "Screen Share",
+                Title = null,
                 Content = content,
-                PrimaryButtonText = "Share",
+                PrimaryButtonText = "Use source",
                 CloseButtonText = "Cancel",
                 DefaultButton = ContentDialogButton.Primary
             };
@@ -181,11 +216,128 @@ namespace Zink.Services.Recording
                 : null;
         }
 
-        private static TextBlock CreateSectionHeader(string text)
+        private static ListView CreateSourceList(IReadOnlyList<CaptureSourceOption> options, CaptureSourceOption selected)
+        {
+            var list = new ListView
+            {
+                SelectionMode = ListViewSelectionMode.Single,
+                MaxHeight = options.Count > 4 ? 258 : 190,
+                Padding = new Thickness(0),
+                Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent)
+            };
+
+            foreach (var option in options)
+            {
+                var item = new ListViewItem
+                {
+                    Tag = option,
+                    Padding = new Thickness(0),
+                    Margin = new Thickness(0, 0, 0, 8),
+                    Content = CreateSourceRow(option)
+                };
+
+                list.Items.Add(item);
+
+                if (ReferenceEquals(option, selected))
+                {
+                    list.SelectedItem = item;
+                }
+            }
+
+            return list;
+        }
+
+        private static UIElement CreateSourceRow(CaptureSourceOption option)
+        {
+            var icon = new FontIcon
+            {
+                Glyph = option.Kind == CaptureSourceKind.Screen ? "\uE7F4" : "\uE8A7",
+                FontSize = 18,
+                Foreground = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 66, 215, 181))
+            };
+
+            var iconBox = new Border
+            {
+                Width = 40,
+                Height = 40,
+                CornerRadius = new CornerRadius(12),
+                Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(38, 66, 215, 181)),
+                Child = icon
+            };
+
+            var name = new TextBlock
+            {
+                Text = option.Name,
+                Foreground = new SolidColorBrush(Microsoft.UI.Colors.White),
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                TextTrimming = TextTrimming.CharacterEllipsis
+            };
+
+            var details = new TextBlock
+            {
+                Text = option.Details,
+                Foreground = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(170, 255, 255, 255)),
+                FontSize = 12,
+                TextTrimming = TextTrimming.CharacterEllipsis
+            };
+
+            var textStack = new StackPanel
+            {
+                Spacing = 2,
+                Children =
+                {
+                    name,
+                    details
+                }
+            };
+
+            var typePill = new Border
+            {
+                Padding = new Thickness(10, 5, 10, 5),
+                CornerRadius = new CornerRadius(999),
+                Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(34, 255, 255, 255)),
+                Child = new TextBlock
+                {
+                    Text = option.Kind == CaptureSourceKind.Screen ? "Display" : "Window",
+                    Foreground = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(220, 255, 255, 255)),
+                    FontSize = 12,
+                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
+                }
+            };
+
+            var grid = new Grid
+            {
+                ColumnSpacing = 12,
+                Padding = new Thickness(12),
+                Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(28, 255, 255, 255))
+            };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            Grid.SetColumn(iconBox, 0);
+            Grid.SetColumn(textStack, 1);
+            Grid.SetColumn(typePill, 2);
+
+            grid.Children.Add(iconBox);
+            grid.Children.Add(textStack);
+            grid.Children.Add(typePill);
+
+            return new Border
+            {
+                CornerRadius = new CornerRadius(14),
+                BorderBrush = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(36, 255, 255, 255)),
+                BorderThickness = new Thickness(1),
+                Child = grid
+            };
+        }
+
+        private static TextBlock CreateSectionHeader(string text, int count)
         {
             return new TextBlock
             {
-                Text = text,
+                Text = $"{text} ({count})",
+                Foreground = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(235, 255, 255, 255)),
                 FontSize = 14,
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
                 Margin = new Thickness(0, 8, 0, 0)
