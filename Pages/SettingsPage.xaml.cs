@@ -19,10 +19,11 @@ namespace Zink.Pages
         private bool _isLoadingStartupState;
         private bool _isLoadingReplayState;
         private bool _isLoadingDiagnosticLogState;
+        private bool _isLoadingAppUpdatesState;
+        private bool _isLoadingBackgroundNotificationsState;
+        private bool _isLoadingLowResourceBackgroundState;
         private string? _latestHealthReportPath;
         private string? _latestSupportBundlePath;
-
-        private const string BackgroundRunSettingKey = "ZinkBackgroundRunEnabled";
 
         public SettingsPage()
         {
@@ -54,15 +55,21 @@ namespace Zink.Pages
         {
             base.OnNavigatedTo(e);
             await LoadStartupTaskStateAsync();
+            LoadBackgroundNotificationSettingState();
+            LoadLowResourceBackgroundSettingState();
             LoadReplaySettingState();
             LoadDiagnosticLogSettingState();
+            LoadAppUpdatesSettingState();
         }
 
         private async void SettingsPage_Loaded(object sender, RoutedEventArgs e)
         {
             await LoadStartupTaskStateAsync();
+            LoadBackgroundNotificationSettingState();
+            LoadLowResourceBackgroundSettingState();
             LoadReplaySettingState();
             LoadDiagnosticLogSettingState();
+            LoadAppUpdatesSettingState();
         }
 
         private async System.Threading.Tasks.Task LoadStartupTaskStateAsync()
@@ -71,7 +78,7 @@ namespace Zink.Pages
 
             try
             {
-                bool backgroundRunEnabled = GetBackgroundRunEnabledSetting();
+                bool backgroundRunEnabled = BackgroundModePreferences.IsBackgroundRunEnabled;
 
                 var startupTask = await StartupTask.GetAsync("ZinkStartupTask");
 
@@ -128,7 +135,7 @@ namespace Zink.Pages
 
                 if (StartupToggle.IsOn)
                 {
-                    SetBackgroundRunEnabledSetting(true);
+                    BackgroundModePreferences.SetBackgroundRunEnabled(true);
 
                     var newState = await startupTask.RequestEnableAsync();
 
@@ -141,19 +148,19 @@ namespace Zink.Pages
                             break;
 
                         case StartupTaskState.DisabledByUser:
-                            SetBackgroundRunEnabledSetting(false);
+                            BackgroundModePreferences.SetBackgroundRunEnabled(false);
                             StartupToggle.IsOn = false;
                             StartupStatusText.Text = "Startup is disabled by the user in Windows. Re-enable it in Task Manager > Startup apps.";
                             break;
 
                         case StartupTaskState.DisabledByPolicy:
-                            SetBackgroundRunEnabledSetting(false);
+                            BackgroundModePreferences.SetBackgroundRunEnabled(false);
                             StartupToggle.IsOn = false;
                             StartupStatusText.Text = "Startup is disabled by system policy.";
                             break;
 
                         default:
-                            SetBackgroundRunEnabledSetting(false);
+                            BackgroundModePreferences.SetBackgroundRunEnabled(false);
                             StartupToggle.IsOn = false;
                             StartupStatusText.Text = $"Unable to enable startup. Current state: {newState}";
                             break;
@@ -161,12 +168,13 @@ namespace Zink.Pages
                 }
                 else
                 {
-                    SetBackgroundRunEnabledSetting(false);
+                    BackgroundModePreferences.SetBackgroundRunEnabled(false);
                     startupTask.Disable();
                     StartupToggle.IsOn = false;
                     StartupStatusText.Text = "Zink background startup is disabled.";
                 }
 
+                await ZinkBackgroundModeService.Instance.ApplyAsync();
                 await LoadStartupTaskStateAsync();
             }
             catch (Exception ex)
@@ -243,11 +251,18 @@ namespace Zink.Pages
             {
                 StatusText.Text = "Resetting settings to defaults...";
 
-                SetBackgroundRunEnabledSetting(true);
-                RecordingPreferences.SetGamingBackgroundReplayEnabled(true);
+                BackgroundModePreferences.SetBackgroundRunEnabled(true);
+                BackgroundModePreferences.SetBackgroundNotificationsEnabled(true);
+                BackgroundModePreferences.SetLowResourceBackgroundModeEnabled(true);
+                BackgroundModePreferences.SetAppUpdateChecksEnabled(true);
+                RecordingPreferences.SetGamingBackgroundReplayEnabled(false);
                 DiagnosticLogService.SetEnabled(true);
+                LoadBackgroundNotificationSettingState();
+                LoadLowResourceBackgroundSettingState();
                 LoadReplaySettingState();
                 LoadDiagnosticLogSettingState();
+                LoadAppUpdatesSettingState();
+                await ZinkBackgroundModeService.Instance.ApplyAsync();
 
                 var startupTask = await StartupTask.GetAsync("ZinkStartupTask");
                 var newState = await startupTask.RequestEnableAsync();
@@ -292,24 +307,112 @@ namespace Zink.Pages
             }
         }
 
-        private static bool GetBackgroundRunEnabledSetting()
+        private void LoadAppUpdatesSettingState()
         {
+            _isLoadingAppUpdatesState = true;
+
             try
             {
-                object value = ApplicationData.Current.LocalSettings.Values[BackgroundRunSettingKey];
-                if (value is bool boolValue)
-                    return boolValue;
+                var enabled = BackgroundModePreferences.AreAppUpdateChecksEnabled;
+                AppUpdatesToggle.IsOn = enabled;
+                CheckForUpdatesButton.IsEnabled = enabled;
+                AppUpdatesStatusText.Text = enabled
+                    ? "Manual Store update checks are enabled."
+                    : "App update checks are disabled.";
             }
-            catch
+            finally
             {
+                _isLoadingAppUpdatesState = false;
             }
-
-            return true;
         }
 
-        private static void SetBackgroundRunEnabledSetting(bool enabled)
+        private void AppUpdatesToggle_Toggled(object sender, RoutedEventArgs e)
         {
-            ApplicationData.Current.LocalSettings.Values[BackgroundRunSettingKey] = enabled;
+            if (_isLoadingAppUpdatesState)
+                return;
+
+            var enabled = AppUpdatesToggle.IsOn;
+            BackgroundModePreferences.SetAppUpdateChecksEnabled(enabled);
+            CheckForUpdatesButton.IsEnabled = enabled;
+            AppUpdatesStatusText.Text = enabled
+                ? "Manual Store update checks are enabled."
+                : "App update checks are disabled.";
+            StatusText.Text = enabled
+                ? "App update checks enabled."
+                : "App update checks disabled.";
+            _ = ZinkBackgroundModeService.Instance.ApplyAsync();
+        }
+
+        private void LoadBackgroundNotificationSettingState()
+        {
+            _isLoadingBackgroundNotificationsState = true;
+
+            try
+            {
+                var enabled = BackgroundModePreferences.AreBackgroundNotificationsEnabled;
+                BackgroundNotificationsToggle.IsOn = enabled;
+                BackgroundNotificationsStatusText.Text = enabled
+                    ? "Zink can receive message, call, friend request, and app update notifications in the background."
+                    : "Background notifications are off. Zink will not keep its lightweight listener running.";
+                LowResourceBackgroundToggle.IsEnabled = enabled;
+            }
+            finally
+            {
+                _isLoadingBackgroundNotificationsState = false;
+            }
+        }
+
+        private async void BackgroundNotificationsToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (_isLoadingBackgroundNotificationsState)
+                return;
+
+            var enabled = BackgroundNotificationsToggle.IsOn;
+            BackgroundModePreferences.SetBackgroundNotificationsEnabled(enabled);
+            LowResourceBackgroundToggle.IsEnabled = enabled;
+            BackgroundNotificationsStatusText.Text = enabled
+                ? "Zink can receive message, call, friend request, and app update notifications in the background."
+                : "Background notifications are off. Zink will not keep its lightweight listener running.";
+            StatusText.Text = enabled
+                ? "Background notifications enabled."
+                : "Background notifications disabled.";
+
+            await ZinkBackgroundModeService.Instance.ApplyAsync();
+        }
+
+        private void LoadLowResourceBackgroundSettingState()
+        {
+            _isLoadingLowResourceBackgroundState = true;
+
+            try
+            {
+                var enabled = BackgroundModePreferences.IsLowResourceBackgroundModeEnabled;
+                LowResourceBackgroundToggle.IsOn = enabled;
+                LowResourceBackgroundStatusText.Text = enabled
+                    ? "Zink uses longer background polling intervals and a lower process priority."
+                    : "Zink uses normal background responsiveness.";
+            }
+            finally
+            {
+                _isLoadingLowResourceBackgroundState = false;
+            }
+        }
+
+        private async void LowResourceBackgroundToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (_isLoadingLowResourceBackgroundState)
+                return;
+
+            var enabled = LowResourceBackgroundToggle.IsOn;
+            BackgroundModePreferences.SetLowResourceBackgroundModeEnabled(enabled);
+            LowResourceBackgroundStatusText.Text = enabled
+                ? "Zink uses longer background polling intervals and a lower process priority."
+                : "Zink uses normal background responsiveness.";
+            StatusText.Text = enabled
+                ? "Low resource background mode enabled."
+                : "Low resource background mode disabled.";
+
+            await ZinkBackgroundModeService.Instance.ApplyAsync();
         }
 
         private void LoadDiagnosticLogSettingState()
@@ -509,6 +612,14 @@ namespace Zink.Pages
 
         private async void CheckForUpdatesButton_Click(object sender, RoutedEventArgs e)
         {
+            if (!BackgroundModePreferences.AreAppUpdateChecksEnabled)
+            {
+                CheckForUpdatesButton.IsEnabled = false;
+                AppUpdatesStatusText.Text = "App update checks are disabled.";
+                StatusText.Text = "Turn on app update checks before checking for updates.";
+                return;
+            }
+
             CheckForUpdatesButton.IsEnabled = false;
             StatusText.Text = "Checking for updates…";
 

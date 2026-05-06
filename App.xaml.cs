@@ -1,4 +1,4 @@
-﻿using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Controls;
 using System;
@@ -31,7 +31,6 @@ namespace Zink
 
         private DateTimeOffset? _replayBufferStartedAtUtc;
         private static readonly TimeSpan RequiredReplayBufferDuration = TimeSpan.FromSeconds(45);
-        private const string BackgroundRunSettingKey = "ZinkBackgroundRunEnabled";
 
         public App()
         {
@@ -151,10 +150,11 @@ namespace Zink
             _ = InitializeAppServicesAsync();
 
             SetupTray();
+            _ = ZinkBackgroundModeService.Instance.ApplyAsync();
 
             StorageFile fileToOpen = null;
             bool launchedFromStartupTask = IsStartupTaskLaunch();
-            bool backgroundRunEnabled = IsBackgroundRunEnabled();
+            bool backgroundRunEnabled = BackgroundModePreferences.IsBackgroundRunEnabled;
             bool gamingReplayEnabled = RecordingPreferences.IsGamingBackgroundReplayEnabled;
 
             try
@@ -241,21 +241,6 @@ namespace Zink
                     splashWindow.Close();
                 });
             });
-        }
-
-        private bool IsBackgroundRunEnabled()
-        {
-            try
-            {
-                object value = ApplicationData.Current.LocalSettings.Values[BackgroundRunSettingKey];
-                if (value is bool boolValue)
-                    return boolValue;
-            }
-            catch
-            {
-            }
-
-            return true;
         }
 
         private async Task DelayedReplayStartupAsync(TimeSpan delay)
@@ -440,6 +425,7 @@ namespace Zink
 
                     try
                     {
+                        ZinkBackgroundModeService.Instance.Dispose();
                         _trayService?.Dispose();
                     }
                     catch { }
@@ -570,6 +556,7 @@ namespace Zink
             try { VideoLibraryService.Current.Stop(); } catch { }
             try { DiscordPresenceService.Instance.Clear(); } catch { }
             try { DiscordPresenceService.Instance.Shutdown(); } catch { }
+            try { ZinkBackgroundModeService.Instance.Dispose(); } catch { }
 
             try
             {
@@ -670,3 +657,4 @@ namespace Zink
         }
     }
 }
+

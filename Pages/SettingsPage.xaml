@@ -110,6 +110,60 @@
 
                                 <StackPanel Spacing="6"
                                             VerticalAlignment="Center">
+                                    <TextBlock Text="Keep Zink on for background notifications"
+                                               Foreground="White"
+                                               FontWeight="SemiBold"/>
+                                    <TextBlock x:Name="BackgroundNotificationsStatusText"
+                                               Text=""
+                                               Foreground="{StaticResource MutedTextBrush}"
+                                               TextWrapping="WrapWholeWords"/>
+                                </StackPanel>
+
+                                <ToggleSwitch x:Name="BackgroundNotificationsToggle"
+                                              Grid.Column="1"
+                                              MinWidth="128"
+                                              OnContent="On"
+                                              OffContent="Off"
+                                              Toggled="BackgroundNotificationsToggle_Toggled"/>
+                            </Grid>
+                        </Border>
+
+                        <Border Style="{StaticResource GlassSettingRowStyle}">
+                            <Grid ColumnSpacing="18">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Spacing="6"
+                                            VerticalAlignment="Center">
+                                    <TextBlock Text="Use low memory and CPU in the background"
+                                               Foreground="White"
+                                               FontWeight="SemiBold"/>
+                                    <TextBlock x:Name="LowResourceBackgroundStatusText"
+                                               Text=""
+                                               Foreground="{StaticResource MutedTextBrush}"
+                                               TextWrapping="WrapWholeWords"/>
+                                </StackPanel>
+
+                                <ToggleSwitch x:Name="LowResourceBackgroundToggle"
+                                              Grid.Column="1"
+                                              MinWidth="128"
+                                              OnContent="On"
+                                              OffContent="Off"
+                                              Toggled="LowResourceBackgroundToggle_Toggled"/>
+                            </Grid>
+                        </Border>
+
+                        <Border Style="{StaticResource GlassSettingRowStyle}">
+                            <Grid ColumnSpacing="18">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Spacing="6"
+                                            VerticalAlignment="Center">
                                     <TextBlock Text="Turn off background replay for gaming"
                                                Foreground="White"
                                                FontWeight="SemiBold"/>
@@ -261,6 +315,33 @@
                                        Foreground="{StaticResource MutedTextBrush}"
                                        FontSize="13"/>
                         </StackPanel>
+
+                        <Border Style="{StaticResource GlassSettingRowStyle}">
+                            <Grid ColumnSpacing="18">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Spacing="6"
+                                            VerticalAlignment="Center">
+                                    <TextBlock Text="Check for app updates"
+                                               Foreground="White"
+                                               FontWeight="SemiBold"/>
+                                    <TextBlock x:Name="AppUpdatesStatusText"
+                                               Text=""
+                                               Foreground="{StaticResource MutedTextBrush}"
+                                               TextWrapping="WrapWholeWords"/>
+                                </StackPanel>
+
+                                <ToggleSwitch x:Name="AppUpdatesToggle"
+                                              Grid.Column="1"
+                                              MinWidth="128"
+                                              OnContent="On"
+                                              OffContent="Off"
+                                              Toggled="AppUpdatesToggle_Toggled"/>
+                            </Grid>
+                        </Border>
 
                         <Grid ColumnSpacing="12">
                             <Grid.ColumnDefinitions>

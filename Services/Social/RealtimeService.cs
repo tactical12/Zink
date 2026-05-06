@@ -78,6 +78,14 @@ namespace Zink.Services.Social
         public string Reason { get; set; } = "";
     }
 
+    public sealed class IncomingMessageEventArgs : EventArgs
+    {
+        public long FromUserId { get; set; }
+        public string FromUsername { get; set; } = "";
+        public string FromDisplayName { get; set; } = "";
+        public string Message { get; set; } = "";
+    }
+
     public sealed class ScreenShareMetadataEventArgs : EventArgs
     {
         public string CallId { get; set; } = "";
@@ -120,6 +128,7 @@ namespace Zink.Services.Social
         public event EventHandler<ScreenShareMetadataEventArgs>? ScreenShareMetadataReceived;
         public event EventHandler<ScreenShareQosEventArgs>? ScreenShareQosReceived;
         public event EventHandler<int>? RawIncomingAudioMessageCountChanged;
+        public event EventHandler<IncomingMessageEventArgs>? IncomingMessage;
 
         public async Task ConnectAsync()
         {
@@ -257,6 +266,18 @@ namespace Zink.Services.Social
 
                         case "call-ended":
                             CallEnded?.Invoke(this, CreateCallSignalEventArgs(msg));
+                            break;
+
+                        case "message":
+                        case "chat-message":
+                        case "incoming-message":
+                            IncomingMessage?.Invoke(this, new IncomingMessageEventArgs
+                            {
+                                FromUserId = msg.FromUserId,
+                                FromUsername = msg.FromUsername ?? "",
+                                FromDisplayName = msg.FromDisplayName ?? "",
+                                Message = msg.Message ?? msg.DebugMessage ?? ""
+                            });
                             break;
 
                         case "webrtc-offer":
@@ -801,6 +822,7 @@ namespace Zink.Services.Social
         public string? ScreenCodec { get; set; }
         public bool? ScreenFrameIsKeyFrame { get; set; }
         public string? DebugMessage { get; set; }
+        public string? Message { get; set; }
         public int? QosDroppedReceiveFrames { get; set; }
         public int? QosRenderBacklog { get; set; }
         public string? QosReason { get; set; }
