@@ -212,50 +212,60 @@ namespace Zink.Services.Recording
             int height,
             int fps)
         {
-            IntPtr writer = NativeMuxWriter.znk_writer_create(
+            int hr = NativeMuxWriter.ZrmCreateWriter(
                 outputPath,
-                width,
-                height,
-                fps,
+                (uint)width,
+                (uint)height,
+                (uint)fps,
+                1,
+                CalculateNativeBitrate((uint)width, (uint)height, (uint)fps),
                 48000,
                 2,
                 16);
 
-            if (writer == IntPtr.Zero)
-                throw new InvalidOperationException("Native writer could not be created.");
+            NativeMuxWriter.ThrowIfFailed(hr, nameof(NativeMuxWriter.ZrmCreateWriter));
 
             try
             {
                 TimeSpan start = frames[0].Timestamp;
+                long fallbackDuration100ns = TimeSpan.FromMilliseconds(1000.0 / fps).Ticks;
 
-                foreach (var frame in frames)
+                for (int i = 0; i < frames.Count; i++)
                 {
+                    var frame = frames[i];
+
                     if (frame.Bgra32Bytes is null)
                         continue;
 
                     long timestamp100ns = (frame.Timestamp - start).Ticks;
+                    long duration100ns = fallbackDuration100ns;
 
-                    int hr = NativeMuxWriter.znk_writer_write_video_frame(
-                        writer,
+                    if (i + 1 < frames.Count)
+                    {
+                        duration100ns = (frames[i + 1].Timestamp - frame.Timestamp).Ticks;
+                        if (duration100ns <= 0)
+                            duration100ns = fallbackDuration100ns;
+                    }
+
+                    hr = NativeMuxWriter.ZrmWriteVideoFrame(
+                        timestamp100ns,
+                        duration100ns,
                         frame.Bgra32Bytes,
-                        frame.Bgra32Bytes.Length,
-                        frame.Width,
-                        frame.Height,
-                        timestamp100ns);
+                        (uint)frame.Bgra32Bytes.Length);
 
-                    NativeMuxWriter.ThrowIfFailed(hr, nameof(NativeMuxWriter.znk_writer_write_video_frame));
+                    NativeMuxWriter.ThrowIfFailed(hr, nameof(NativeMuxWriter.ZrmWriteVideoFrame));
                 }
 
                 NativeMuxWriter.ThrowIfFailed(
-                    NativeMuxWriter.znk_writer_finalize(writer),
-                    nameof(NativeMuxWriter.znk_writer_finalize));
+                    NativeMuxWriter.ZrmFinalizeWriter(),
+                    nameof(NativeMuxWriter.ZrmFinalizeWriter));
 
                 await RecorderLog.InfoAsync(nameof(Mp4VideoWriter),
                     $"Native video-only write completed. Output='{outputPath}', Frames={frames.Count}, Size={width}x{height}, Fps={fps}");
             }
             finally
             {
-                NativeMuxWriter.znk_writer_destroy(writer);
+                NativeMuxWriter.ZrmShutdownWriter();
             }
         }
     }

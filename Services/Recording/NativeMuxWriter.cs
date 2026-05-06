@@ -9,8 +9,6 @@ namespace Zink.Services.Recording
     {
         private const string DllName = "ZinkRecorderMux.dll";
         private static bool _resolverInstalled;
-        private static IntPtr _legacyWriter;
-
         static NativeMuxWriter()
         {
             InstallResolver();
@@ -52,54 +50,8 @@ namespace Zink.Services.Recording
             }
         }
 
-        [DllImport(DllName, CharSet = CharSet.Unicode, CallingConvention = CallingConvention.Cdecl)]
-        public static extern IntPtr znk_writer_create(
-            string outputPath,
-            int width,
-            int height,
-            int fps,
-            int sampleRate,
-            int channels,
-            int bitsPerSample);
-
-        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-        public static extern int znk_writer_write_video_frame(
-            IntPtr writerHandle,
-            byte[] bgraData,
-            int bgraByteCount,
-            int width,
-            int height,
-            long timestamp100ns);
-
-        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-        public static extern int znk_writer_finalize(IntPtr writerHandle);
-
-        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-        public static extern void znk_writer_destroy(IntPtr writerHandle);
-
-        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-        public static extern int znk_writer_write_audio_pcm(
-            IntPtr writerHandle,
-            byte[] pcmData,
-            int pcmByteCount,
-            int sampleRate,
-            int channels,
-            int bitsPerSample,
-            long timestamp100ns);
-
-        [DllImport(DllName, CharSet = CharSet.Unicode, CallingConvention = CallingConvention.Cdecl)]
-        public static extern int znk_concat_mp4_segments(
-            string outputPath,
-            string inputPathsDoubleNull,
-            int targetFps);
-
-        public static void ThrowIfFailed(int hr, string api)
-        {
-            if (hr < 0)
-                Marshal.ThrowExceptionForHR(hr);
-        }
-
-        public static int ZrmCreateWriter(
+        [DllImport(DllName, CharSet = CharSet.Unicode, CallingConvention = CallingConvention.StdCall)]
+        public static extern int ZrmCreateWriter(
             string outputPath,
             uint width,
             uint height,
@@ -108,78 +60,32 @@ namespace Zink.Services.Recording
             uint videoBitrate,
             uint audioSampleRate,
             uint audioChannels,
-            uint audioBitsPerSample)
-        {
-            ZrmShutdownWriter();
+            uint audioBitsPerSample);
 
-            uint fps = fpsDen == 0 ? fpsNum : Math.Max(1, fpsNum / fpsDen);
-            _legacyWriter = znk_writer_create(
-                outputPath,
-                (int)width,
-                (int)height,
-                (int)fps,
-                (int)audioSampleRate,
-                (int)audioChannels,
-                (int)audioBitsPerSample);
-
-            return _legacyWriter == IntPtr.Zero ? unchecked((int)0x80004005) : 0;
-        }
-
-        public static int ZrmWriteVideoFrame(
+        [DllImport(DllName, CallingConvention = CallingConvention.StdCall)]
+        public static extern int ZrmWriteVideoFrame(
             long sampleTime100ns,
             long sampleDuration100ns,
             byte[] bgraData,
-            uint cbBgraData)
-        {
-            if (_legacyWriter == IntPtr.Zero)
-                return unchecked((int)0x80070057);
+            uint cbBgraData);
 
-            return znk_writer_write_video_frame(
-                _legacyWriter,
-                bgraData,
-                (int)cbBgraData,
-                0,
-                0,
-                sampleTime100ns);
-        }
-
-        public static int ZrmWriteAudioPacket(
+        [DllImport(DllName, CallingConvention = CallingConvention.StdCall)]
+        public static extern int ZrmWriteAudioPacket(
             long sampleTime100ns,
             long sampleDuration100ns,
             byte[] pcmData,
-            uint cbPcmData)
+            uint cbPcmData);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.StdCall)]
+        public static extern int ZrmFinalizeWriter();
+
+        [DllImport(DllName, CallingConvention = CallingConvention.StdCall)]
+        public static extern void ZrmShutdownWriter();
+
+        public static void ThrowIfFailed(int hr, string api)
         {
-            if (_legacyWriter == IntPtr.Zero)
-                return unchecked((int)0x80070057);
-
-            return znk_writer_write_audio_pcm(
-                _legacyWriter,
-                pcmData,
-                (int)cbPcmData,
-                48000,
-                2,
-                16,
-                sampleTime100ns);
-        }
-
-        public static int ZrmFinalizeWriter()
-        {
-            if (_legacyWriter == IntPtr.Zero)
-                return unchecked((int)0x80070057);
-
-            int hr = znk_writer_finalize(_legacyWriter);
-            znk_writer_destroy(_legacyWriter);
-            _legacyWriter = IntPtr.Zero;
-            return hr;
-        }
-
-        public static void ZrmShutdownWriter()
-        {
-            if (_legacyWriter == IntPtr.Zero)
-                return;
-
-            znk_writer_destroy(_legacyWriter);
-            _legacyWriter = IntPtr.Zero;
+            if (hr < 0)
+                Marshal.ThrowExceptionForHR(hr);
         }
     }
 }

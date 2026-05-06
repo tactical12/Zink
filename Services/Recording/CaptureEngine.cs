@@ -44,6 +44,7 @@ namespace Zink.Services.Recording
         private long _frameCount;
         private int _width;
         private int _height;
+        private byte[]? _lastFrameBytes;
 
         // Fixed pacing is much steadier for replay segments than "capture whenever + Task.Delay jitter".
         private uint _targetFps = 60;
@@ -98,9 +99,10 @@ namespace Zink.Services.Recording
             try
             {
                 _targetFps = Math.Clamp(options?.FrameRate ?? 60, 1u, 240u);
-                _targetFrameInterval = TimeSpan.FromMilliseconds(1000.0 / _targetFps);
                 _frameCount = 0;
                 InitializeDuplication();
+                ApplyResolutionAwareFrameRate();
+                _targetFrameInterval = TimeSpan.FromMilliseconds(1000.0 / _targetFps);
 
                 _cts = new CancellationTokenSource();
                 _stopwatch = Stopwatch.StartNew();
@@ -210,6 +212,17 @@ namespace Zink.Services.Recording
             chosenAdapter.Dispose();
         }
 
+        private void ApplyResolutionAwareFrameRate()
+        {
+            long pixelCount = (long)_width * _height;
+            const long uhdPixelCount = 3840L * 2160L;
+
+            if (pixelCount > uhdPixelCount && _targetFps > 30)
+            {
+                _targetFps = 30;
+            }
+        }
+
         private static string? GetPrimaryMonitorDeviceName()
         {
             IntPtr primaryMonitor = MonitorFromPoint(new POINT { X = 0, Y = 0 }, MONITOR_DEFAULTTOPRIMARY);
@@ -264,7 +277,7 @@ namespace Zink.Services.Recording
 
                     if (result == DxgiResultCode.WaitTimeout || desktopResource == null)
                     {
-                        // If no fresh frame is available, skip emitting one for this tick.
+                        EmitDuplicateFrame(packetTimestamp);
                         continue;
                     }
 
@@ -291,6 +304,9 @@ namespace Zink.Services.Recording
                             IntPtr sourcePtr = IntPtr.Add(dataBox.DataPointer, y * dataBox.RowPitch);
                             Marshal.Copy(sourcePtr, bgraBytes, y * rowSize, rowSize);
                         }
+
+                        _lastFrameBytes ??= new byte[bgraBytes.Length];
+                        System.Buffer.BlockCopy(bgraBytes, 0, _lastFrameBytes, 0, bgraBytes.Length);
                     }
                     finally
                     {
@@ -350,6 +366,24 @@ namespace Zink.Services.Recording
             }
         }
 
+        private void EmitDuplicateFrame(TimeSpan timestamp)
+        {
+            if (_lastFrameBytes is null || _lastFrameBytes.Length == 0 || _width <= 0 || _height <= 0)
+                return;
+
+            byte[] bgraBytes = FrameBufferPool.Rent(_lastFrameBytes.Length);
+            System.Buffer.BlockCopy(_lastFrameBytes, 0, bgraBytes, 0, _lastFrameBytes.Length);
+
+            var packet = new VideoFramePacket(
+                timestamp,
+                _width,
+                _height,
+                bgraBytes);
+
+            _frameCount++;
+            VideoFrameArrived?.Invoke(this, packet);
+        }
+
         public async Task StopAsync()
         {
             try
@@ -386,6 +420,7 @@ namespace Zink.Services.Recording
 
                 _captureTask = null;
                 _stopwatch = null;
+                _lastFrameBytes = null;
 
                 await RecorderLog.InfoAsync(nameof(CaptureEngine),
                     $"DXGI capture stopped. Total frames={_frameCount}");

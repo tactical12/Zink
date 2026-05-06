@@ -17,7 +17,7 @@ namespace Zink.Services.Recording
 
         private readonly TimeSpan _replayBufferDuration = TimeSpan.FromSeconds(45);
 
-        // Keep active raw segment short so high-resolution 60 fps replay stays off the managed heap.
+        // Keep active raw segment short so high-resolution replay stays off the managed heap.
         private readonly TimeSpan _segmentDuration = TimeSpan.FromMilliseconds(250);
 
         private CaptureEngine? _captureEngine;

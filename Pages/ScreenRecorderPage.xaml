@@ -83,7 +83,7 @@
                         <Border Padding="12,7"
                                 CornerRadius="999"
                                 Background="#33FFFFFF">
-                            <TextBlock Text="60 FPS"
+                            <TextBlock Text="Auto FPS"
                                        Foreground="{StaticResource RecorderStrongTextBrush}"
                                        FontWeight="SemiBold"/>
                         </Border>
