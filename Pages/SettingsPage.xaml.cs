@@ -352,7 +352,7 @@ namespace Zink.Pages
                 var enabled = BackgroundModePreferences.AreBackgroundNotificationsEnabled;
                 BackgroundNotificationsToggle.IsOn = enabled;
                 BackgroundNotificationsStatusText.Text = enabled
-                    ? "Zink can receive message, call, friend request, and app update notifications in the background."
+                    ? "Closing Zink keeps it running for message, call, friend request, and app update notifications."
                     : "Background notifications are off. Zink will not keep its lightweight listener running.";
                 LowResourceBackgroundToggle.IsEnabled = enabled;
             }
@@ -371,7 +371,7 @@ namespace Zink.Pages
             BackgroundModePreferences.SetBackgroundNotificationsEnabled(enabled);
             LowResourceBackgroundToggle.IsEnabled = enabled;
             BackgroundNotificationsStatusText.Text = enabled
-                ? "Zink can receive message, call, friend request, and app update notifications in the background."
+                ? "Closing Zink keeps it running for message, call, friend request, and app update notifications."
                 : "Background notifications are off. Zink will not keep its lightweight listener running.";
             StatusText.Text = enabled
                 ? "Background notifications enabled."

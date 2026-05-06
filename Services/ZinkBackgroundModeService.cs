@@ -33,8 +33,7 @@ namespace Zink.Services
 
             ApplyLowResourcePreference();
 
-            if (!BackgroundModePreferences.IsBackgroundRunEnabled ||
-                !BackgroundModePreferences.AreBackgroundNotificationsEnabled)
+            if (!BackgroundModePreferences.AreBackgroundNotificationsEnabled)
             {
                 await StopAsync();
                 return;

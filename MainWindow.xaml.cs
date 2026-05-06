@@ -106,8 +106,7 @@ namespace Zink
             if (AllowClose)
                 return;
 
-            if (!BackgroundModePreferences.IsBackgroundRunEnabled ||
-                !BackgroundModePreferences.AreBackgroundNotificationsEnabled)
+            if (!BackgroundModePreferences.AreBackgroundNotificationsEnabled)
             {
                 return;
             }
