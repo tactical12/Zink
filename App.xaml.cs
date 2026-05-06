@@ -417,6 +417,7 @@ namespace Zink
 
                 if (MainWindow != null)
                 {
+                    MainWindow.AllowClose = true;
                     MainWindow.Close();
                 }
                 else

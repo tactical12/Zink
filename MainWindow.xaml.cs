@@ -54,6 +54,8 @@ namespace Zink
         private bool _incomingCallDialogShowing = false;
         private bool _realtimeConnectAttempted = false;
 
+        public bool AllowClose { get; set; }
+
         public MainWindow()
         {
             this.InitializeComponent();
@@ -68,6 +70,7 @@ namespace Zink
 
             MaximizeWindow();
             SetWindowIcon();
+            RegisterWindowClosingHandler();
 
             SidebarNav.PaneDisplayMode = NavigationViewPaneDisplayMode.Left;
             SidebarNav.IsPaneOpen = true;
@@ -84,6 +87,39 @@ namespace Zink
 
             _ = EnsureRealtimeConnectedIfLoggedInAsync();
         }
+        private void RegisterWindowClosingHandler()
+        {
+            try
+            {
+                var hwnd = WindowNative.GetWindowHandle(this);
+                var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
+                var appWindow = AppWindow.GetFromWindowId(windowId);
+                appWindow.Closing += MainWindow_AppWindowClosing;
+            }
+            catch
+            {
+            }
+        }
+
+        private void MainWindow_AppWindowClosing(AppWindow sender, AppWindowClosingEventArgs args)
+        {
+            if (AllowClose)
+                return;
+
+            if (!BackgroundModePreferences.IsBackgroundRunEnabled ||
+                !BackgroundModePreferences.AreBackgroundNotificationsEnabled)
+            {
+                return;
+            }
+
+            if (IsActiveCallState(NativeCallCoordinator.Instance.CurrentSession.State))
+                return;
+
+            args.Cancel = true;
+            HideToTray();
+            _ = ZinkBackgroundModeService.Instance.ApplyAsync();
+        }
+
 
         private async void MainWindow_Activated_EnsureRealtime(object sender, WindowActivatedEventArgs e)
         {
