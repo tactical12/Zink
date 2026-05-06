@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Graphics.Canvas;
+using Windows.Foundation;
 using Windows.Graphics.DirectX;
 using Windows.Media;
 using Windows.Media.Core;
@@ -11,6 +12,7 @@ using Windows.Media.MediaProperties;
 using Windows.Media.Transcoding;
 using Windows.Storage;
 using Windows.Storage.Streams;
+using Zink.Models;
 
 namespace Zink.Services.Recording
 {
@@ -20,7 +22,8 @@ namespace Zink.Services.Recording
 
         public async Task WriteAsync(
             IReadOnlyList<VideoFramePacket> frames,
-            string outputPath)
+            string outputPath,
+            RecordingOptions? options = null)
         {
             if (frames == null || frames.Count == 0)
                 throw new InvalidOperationException("No video frames to write.");
@@ -41,14 +44,23 @@ namespace Zink.Services.Recording
                 throw new InvalidOperationException("No valid video frames are available to write.");
 
             // Use fixed output cadence to avoid timing wobble between captured frames.
-            const uint outputFps = 8;
+            uint outputFps = Math.Clamp(options?.FrameRate ?? 60, 1u, 240u);
             TimeSpan fixedFrameDuration = TimeSpan.FromMilliseconds(1000.0 / outputFps);
 
-            uint width = (uint)orderedFrames[0].Width;
-            uint height = (uint)orderedFrames[0].Height;
+            uint sourceWidth = (uint)orderedFrames[0].Width;
+            uint sourceHeight = (uint)orderedFrames[0].Height;
+            uint width = options?.OutputWidth > 0 ? (uint)options.OutputWidth : sourceWidth;
+            uint height = options?.OutputHeight > 0 ? (uint)options.OutputHeight : sourceHeight;
+            uint bitrate = options?.VideoBitrate > 0
+                ? options.VideoBitrate
+                : CalculateNativeBitrate(width, height, outputFps);
+            TimeSpan outputDuration = orderedFrames.Count > 1
+                ? orderedFrames[^1].Timestamp - orderedFrames[0].Timestamp + fixedFrameDuration
+                : fixedFrameDuration;
+            int outputFrameCount = Math.Max(1, (int)Math.Ceiling(outputDuration.TotalSeconds * outputFps));
 
             await RecorderLog.InfoAsync(nameof(Mp4VideoWriter),
-                $"Starting video-only write. Output='{outputPath}', Frames={orderedFrames.Count}, Size={width}x{height}, Fps={outputFps}");
+                $"Starting video-only write. Output='{outputPath}', SourceFrames={orderedFrames.Count}, SourceSize={sourceWidth}x{sourceHeight}, OutputSize={width}x{height}, Fps={outputFps}, Bitrate={bitrate}");
 
             string folderPath = Path.GetDirectoryName(outputPath)
                 ?? throw new InvalidOperationException("Output folder path could not be determined.");
@@ -85,6 +97,8 @@ namespace Zink.Services.Recording
             };
 
             int index = 0;
+            int sourceIndex = 0;
+            TimeSpan sourceStart = orderedFrames[0].Timestamp;
 
             mss.Starting += (s, e) =>
             {
@@ -93,14 +107,22 @@ namespace Zink.Services.Recording
 
             mss.SampleRequested += (s, e) =>
             {
-                if (index >= orderedFrames.Count)
+                if (index >= outputFrameCount)
                 {
                     e.Request.Sample = null;
                     return;
                 }
 
-                var frame = orderedFrames[index];
                 TimeSpan normalizedTimestamp = TimeSpan.FromTicks(fixedFrameDuration.Ticks * index);
+                TimeSpan sourceTimestamp = sourceStart + normalizedTimestamp;
+
+                while (sourceIndex + 1 < orderedFrames.Count &&
+                       orderedFrames[sourceIndex + 1].Timestamp <= sourceTimestamp)
+                {
+                    sourceIndex++;
+                }
+
+                var frame = orderedFrames[sourceIndex];
 
                 using var bitmap = CanvasBitmap.CreateFromBytes(
                     SharedCanvasDevice,
@@ -109,10 +131,11 @@ namespace Zink.Services.Recording
                     frame.Height,
                     DirectXPixelFormat.B8G8R8A8UIntNormalized);
 
-                using var renderTarget = new CanvasRenderTarget(SharedCanvasDevice, frame.Width, frame.Height, 96);
+                using var renderTarget = new CanvasRenderTarget(SharedCanvasDevice, (float)width, (float)height, 96);
                 using (var ds = renderTarget.CreateDrawingSession())
                 {
-                    ds.DrawImage(bitmap);
+                    Rect sourceRect = CreateCoverSourceRect(frame.Width, frame.Height, (double)width, (double)height);
+                    ds.DrawImage(bitmap, new Rect(0, 0, width, height), sourceRect);
                 }
 
                 var sample = MediaStreamSample.CreateFromDirect3D11Surface(
@@ -124,10 +147,10 @@ namespace Zink.Services.Recording
                 index++;
             };
 
-            var profile = MediaEncodingProfile.CreateMp4(VideoEncodingQuality.HD1080p);
+            var profile = MediaEncodingProfile.CreateMp4(VideoEncodingQuality.Uhd2160p);
             profile.Video.Width = width;
             profile.Video.Height = height;
-            profile.Video.Bitrate = 12_000_000;
+            profile.Video.Bitrate = bitrate;
             profile.Video.FrameRate.Numerator = outputFps;
             profile.Video.FrameRate.Denominator = 1;
             profile.Video.PixelAspectRatio.Numerator = 1;
@@ -146,6 +169,27 @@ namespace Zink.Services.Recording
 
             await RecorderLog.InfoAsync(nameof(Mp4VideoWriter),
                 $"Video-only write completed. Output='{outputPath}'");
+        }
+
+        private static Rect CreateCoverSourceRect(int sourceWidth, int sourceHeight, double outputWidth, double outputHeight)
+        {
+            double sourceAspect = sourceWidth / (double)sourceHeight;
+            double outputAspect = outputWidth / outputHeight;
+
+            if (sourceAspect > outputAspect)
+            {
+                double croppedWidth = sourceHeight * outputAspect;
+                return new Rect((sourceWidth - croppedWidth) / 2.0, 0, croppedWidth, sourceHeight);
+            }
+
+            double croppedHeight = sourceWidth / outputAspect;
+            return new Rect(0, (sourceHeight - croppedHeight) / 2.0, sourceWidth, croppedHeight);
+        }
+
+        private static uint CalculateNativeBitrate(uint width, uint height, uint fps)
+        {
+            double bitsPerSecond = width * (double)height * fps * 0.16;
+            return (uint)Math.Clamp(bitsPerSecond, 12_000_000, 100_000_000);
         }
     }
 }

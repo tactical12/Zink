@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.Graphics.Capture;
+using Zink.Models;
 
 using D3D11Device = SharpDX.Direct3D11.Device;
 using D3D11Texture2D = SharpDX.Direct3D11.Texture2D;
@@ -45,8 +46,8 @@ namespace Zink.Services.Recording
         private int _height;
 
         // Fixed pacing is much steadier for replay segments than "capture whenever + Task.Delay jitter".
-        private const int TargetFps = 8;
-        private static readonly TimeSpan TargetFrameInterval = TimeSpan.FromMilliseconds(1000.0 / TargetFps);
+        private uint _targetFps = 60;
+        private TimeSpan _targetFrameInterval = TimeSpan.FromMilliseconds(1000.0 / 60);
 
         public event EventHandler<VideoFramePacket>? VideoFrameArrived;
 
@@ -89,13 +90,15 @@ namespace Zink.Services.Recording
 
         public bool IsRunning => _isRunning;
 
-        public async Task StartAsync(GraphicsCaptureItem? item = null)
+        public async Task StartAsync(GraphicsCaptureItem? item = null, RecordingOptions? options = null)
         {
             if (_isRunning)
                 return;
 
             try
             {
+                _targetFps = Math.Clamp(options?.FrameRate ?? 60, 1u, 240u);
+                _targetFrameInterval = TimeSpan.FromMilliseconds(1000.0 / _targetFps);
                 _frameCount = 0;
                 InitializeDuplication();
 
@@ -106,7 +109,7 @@ namespace Zink.Services.Recording
                 _isRunning = true;
 
                 await RecorderLog.InfoAsync(nameof(CaptureEngine),
-                    $"DXGI duplication capture started. Size={_width}x{_height}, TargetFps={TargetFps}");
+                    $"DXGI duplication capture started. Size={_width}x{_height}, TargetFps={_targetFps}");
             }
             catch (Exception ex)
             {
@@ -251,7 +254,7 @@ namespace Zink.Services.Recording
 
                     // Timestamp from the scheduled cadence, not the wall-clock jitter after delays.
                     TimeSpan packetTimestamp = nextFrameDue;
-                    nextFrameDue += TargetFrameInterval;
+                    nextFrameDue += _targetFrameInterval;
 
                     DxgiOutputDuplicateFrameInformation frameInfo;
                     var result = _duplication.TryAcquireNextFrame(

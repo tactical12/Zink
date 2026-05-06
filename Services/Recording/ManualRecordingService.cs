@@ -17,8 +17,8 @@ namespace Zink.Services.Recording
 
         private readonly TimeSpan _replayBufferDuration = TimeSpan.FromSeconds(45);
 
-        // Keep active raw segment short so replay becomes more disk/CPU based and less RAM based.
-        private readonly TimeSpan _segmentDuration = TimeSpan.FromSeconds(2);
+        // Keep active raw segment short so 4K/60 replay stays disk/CPU based and less RAM based.
+        private readonly TimeSpan _segmentDuration = TimeSpan.FromMilliseconds(500);
 
         private CaptureEngine? _captureEngine;
         private IAudioCaptureService? _systemAudioCapture;
@@ -164,7 +164,7 @@ namespace Zink.Services.Recording
 
                 _captureEngine = new CaptureEngine();
                 _captureEngine.VideoFrameArrived += CaptureEngine_VideoFrameArrived;
-                await _captureEngine.StartAsync(_captureItem);
+                await _captureEngine.StartAsync(_captureItem, _options);
 
                 if (_options.IncludeSystemAudio)
                 {
@@ -695,7 +695,7 @@ namespace Zink.Services.Recording
                     throw new InvalidOperationException("No valid video frames remained after A/V sync alignment.");
 
                 var videoWriter = new Mp4VideoWriter();
-                await videoWriter.WriteAsync(syncedVideo, tempVideo);
+                await videoWriter.WriteAsync(syncedVideo, tempVideo, _options);
 
                 var mixedAudio = AudioMixHelpers.MixPcm16(syncedSystem, syncedMic);
 
