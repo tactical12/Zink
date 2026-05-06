@@ -301,9 +301,7 @@ namespace Zink.Services.Recording
                             Marshal.Copy(dataPtr, pcm, 0, byteCount);
                         }
 
-                        // Use the audio sample clock, not wall-clock arrival time.
-                        TimeSpan packetTimestamp = TimeSpan.FromSeconds(
-                            _capturedFrames / (double)_waveFormat.nSamplesPerSec);
+                        TimeSpan packetTimestamp = DateTime.UtcNow - _captureStartUtc;
 
                         _capturedFrames += framesRead;
                         _packetCount++;

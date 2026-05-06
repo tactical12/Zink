@@ -8,8 +8,8 @@ namespace Zink.Services.Recording
     {
         private const uint DefaultVideoBitrate = 12_000_000;
         private const uint DefaultFpsFloor = 10;
-        private const uint DefaultFpsCeiling = 60;
-        private const uint DefaultFallbackFps = 30;
+        private const uint DefaultFpsCeiling = 120;
+        private const uint DefaultFallbackFps = 120;
 
         public async Task WriteVideoAndAudioAsync(
             IReadOnlyList<VideoFramePacket> videoFrames,
@@ -156,36 +156,31 @@ namespace Zink.Services.Recording
         private static void WriteVideoSamples(IReadOnlyList<ShiftedVideoFrameRef> shiftedVideo, uint fps)
         {
             long fallbackDuration100ns = TimeSpan.FromMilliseconds(1000.0 / fps).Ticks;
+            long nextSampleTime100ns = 0;
 
             for (int i = 0; i < shiftedVideo.Count; i++)
             {
                 ShiftedVideoFrameRef frameRef = shiftedVideo[i];
                 VideoFramePacket source = frameRef.Source;
 
-                long sampleTime100ns = frameRef.ShiftedTimestamp.Ticks;
-                if (sampleTime100ns < 0)
+                long targetTime100ns = Math.Max(0, frameRef.ShiftedTimestamp.Ticks);
+                if (source.Bgra32Bytes is null)
                     continue;
 
-                long sampleDuration100ns;
-
-                if (i + 1 < shiftedVideo.Count)
+                do
                 {
-                    sampleDuration100ns = (shiftedVideo[i + 1].ShiftedTimestamp - frameRef.ShiftedTimestamp).Ticks;
-                    if (sampleDuration100ns <= 0)
-                        sampleDuration100ns = fallbackDuration100ns;
-                }
-                else
-                {
-                    sampleDuration100ns = fallbackDuration100ns;
-                }
+                    long sampleTime100ns = nextSampleTime100ns;
 
-                int hr = NativeMuxWriter.ZrmWriteVideoFrame(
-                    sampleTime100ns,
-                    sampleDuration100ns,
-                    source.Bgra32Bytes!,
-                    (uint)source.Bgra32Bytes!.Length);
+                    int hr = NativeMuxWriter.ZrmWriteVideoFrame(
+                        sampleTime100ns,
+                        fallbackDuration100ns,
+                        source.Bgra32Bytes,
+                        (uint)source.Bgra32Bytes.Length);
 
-                NativeMuxWriter.ThrowIfFailed(hr, nameof(NativeMuxWriter.ZrmWriteVideoFrame));
+                    NativeMuxWriter.ThrowIfFailed(hr, nameof(NativeMuxWriter.ZrmWriteVideoFrame));
+                    nextSampleTime100ns += fallbackDuration100ns;
+                }
+                while (nextSampleTime100ns <= targetTime100ns);
             }
         }
 
@@ -224,18 +219,7 @@ namespace Zink.Services.Recording
 
         private static uint EstimateFrameRate(IReadOnlyList<ShiftedVideoFrameRef> frames)
         {
-            if (frames.Count < 2)
-                return DefaultFallbackFps;
-
-            double seconds = (frames[^1].ShiftedTimestamp - frames[0].ShiftedTimestamp).TotalSeconds;
-            if (seconds <= 0.0)
-                return DefaultFallbackFps;
-
-            int fps = (int)Math.Round((frames.Count - 1) / seconds);
-            if (fps < DefaultFpsFloor) fps = (int)DefaultFpsFloor;
-            if (fps > DefaultFpsCeiling) fps = (int)DefaultFpsCeiling;
-
-            return (uint)fps;
+            return DefaultFallbackFps;
         }
     }
 }

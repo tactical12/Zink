@@ -39,9 +39,11 @@ namespace Zink.Pages.Social
         private bool _screenShareHooksAttached;
         private bool _isRemoteVideoVisible;
         private bool _isRemoteScreenShareLoading;
+        private bool _isRemoteScreenShareWatchPromptVisible;
         private bool _isFullscreen;
         private bool _isLocalPreviewHidden;
         private bool _isScreenShareSoundEnabled = true;
+        private bool _screenShareToggleInProgress;
         private bool _screenShareFeedbackDialogOpen;
         private bool _callFeedbackDialogOpen;
         private string _lastCallFeedbackPromptKey = "";
@@ -49,6 +51,9 @@ namespace Zink.Pages.Social
         private const int MaxCallParticipants = 10;
         private readonly HashSet<long> _callParticipantIds = new();
         private readonly HashSet<long> _leftParticipantIds = new();
+        private readonly HashSet<long> _pendingRemoteScreenShareUserIds = new();
+        private readonly HashSet<long> _acceptedRemoteScreenShareUserIds = new();
+        private string _remoteScreenShareWatchPromptSignature = "";
         private readonly Dictionary<long, string> _participantDisplayNames = new();
         private readonly Dictionary<long, NativePeerConnectionService> _screenSharePeers = new();
         private MediaFoundationH264Decoder? _h264Decoder;
@@ -118,6 +123,7 @@ namespace Zink.Pages.Social
         private DateTimeOffset _lastRemoteRenderFlowLogUtc = DateTimeOffset.MinValue;
         private DateTimeOffset _lastRemoteRenderCoalescedLogUtc = DateTimeOffset.MinValue;
         private DateTimeOffset _lastRemotePreviewFlowLogUtc = DateTimeOffset.MinValue;
+        private DateTimeOffset _lastRemoteWatchPreviewRenderedUtc = DateTimeOffset.MinValue;
         private DateTimeOffset _lastRemoteFallbackHoldLogUtc = DateTimeOffset.MinValue;
         private DateTimeOffset _lastRemoteKeyFrameRequestAtUtc = DateTimeOffset.MinValue;
         private DateTimeOffset _lastRemoteBacklogTrimLogUtc = DateTimeOffset.MinValue;
@@ -161,6 +167,7 @@ namespace Zink.Pages.Social
         private readonly SemaphoreSlim _screenShareSendLock = new(1, 1);
         private readonly SemaphoreSlim _screenShareDecodeLock = new(1, 1);
         private readonly SemaphoreSlim _screenShareLifecycleLock = new(1, 1);
+        private readonly SemaphoreSlim _screenShareAutoReportLock = new(1, 1);
         private readonly object _screenSharePeerRestartSync = new();
         private readonly object _rtpFrameSync = new();
         private readonly object _remoteDecoderSync = new();
@@ -357,6 +364,7 @@ namespace Zink.Pages.Social
 
         private async Task StartLocalScreenShareAsync()
         {
+            ScreenShareCrashBreadcrumb.Mark("CallPage StartLocalScreenShareAsync requested");
             DiagnosticLogService.WriteLine(
                 $"[ScreenShare:UI] StartLocalScreenShareAsync requested; processArch={System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture}; osArch={System.Runtime.InteropServices.RuntimeInformation.OSArchitecture}; is64Bit={Environment.Is64BitProcess}; packageBase={AppContext.BaseDirectory}");
             DiagnosticLogService.Flush();
@@ -393,24 +401,35 @@ namespace Zink.Pages.Social
                     UpdateMediaLayerVisibility();
                 });
 
+                ScreenShareCrashBreadcrumb.Mark("CallPage before NativeScreenShareStreamingService.StartAsync");
                 var startStreamingTask = NativeScreenShareStreamingService.Instance.StartAsync();
                 var signalingTasks = participants
                     .Select(participantId => StartScreenShareParticipantSignalingAsync(participantId, session.CallId))
                     .ToList();
 
                 await startStreamingTask;
+                ScreenShareCrashBreadcrumb.Mark("CallPage after NativeScreenShareStreamingService.StartAsync");
                 DiagnosticLogService.WriteLine("[ScreenShare:UI] Native screen-share streaming service started.");
                 Debug.WriteLine("[ScreenShare:H264] Using WebRTC RTP plus continuous WebSocket H.264 for live screen-share transport.");
 
                 await Task.WhenAll(signalingTasks);
+                ScreenShareCrashBreadcrumb.Mark("CallPage screen-share signaling completed");
 
                 if (_isScreenShareSoundEnabled)
                     await TryStartScreenShareSoundAsync(session, showSuccessStatus: false);
+
+                DiagnosticLogService.WriteLine("[ScreenShare:REPORT] Screen-share start event captured; queueing automatic server diagnostics upload.");
+                _ = UploadAutomaticScreenShareReportAsync(
+                    BuildScreenShareReportContext("started", "Automatic report: screen share started."),
+                    "started");
             }
             catch (Exception ex)
             {
                 DiagnosticLogService.WriteLine("[ScreenShare:UI] StartLocalScreenShareAsync failed: " + ex);
                 DiagnosticLogService.Flush();
+                _ = UploadAutomaticScreenShareReportAsync(
+                    BuildScreenShareReportContext("start-failed", "Automatic report: screen share failed to start. " + ex),
+                    "start-failed");
                 throw;
             }
             finally
@@ -472,6 +491,14 @@ namespace Zink.Pages.Social
                 catch (Exception ex)
                 {
                     Debug.WriteLine($"[ScreenShare:RTP] Closing peers failed: {ex}");
+                }
+
+                if (wasRunning && feedbackContext != null)
+                {
+                    DiagnosticLogService.WriteLine($"[ScreenShare:REPORT] Screen-share finish event captured; notifyRemote={notifyRemote}; queueing automatic server diagnostics upload.");
+                    _ = UploadAutomaticScreenShareReportAsync(
+                        WithScreenShareFeedback(feedbackContext, "finished", $"Automatic report: screen share finished. notifyRemote={notifyRemote}."),
+                        "finished");
                 }
 
                 ResetScreenShareStats();
@@ -680,6 +707,41 @@ namespace Zink.Pages.Social
                 NativeCallCoordinator.Instance.SetStatus(
                     NativeCallCoordinator.Instance.CurrentSession.State,
                     $"Screen-share report upload failed: {ex.Message}");
+            }
+        }
+
+        private async Task UploadAutomaticScreenShareReportAsync(ScreenShareReportContext snapshot, string eventName)
+        {
+            await _screenShareAutoReportLock.WaitAsync();
+            try
+            {
+                DiagnosticLogService.EnsureLogFile("automatic screen-share report " + eventName);
+                DiagnosticLogService.WriteLine(
+                    $"[ScreenShare:REPORT] Automatic upload starting; event={eventName}; callId={snapshot.CallId}; quality={snapshot.Quality}; sent={snapshot.SentFrames}; received={snapshot.ReceivedFrames}; rendered={snapshot.RenderedFrames}; droppedSend={snapshot.DroppedSendFrames}; droppedReceive={snapshot.DroppedReceiveFrames}; decodeFailures={snapshot.DecodeFailures}; decoderResets={snapshot.DecoderResets}.");
+                DiagnosticLogService.Flush();
+
+                var bundlePath = await ScreenShareReportService.CreateBundleAsync(snapshot);
+                var result = await DiagnosticsUploadService.TryUploadSupportBundleAsync(bundlePath);
+
+                if (result.Success)
+                {
+                    DiagnosticLogService.WriteLine(
+                        $"[ScreenShare:REPORT] Automatic upload completed; event={eventName}; reportId={result.ReportId}; downloadUrl={result.DownloadUrl}; bundle={bundlePath}.");
+                }
+                else
+                {
+                    DiagnosticLogService.WriteLine(
+                        $"[ScreenShare:REPORT] Automatic upload failed; event={eventName}; error={result.Error}; savedBundle={bundlePath}.");
+                }
+            }
+            catch (Exception ex)
+            {
+                DiagnosticLogService.WriteLine($"[ScreenShare:REPORT] Automatic upload crashed; event={eventName}; error={ex}");
+            }
+            finally
+            {
+                DiagnosticLogService.Flush();
+                _screenShareAutoReportLock.Release();
             }
         }
 
@@ -1251,6 +1313,13 @@ namespace Zink.Pages.Social
 
         private void NativeScreenShare_StreamingFailed(object? sender, string message)
         {
+            ScreenShareCrashBreadcrumb.Mark("NativeScreenShare_StreamingFailed: " + message);
+            DiagnosticLogService.WriteLine("[ScreenShare:REPORT] Screen-share failure event captured; queueing automatic server diagnostics upload. message=" + message);
+            DiagnosticLogService.Flush();
+            _ = UploadAutomaticScreenShareReportAsync(
+                BuildScreenShareReportContext("failed", "Automatic report: screen share failed or crashed. " + message),
+                "failed");
+
             TryEnqueueOnUi(async () =>
             {
                 _isSharingScreen = false;
@@ -1283,23 +1352,16 @@ namespace Zink.Pages.Social
                     return;
                 }
 
+                if (DateTimeOffset.UtcNow - NativeCallCoordinator.Instance.LastRemoteVoiceAudioReceivedUtc < TimeSpan.FromMilliseconds(350))
+                    return;
+
                 var participants = GetCallParticipants(session).ToList();
-                if (participants.Count > 1)
+                foreach (var participantId in participants)
                 {
                     await SocialManager.Instance.Realtime.SendAudioChunkAsync(
-                        0,
+                        participantId,
                         session.CallId,
                         data);
-                }
-                else
-                {
-                    foreach (var participantId in participants)
-                    {
-                        await SocialManager.Instance.Realtime.SendAudioChunkAsync(
-                            participantId,
-                            session.CallId,
-                            data);
-                    }
                 }
 
                 _screenShareSoundPacketsSent++;
@@ -1517,16 +1579,36 @@ namespace Zink.Pages.Social
                 if (e.CallId != session.CallId)
                     return;
 
+                var wasAlreadyAccepted = IsRemoteScreenShareAccepted(e.FromUserId);
                 ResetRemoteScreenShareReceiveState(clearImage: true);
-                _remoteScreenShareSenderId = e.FromUserId;
-                _remoteScreenLastReceivedAtUtc = DateTimeOffset.UtcNow;
                 _isRemoteVideoVisible = false;
+                _remoteScreenShareSenderId = e.FromUserId;
                 _ = ResetScreenSharePeerAsync(e.FromUserId, "remote screen-share restarted");
-                ShowRemoteScreenShareLoading(
-                    $"{GetParticipantDisplayName(e.FromUserId)} is sharing their screen",
-                    "Connecting to the live stream...");
+
+                if (wasAlreadyAccepted)
+                {
+                    _acceptedRemoteScreenShareUserIds.Add(e.FromUserId);
+                    _pendingRemoteScreenShareUserIds.Remove(e.FromUserId);
+                    _remoteScreenShareWatchPromptSignature = "";
+                    DiagnosticLogService.WriteLine($"[ScreenShare:WATCH] Retaining accepted watch state for participant {e.FromUserId} after fresh start signal.");
+                    RefreshRemoteScreenShareWatchPrompt();
+                    ShowRemoteScreenShareLoading(
+                        $"{GetParticipantDisplayName(e.FromUserId)} is sharing their screen",
+                        "Connecting to the live screen share...");
+                }
+                else
+                {
+                    _isRemoteScreenShareLoading = false;
+                    _pendingRemoteScreenShareUserIds.Add(e.FromUserId);
+                    _acceptedRemoteScreenShareUserIds.Remove(e.FromUserId);
+                    ShowRemoteScreenShareWatchPrompt();
+                }
+
                 UpdateMediaLayerVisibility();
-                NativeCallCoordinator.Instance.SetStatus(session.State, "Remote screen share started.", session.PeerText);
+                NativeCallCoordinator.Instance.SetStatus(
+                    session.State,
+                    $"{GetParticipantDisplayName(e.FromUserId)} is ready to stream.",
+                    session.PeerText);
             });
         }
 
@@ -1542,12 +1624,16 @@ namespace Zink.Pages.Social
                 var stoppedText = $"{displayName} stopped screen sharing";
                 _isRemoteVideoVisible = false;
                 _isRemoteScreenShareLoading = false;
-                _remoteScreenShareSenderId = 0;
+                _pendingRemoteScreenShareUserIds.Remove(e.FromUserId);
+                _acceptedRemoteScreenShareUserIds.Remove(e.FromUserId);
+                if (_remoteScreenShareSenderId == e.FromUserId)
+                    _remoteScreenShareSenderId = 0;
                 ResetRemoteScreenShareReceiveState(clearImage: true);
                 _ = ResetScreenSharePeerAsync(e.FromUserId, "remote screen-share stopped");
                 RemotePlaceholderTitleText.Text = stoppedText;
                 RemotePlaceholderSubtitleText.Text = $"User {e.FromUserId} has stopped their screen share.";
                 MediaOverlayText.Text = stoppedText;
+                RefreshRemoteScreenShareWatchPrompt();
                 UpdateMediaLayerVisibility();
                 NativeCallCoordinator.Instance.SetStatus(session.State, stoppedText, session.PeerText);
             });
@@ -1592,9 +1678,18 @@ namespace Zink.Pages.Social
 
                 if (!_remoteScreenLastRenderedAtUtc.HasValue)
                 {
-                    ShowRemoteScreenShareLoading(
-                        $"{GetParticipantDisplayName(e.FromUserId)} is sharing their screen",
-                        $"Preparing {e.Width} x {e.Height} stream...");
+                    if (IsRemoteScreenShareAccepted(e.FromUserId))
+                    {
+                        ShowRemoteScreenShareLoading(
+                            $"{GetParticipantDisplayName(e.FromUserId)} is sharing their screen",
+                            $"Preparing {e.Width} x {e.Height} stream...");
+                    }
+                    else
+                    {
+                        _pendingRemoteScreenShareUserIds.Add(e.FromUserId);
+                        ShowRemoteScreenShareWatchPrompt();
+                    }
+
                     UpdateMediaLayerVisibility();
                 }
 
@@ -1631,6 +1726,12 @@ namespace Zink.Pages.Social
                 if (e.CallId != session.CallId || e.FrameData.Length == 0)
                 {
                     Debug.WriteLine($"[ScreenShare:H264] Ignored incoming frame callId={e.CallId} sessionCallId={session.CallId} bytes={e.FrameData.Length}");
+                    return;
+                }
+
+                if (!ShouldRenderRemoteScreenShareFrame(e.FromUserId, "preview"))
+                {
+                    await TryRenderRemoteScreenShareWatchPreviewAsync(e);
                     return;
                 }
 
@@ -1675,6 +1776,9 @@ namespace Zink.Pages.Social
         {
             var session = NativeCallCoordinator.Instance.CurrentSession;
             if (e.CallId != session.CallId || e.FrameData.Length == 0)
+                return;
+
+            if (!ShouldRenderRemoteScreenShareFrame(e.FromUserId, "websocket"))
                 return;
 
             if (Volatile.Read(ref _remoteRtpFrameCount) > 0 &&
@@ -1776,6 +1880,16 @@ namespace Zink.Pages.Social
             {
                 Debug.WriteLine($"[ScreenShare:RTP] Offer received from participant {e.FromUserId}: type={e.SdpType}, sdpLength={e.Sdp?.Length ?? 0}.");
                 AddCallParticipant(e.FromUserId);
+                _pendingRemoteScreenShareUserIds.Add(e.FromUserId);
+                if (!IsRemoteScreenShareAccepted(e.FromUserId))
+                {
+                    TryEnqueueOnUi(() =>
+                    {
+                        ShowRemoteScreenShareWatchPrompt();
+                        UpdateMediaLayerVisibility();
+                    });
+                }
+
                 await ResetScreenSharePeerAsync(e.FromUserId, "new remote offer");
                 var peer = GetOrCreateScreenSharePeer(e.FromUserId);
                 await peer.SetRemoteOfferAsync(new SessionDescriptionModel
@@ -2016,6 +2130,10 @@ namespace Zink.Pages.Social
 
         private void ScreenSharePeer_EncodedVideoFrameReceived(object? sender, NativeRtpVideoFrameEventArgs e)
         {
+            var fromUserId = GetScreenSharePeerParticipantId(sender);
+            if (fromUserId > 0 && !ShouldRenderRemoteScreenShareFrame(fromUserId, "rtp"))
+                return;
+
             var width = _lastRemoteBitstreamWidth;
             var height = _lastRemoteBitstreamHeight;
             var isKeyFrame = ContainsH264IdrFrame(e.FrameData);
@@ -2060,6 +2178,9 @@ namespace Zink.Pages.Social
             var receivedRtpFrames = Interlocked.Increment(ref _remoteRtpFrameCount);
             if (receivedRtpFrames == 1)
                 _remoteFallbackFirstReceivedAtUtc = DateTimeOffset.MinValue;
+
+            if (fromUserId > 0)
+                _remoteScreenShareSenderId = fromUserId;
 
             LogRemoteEncodedReceiveFlow("rtp", _remoteScreenShareSenderId, e.FrameData, width, height, isKeyFrame, isKeyFrame, receivedRtpFrames);
             if (receivedRtpFrames == 1 || receivedRtpFrames % (NativeScreenShareStreamingService.TargetFps * 2) == 0)
@@ -3566,6 +3687,13 @@ namespace Zink.Pages.Social
             var now = DateTimeOffset.UtcNow;
             if (!_remoteScreenLastRenderedAtUtc.HasValue)
             {
+                if (!IsRemoteScreenShareAccepted(_remoteScreenShareSenderId))
+                {
+                    ShowRemoteScreenShareWatchPrompt();
+                    UpdateMediaLayerVisibility();
+                    return;
+                }
+
                 ShowRemoteScreenShareLoading("Screen share is loading", "Waiting for the first live frame...");
                 UpdateMediaLayerVisibility();
                 _ = SendScreenShareQosIfNeededAsync("receiver waiting for keyframe before first visible frame");
@@ -4017,61 +4145,101 @@ namespace Zink.Pages.Social
 
         private async void ScreenShareToggleButton_Click(object sender, RoutedEventArgs e)
         {
-            DiagnosticLogService.WriteLine(
-                $"[ScreenShare:UI] Toggle clicked; state={NativeCallCoordinator.Instance.CurrentSession.State}; currentSharing={_isSharingScreen}; nativeRunning={NativeScreenShareStreamingService.Instance.IsRunning}");
-            DiagnosticLogService.Flush();
+            ScreenShareCrashBreadcrumb.Mark("CallPage ScreenShareToggleButton_Click entered");
+            DiagnosticLogService.EnsureLogFile("screen-share toggle clicked");
 
-            if (NativeCallCoordinator.Instance.CurrentSession.State != NativeCallState.Connected)
+            try
             {
-                NativeCallCoordinator.Instance.SetStatus(
-                    NativeCallCoordinator.Instance.CurrentSession.State,
-                    "Start or accept the call before sharing your screen.");
-                return;
-            }
+                DiagnosticLogService.WriteLine(
+                    $"[ScreenShare:UI] Toggle clicked; state={NativeCallCoordinator.Instance.CurrentSession.State}; currentSharing={_isSharingScreen}; nativeRunning={NativeScreenShareStreamingService.Instance.IsRunning}; processArch={System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture}; osArch={System.Runtime.InteropServices.RuntimeInformation.OSArchitecture}; is64Bit={Environment.Is64BitProcess}; base={AppContext.BaseDirectory}");
+                DiagnosticLogService.Flush();
+                ScreenShareReportService.SaveLatestState(
+                    BuildScreenShareReportContext("toggle-clicked", "Screen-share toggle clicked before startup state changed."));
 
-            _isSharingScreen = !_isSharingScreen;
-            _isScreenShare = _isSharingScreen;
-            NativeCallCoordinator.Instance.CurrentSession.IsScreenShare = _isSharingScreen;
-
-            ModeText.Text = _isSharingScreen ? "Mode: 4K Screen Share + Voice" : "Mode: Voice Call";
-
-            NativeCallCoordinator.Instance.SetStatus(
-                NativeCallCoordinator.Instance.CurrentSession.State,
-                _isSharingScreen ? "Screen share enabled." : "Screen share disabled.");
-
-            UpdateDockVisualStates();
-
-            if (NativeCallCoordinator.Instance.CurrentSession.State == NativeCallState.Connected)
-            {
-                try
+                if (_screenShareToggleInProgress)
                 {
-                    if (_isSharingScreen)
-                    {
-                        await StartLocalScreenShareAsync();
-                    }
-                    else
-                    {
-                        await StopLocalScreenShareAsync(true, promptForFeedback: true);
-                        LocalPreviewImage.Source = null;
-                        LocalPreviewPlaceholder.Visibility = Visibility.Visible;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    DiagnosticLogService.WriteLine("[ScreenShare:UI] Toggle failed: " + ex);
-                    DiagnosticLogService.Flush();
-
-                    _isSharingScreen = !_isSharingScreen;
-                    _isScreenShare = _isSharingScreen;
-                    NativeCallCoordinator.Instance.CurrentSession.IsScreenShare = _isSharingScreen;
-
+                    DiagnosticLogService.WriteLine("[ScreenShare:UI] Toggle ignored because a screen-share start/stop operation is already in progress.");
                     NativeCallCoordinator.Instance.SetStatus(
                         NativeCallCoordinator.Instance.CurrentSession.State,
-                        $"Screen share failed: {ex.Message}");
-
-                    UpdateDockVisualStates();
-                    ApplySessionToUi(NativeCallCoordinator.Instance.CurrentSession);
+                        "Screen share is still starting or stopping. Please wait a moment.");
+                    return;
                 }
+
+                if (NativeCallCoordinator.Instance.CurrentSession.State != NativeCallState.Connected)
+                {
+                    NativeCallCoordinator.Instance.SetStatus(
+                        NativeCallCoordinator.Instance.CurrentSession.State,
+                        "Start or accept the call before sharing your screen.");
+                    return;
+                }
+
+                _screenShareToggleInProgress = true;
+                ScreenShareToggleButton.IsEnabled = false;
+
+                _isSharingScreen = !_isSharingScreen;
+                _isScreenShare = _isSharingScreen;
+                NativeCallCoordinator.Instance.CurrentSession.IsScreenShare = _isSharingScreen;
+
+                ModeText.Text = _isSharingScreen ? "Mode: 4K Screen Share + Voice" : "Mode: Voice Call";
+
+                NativeCallCoordinator.Instance.SetStatus(
+                    NativeCallCoordinator.Instance.CurrentSession.State,
+                    _isSharingScreen ? "Screen share enabled." : "Screen share disabled.");
+
+                UpdateDockVisualStates();
+
+                if (NativeCallCoordinator.Instance.CurrentSession.State == NativeCallState.Connected)
+                {
+                    try
+                    {
+                        if (_isSharingScreen)
+                        {
+                            ScreenShareCrashBreadcrumb.Mark("CallPage ScreenShareToggleButton_Click before StartLocalScreenShareAsync");
+                            await StartLocalScreenShareAsync();
+                            await Task.Delay(1200);
+                        }
+                        else
+                        {
+                            ScreenShareCrashBreadcrumb.Mark("CallPage ScreenShareToggleButton_Click before StopLocalScreenShareAsync");
+                            await StopLocalScreenShareAsync(true, promptForFeedback: true);
+                            LocalPreviewImage.Source = null;
+                            LocalPreviewPlaceholder.Visibility = Visibility.Visible;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        ScreenShareCrashBreadcrumb.Mark("CallPage ScreenShareToggleButton_Click toggle failed: " + ex.GetType().Name);
+                        DiagnosticLogService.WriteLine("[ScreenShare:UI] Toggle failed: " + ex);
+                        DiagnosticLogService.Flush();
+
+                        _isSharingScreen = !_isSharingScreen;
+                        _isScreenShare = _isSharingScreen;
+                        NativeCallCoordinator.Instance.CurrentSession.IsScreenShare = _isSharingScreen;
+
+                        NativeCallCoordinator.Instance.SetStatus(
+                            NativeCallCoordinator.Instance.CurrentSession.State,
+                            $"Screen share failed: {ex.Message}");
+
+                        UpdateDockVisualStates();
+                        ApplySessionToUi(NativeCallCoordinator.Instance.CurrentSession);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                ScreenShareCrashBreadcrumb.Mark("CallPage ScreenShareToggleButton_Click fatal: " + ex.GetType().Name);
+                DiagnosticLogService.WriteLine("[ScreenShare:UI] Toggle fatal failure: " + ex);
+                DiagnosticLogService.Flush();
+                NativeCallCoordinator.Instance.SetStatus(
+                    NativeCallCoordinator.Instance.CurrentSession.State,
+                    $"Screen share failed: {ex.Message}");
+            }
+            finally
+            {
+                _screenShareToggleInProgress = false;
+                ScreenShareToggleButton.IsEnabled = NativeCallCoordinator.Instance.CurrentSession.State == NativeCallState.Connected;
+                ScreenShareCrashBreadcrumb.Mark("CallPage ScreenShareToggleButton_Click exiting");
+                DiagnosticLogService.Flush();
             }
         }
 
@@ -4429,6 +4597,8 @@ namespace Zink.Pages.Social
             _lastRtpMetadataSentUtc = DateTimeOffset.MinValue;
             _lastRtpMetadataWidth = 0;
             _lastRtpMetadataHeight = 0;
+            ScreenShareReportService.SaveLatestState(
+                BuildScreenShareReportContext("quality-changed", $"Screen-share quality set to {profile.Name}."));
             _h264Decoder?.Dispose();
             _h264Decoder = null;
             _rtpH264Decoder?.Dispose();
@@ -5101,19 +5271,294 @@ namespace Zink.Pages.Social
 
         private void UpdateMediaLayerVisibility()
         {
-            RemotePlaceholderPanel.Visibility = (_isRemoteVideoVisible || _isRemoteScreenShareLoading)
+            var showWatchPrompt = _isRemoteScreenShareWatchPromptVisible && !_isRemoteVideoVisible;
+            var showLoading = _isRemoteScreenShareLoading && !showWatchPrompt;
+
+            RemotePlaceholderPanel.Visibility = (_isRemoteVideoVisible || showLoading || showWatchPrompt)
                 ? Visibility.Collapsed
                 : Visibility.Visible;
-            RemoteScreenLoadingPanel.Visibility = _isRemoteScreenShareLoading ? Visibility.Visible : Visibility.Collapsed;
-            RemoteScreenLoadingRing.IsActive = _isRemoteScreenShareLoading;
+            RemoteScreenWatchPanel.Visibility = showWatchPrompt ? Visibility.Visible : Visibility.Collapsed;
+            RemoteScreenLoadingPanel.Visibility = showLoading ? Visibility.Visible : Visibility.Collapsed;
+            RemoteScreenWatchPanel.IsHitTestVisible = showWatchPrompt;
+            RemoteScreenLoadingPanel.IsHitTestVisible = false;
+            RemoteScreenLoadingRing.IsActive = showLoading;
             ApplyLocalPreviewVisibility();
         }
 
         private void ShowRemoteScreenShareLoading(string title, string subtitle)
         {
+            if (_remoteScreenShareSenderId > 0 && !IsRemoteScreenShareAccepted(_remoteScreenShareSenderId))
+            {
+                ShowRemoteScreenShareWatchPrompt();
+                return;
+            }
+
             _isRemoteScreenShareLoading = true;
+            _isRemoteScreenShareWatchPromptVisible = false;
             RemoteScreenLoadingTitle.Text = title;
             RemoteScreenLoadingSubtitle.Text = subtitle;
+        }
+
+        private void ShowRemoteScreenShareWatchPrompt()
+        {
+            _isRemoteScreenShareLoading = false;
+            _isRemoteScreenShareWatchPromptVisible = _pendingRemoteScreenShareUserIds.Count > 0;
+            RefreshRemoteScreenShareWatchPrompt();
+        }
+
+        private void RefreshRemoteScreenShareWatchPrompt()
+        {
+            var pending = _pendingRemoteScreenShareUserIds
+                .Where(id => !_acceptedRemoteScreenShareUserIds.Contains(id))
+                .Distinct()
+                .ToList();
+            _isRemoteScreenShareWatchPromptVisible = pending.Count > 0 && !_isRemoteVideoVisible;
+            var signature = string.Join("|", pending.OrderBy(id => id));
+            if (_isRemoteScreenShareWatchPromptVisible &&
+                string.Equals(_remoteScreenShareWatchPromptSignature, signature, StringComparison.Ordinal) &&
+                RemoteScreenWatchUsersPanel.Children.Count == pending.Count)
+            {
+                return;
+            }
+
+            _remoteScreenShareWatchPromptSignature = signature;
+            RemoteScreenWatchUsersPanel.Children.Clear();
+
+            if (pending.Count == 0)
+            {
+                _isRemoteScreenShareWatchPromptVisible = false;
+                _remoteScreenShareWatchPromptSignature = "";
+                RemoteScreenWatchTitle.Text = "A stream is ready";
+                RemoteScreenWatchSubtitle.Text = "Choose a stream to watch.";
+                ClearRemoteScreenShareWatchPreview();
+                return;
+            }
+
+            RemoteScreenWatchTitle.Text = pending.Count == 1
+                ? $"{GetParticipantDisplayName(pending[0])} is streaming"
+                : $"{pending.Count} streams are ready";
+            RemoteScreenWatchSubtitle.Text = pending.Count == 1
+                ? "Click Watch the Stream to connect when you are ready."
+                : "Choose who you want to watch.";
+
+            foreach (var userId in pending)
+            {
+                var button = new Button
+                {
+                    Tag = userId,
+                    MinHeight = 54,
+                    Padding = new Thickness(14, 0, 14, 0),
+                    CornerRadius = new CornerRadius(18),
+                    Background = new SolidColorBrush(ColorHelper.FromArgb(120, 61, 220, 132)),
+                    BorderBrush = new SolidColorBrush(ColorHelper.FromArgb(115, 124, 255, 178)),
+                    BorderThickness = new Thickness(1),
+                    Foreground = new SolidColorBrush(Colors.White),
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    HorizontalContentAlignment = HorizontalAlignment.Stretch
+                };
+
+                button.Click += WatchRemoteScreenShare_Click;
+                button.Content = new Grid
+                {
+                    ColumnDefinitions =
+                    {
+                        new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) },
+                        new ColumnDefinition { Width = GridLength.Auto }
+                    },
+                    Children =
+                    {
+                        new StackPanel
+                        {
+                            Spacing = 1,
+                            VerticalAlignment = VerticalAlignment.Center,
+                            Children =
+                            {
+                                new TextBlock
+                                {
+                                    Text = GetParticipantDisplayName(userId),
+                                    Foreground = new SolidColorBrush(Colors.White),
+                                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                                    FontSize = 14
+                                },
+                                new TextBlock
+                                {
+                                    Text = "Screen share",
+                                    Foreground = new SolidColorBrush(ColorHelper.FromArgb(220, 214, 232, 238)),
+                                    FontSize = 12
+                                }
+                            }
+                        },
+                        new StackPanel
+                        {
+                            Orientation = Orientation.Horizontal,
+                            Spacing = 8,
+                            VerticalAlignment = VerticalAlignment.Center,
+                            Children =
+                            {
+                                new FontIcon
+                                {
+                                    Glyph = "\uE8D4",
+                                    FontFamily = new FontFamily("Segoe Fluent Icons"),
+                                    FontSize = 16,
+                                    Foreground = new SolidColorBrush(Colors.White)
+                                },
+                                new TextBlock
+                                {
+                                    Text = "Watch the Stream",
+                                    Foreground = new SolidColorBrush(Colors.White),
+                                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                                    FontSize = 13,
+                                    VerticalAlignment = VerticalAlignment.Center
+                                }
+                            }
+                        }
+                    }
+                };
+
+                Grid.SetColumn((FrameworkElement)((Grid)button.Content).Children[1], 1);
+                RemoteScreenWatchUsersPanel.Children.Add(button);
+            }
+        }
+
+        private async Task TryRenderRemoteScreenShareWatchPreviewAsync(ScreenFrameEventArgs e)
+        {
+            if (e.FromUserId <= 0 ||
+                e.FrameData.Length == 0 ||
+                !_pendingRemoteScreenShareUserIds.Contains(e.FromUserId) ||
+                _acceptedRemoteScreenShareUserIds.Contains(e.FromUserId))
+            {
+                return;
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            if (now - _lastRemoteWatchPreviewRenderedUtc < TimeSpan.FromMilliseconds(500))
+                return;
+
+            _lastRemoteWatchPreviewRenderedUtc = now;
+            try
+            {
+                await RenderScreenFrameAsync(e.FrameData, RemoteScreenWatchPreviewImage);
+                RemoteScreenWatchPreviewPlaceholder.Visibility = Visibility.Collapsed;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ScreenShare:WATCH] Preview render failed from {e.FromUserId}: {ex}");
+                RemoteScreenWatchPreviewPlaceholder.Visibility = Visibility.Visible;
+            }
+        }
+
+        private void ClearRemoteScreenShareWatchPreview()
+        {
+            RemoteScreenWatchPreviewImage.Source = null;
+            RemoteScreenWatchPreviewPlaceholder.Visibility = Visibility.Visible;
+            _lastRemoteWatchPreviewRenderedUtc = DateTimeOffset.MinValue;
+        }
+
+        private void WatchRemoteScreenShare_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not FrameworkElement element || element.Tag is not long userId)
+                return;
+
+            DiagnosticLogService.WriteLine($"[ScreenShare:WATCH] Watch the Stream clicked for participant {userId}; pending={_pendingRemoteScreenShareUserIds.Count}; accepted={_acceptedRemoteScreenShareUserIds.Count}; currentSender={_remoteScreenShareSenderId}.");
+            _acceptedRemoteScreenShareUserIds.Add(userId);
+            _pendingRemoteScreenShareUserIds.Remove(userId);
+            _remoteScreenShareWatchPromptSignature = "";
+            _isRemoteScreenShareWatchPromptVisible = false;
+            _remoteScreenShareSenderId = userId;
+            _isRemoteVideoVisible = false;
+            ClearRemoteScreenShareWatchPreview();
+            RefreshRemoteScreenShareWatchPrompt();
+            var hadVisibleRemoteStream = _remoteScreenLastRenderedAtUtc.HasValue ||
+                Volatile.Read(ref _remoteRenderedFrameCount) > 0;
+            _remoteScreenLastRenderedAtUtc = null;
+            if (hadVisibleRemoteStream)
+                ResetRemoteScreenShareReceiveState(clearImage: true);
+            else
+                RemoteScreenImage.Source = null;
+            ShowRemoteScreenShareLoading(
+                $"Watching {GetParticipantDisplayName(userId)}'s stream",
+                "Connecting to the live screen share...");
+            UpdateMediaLayerVisibility();
+            MediaOverlayText.Text = $"Watching {GetParticipantDisplayName(userId)}";
+            RequestRemoteVideoKeyFrame("viewer clicked Watch the Stream");
+            _ = RequestFreshScreenShareAfterWatchAsync(userId);
+        }
+
+        private async Task RequestFreshScreenShareAfterWatchAsync(long userId)
+        {
+            try
+            {
+                var session = NativeCallCoordinator.Instance.CurrentSession;
+                if (userId <= 0 ||
+                    session.State != NativeCallState.Connected ||
+                    string.IsNullOrWhiteSpace(session.CallId))
+                {
+                    return;
+                }
+
+                _remoteScreenShareSenderId = userId;
+                _lastQosSentUtc = DateTimeOffset.MinValue;
+                DiagnosticLogService.WriteLine($"[ScreenShare:WATCH] Requesting fresh stream offer from {userId} after Watch the Stream click.");
+                await SendScreenShareQosIfNeededAsync("receiver RTP stalled; restart screen-share offer after Watch the Stream clicked");
+                RequestRemoteVideoKeyFrame("viewer clicked Watch the Stream and requested fresh offer");
+            }
+            catch (Exception ex)
+            {
+                DiagnosticLogService.WriteLine($"[ScreenShare:WATCH] Fresh stream request failed for {userId}: {ex}");
+            }
+            finally
+            {
+                DiagnosticLogService.Flush();
+            }
+        }
+
+        private bool IsRemoteScreenShareAccepted(long userId)
+        {
+            return userId > 0 && _acceptedRemoteScreenShareUserIds.Contains(userId);
+        }
+
+        private bool ShouldRenderRemoteScreenShareFrame(long userId, string transport)
+        {
+            if (userId <= 0)
+                return true;
+
+            if (!_acceptedRemoteScreenShareUserIds.Contains(userId))
+            {
+                var added = _pendingRemoteScreenShareUserIds.Add(userId);
+                if (added || !_isRemoteScreenShareWatchPromptVisible)
+                {
+                    TryEnqueueOnUi(() =>
+                    {
+                        ShowRemoteScreenShareWatchPrompt();
+                        UpdateMediaLayerVisibility();
+                    });
+                }
+
+                Debug.WriteLine($"[ScreenShare:WATCH] Holding {transport} frame from {userId} until Watch the Stream is clicked.");
+                return false;
+            }
+
+            if (_remoteScreenShareSenderId > 0 && _remoteScreenShareSenderId != userId)
+            {
+                Debug.WriteLine($"[ScreenShare:WATCH] Ignored {transport} frame from {userId}; currently watching {_remoteScreenShareSenderId}.");
+                return false;
+            }
+
+            return true;
+        }
+
+        private long GetScreenSharePeerParticipantId(object? peerObject)
+        {
+            if (peerObject == null)
+                return 0;
+
+            foreach (var pair in _screenSharePeers)
+            {
+                if (ReferenceEquals(pair.Value, peerObject))
+                    return pair.Key;
+            }
+
+            return 0;
         }
 
         private void ApplyScreenShareFocusMode()

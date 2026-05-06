@@ -44,7 +44,7 @@ namespace Zink.Services.Recording
                 throw new InvalidOperationException("No valid video frames are available to write.");
 
             // Use fixed output cadence to avoid timing wobble between captured frames.
-            uint outputFps = Math.Clamp(options?.FrameRate ?? 60, 1u, 240u);
+            uint outputFps = Math.Clamp(options?.FrameRate ?? 120, 1u, 240u);
             TimeSpan fixedFrameDuration = TimeSpan.FromMilliseconds(1000.0 / outputFps);
 
             uint sourceWidth = (uint)orderedFrames[0].Width;
@@ -229,6 +229,7 @@ namespace Zink.Services.Recording
             {
                 TimeSpan start = frames[0].Timestamp;
                 long fallbackDuration100ns = TimeSpan.FromMilliseconds(1000.0 / fps).Ticks;
+                long nextSampleTime100ns = 0;
 
                 for (int i = 0; i < frames.Count; i++)
                 {
@@ -237,23 +238,22 @@ namespace Zink.Services.Recording
                     if (frame.Bgra32Bytes is null)
                         continue;
 
-                    long timestamp100ns = (frame.Timestamp - start).Ticks;
-                    long duration100ns = fallbackDuration100ns;
+                    long targetTime100ns = Math.Max(0, (frame.Timestamp - start).Ticks);
 
-                    if (i + 1 < frames.Count)
+                    do
                     {
-                        duration100ns = (frames[i + 1].Timestamp - frame.Timestamp).Ticks;
-                        if (duration100ns <= 0)
-                            duration100ns = fallbackDuration100ns;
+                        long timestamp100ns = nextSampleTime100ns;
+
+                        hr = NativeMuxWriter.ZrmWriteVideoFrame(
+                            timestamp100ns,
+                            fallbackDuration100ns,
+                            frame.Bgra32Bytes,
+                            (uint)frame.Bgra32Bytes.Length);
+
+                        NativeMuxWriter.ThrowIfFailed(hr, nameof(NativeMuxWriter.ZrmWriteVideoFrame));
+                        nextSampleTime100ns += fallbackDuration100ns;
                     }
-
-                    hr = NativeMuxWriter.ZrmWriteVideoFrame(
-                        timestamp100ns,
-                        duration100ns,
-                        frame.Bgra32Bytes,
-                        (uint)frame.Bgra32Bytes.Length);
-
-                    NativeMuxWriter.ThrowIfFailed(hr, nameof(NativeMuxWriter.ZrmWriteVideoFrame));
+                    while (nextSampleTime100ns <= targetTime100ns);
                 }
 
                 NativeMuxWriter.ThrowIfFailed(

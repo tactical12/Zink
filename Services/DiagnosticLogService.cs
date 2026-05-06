@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -50,7 +51,17 @@ namespace Zink.Services
 
         public static string CurrentDeviceLogPath => Path.Combine(LogDirectoryPath, $"zink-diagnostics-{DeviceName}-latest.txt");
 
+        public static string ScreenShareDocumentsDirectoryPath => Path.Combine(GetDocumentsDirectoryPath(), "Zink", "Screen Share");
+
         public static event EventHandler? StateChanged;
+
+        public static IReadOnlyList<string> GetKnownLogDirectoryPaths()
+        {
+            lock (SyncRoot)
+            {
+                return GetActiveLogDirectoryCandidates().ToList();
+            }
+        }
 
         public static void InitializeFromSettings()
         {
@@ -71,6 +82,22 @@ namespace Zink.Services
             }
 
             EnableFileLogging();
+        }
+
+        public static void EnsureLogFile(string reason)
+        {
+            lock (SyncRoot)
+            {
+                IsEnabled = true;
+
+                if (_deviceWriter == null)
+                    OpenWriterLocked();
+
+                InstallListenersLocked();
+                WriteLineLocked("Diagnostic log ensured: " + reason);
+                PublishLogSnapshotsLocked(force: true);
+                StartFlushTimerLocked();
+            }
         }
 
         public static bool GetEnabledSetting()
@@ -275,6 +302,9 @@ namespace Zink.Services
                 }
             }
 
+            foreach (var failure in failures)
+                WriteFallbackBootstrapLine("Log directory candidate failed: " + failure);
+
             IsEnabled = false;
         }
 
@@ -311,6 +341,12 @@ namespace Zink.Services
 
             foreach (var mirror in GetLogDirectoryCandidates())
                 Add(mirror);
+
+            Add(Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Zink",
+                "Logs"));
+            Add(Path.Combine(Path.GetTempPath(), "Zink", "Logs"));
 
             return candidates;
         }
@@ -462,7 +498,12 @@ namespace Zink.Services
                     _deviceWriter?.WriteLine(entry);
                 }
 
-                _deviceWriter?.Flush();
+                if (message?.Contains("CRITICAL", StringComparison.OrdinalIgnoreCase) == true ||
+                    message?.Contains("Unhandled", StringComparison.OrdinalIgnoreCase) == true ||
+                    message?.Contains("crash", StringComparison.OrdinalIgnoreCase) == true)
+                {
+                    _deviceWriter?.Flush();
+                }
                 PublishLogSnapshotsLocked(force: false);
             }
             catch
@@ -551,7 +592,28 @@ namespace Zink.Services
             {
             }
 
+            Add(Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Zink",
+                "Logs"), candidates);
+            Add(Path.Combine(Path.GetTempPath(), "Zink", "Logs"), candidates);
+            Add(ScreenShareDocumentsDirectoryPath, candidates);
+
             return candidates;
+        }
+
+        private static void WriteFallbackBootstrapLine(string message)
+        {
+            try
+            {
+                var directory = Path.Combine(Path.GetTempPath(), "Zink", "Logs");
+                Directory.CreateDirectory(directory);
+                var path = Path.Combine(directory, $"zink-diagnostics-{DeviceName}-bootstrap.txt");
+                File.AppendAllText(path, $"{Timestamp()} [{DeviceName}] {message}{Environment.NewLine}", Utf8NoBom);
+            }
+            catch
+            {
+            }
         }
 
         private static string SanitizeFileName(string? value, string fallback)
@@ -629,6 +691,19 @@ namespace Zink.Services
                 if (Directory.Exists(candidate) && seen.Add(candidate))
                     yield return candidate;
             }
+        }
+
+        private static string GetDocumentsDirectoryPath()
+        {
+            var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            if (!string.IsNullOrWhiteSpace(documents))
+                return documents;
+
+            var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            if (!string.IsNullOrWhiteSpace(userProfile))
+                return Path.Combine(userProfile, "Documents");
+
+            return Path.Combine(Path.GetTempPath(), "Documents");
         }
 
         private static string Timestamp()

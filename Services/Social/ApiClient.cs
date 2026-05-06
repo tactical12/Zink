@@ -183,14 +183,29 @@ namespace Zink.Services.Social
             return JsonSerializer.Deserialize<List<FriendDto>>(body, _jsonOptions) ?? new List<FriendDto>();
         }
 
-        public Task<List<FriendRequestDto>> GetRequestsAsync()
+        public async Task<List<FriendRequestDto>> GetRequestsAsync()
         {
-            return Task.FromResult(new List<FriendRequestDto>());
+            await AddAuthHeaderAsync();
+
+            using var response = await _http.GetAsync("api/friends/requests");
+            var body = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+                throw new Exception(body);
+
+            return JsonSerializer.Deserialize<List<FriendRequestDto>>(body, _jsonOptions) ?? new List<FriendRequestDto>();
         }
 
-        public Task RespondRequestAsync(long requestId, bool accept)
+        public async Task RespondRequestAsync(long requestId, bool accept)
         {
-            return Task.CompletedTask;
+            await AddAuthHeaderAsync();
+
+            var action = accept ? "accept" : "decline";
+            using var response = await _http.PostAsync($"api/friends/requests/{requestId}/{action}", null);
+            var body = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+                throw new Exception(body);
         }
 
         public Task BlockUserAsync(long targetUserId)

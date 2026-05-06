@@ -47,8 +47,8 @@ namespace Zink.Services.Recording
         private byte[]? _lastFrameBytes;
 
         // Fixed pacing is much steadier for replay segments than "capture whenever + Task.Delay jitter".
-        private uint _targetFps = 60;
-        private TimeSpan _targetFrameInterval = TimeSpan.FromMilliseconds(1000.0 / 60);
+        private uint _targetFps = 120;
+        private TimeSpan _targetFrameInterval = TimeSpan.FromMilliseconds(1000.0 / 120);
 
         public event EventHandler<VideoFramePacket>? VideoFrameArrived;
 
@@ -214,12 +214,22 @@ namespace Zink.Services.Recording
 
         private void ApplyResolutionAwareFrameRate()
         {
-            long pixelCount = (long)_width * _height;
-            const long uhdPixelCount = 3840L * 2160L;
+            if (_width <= 0 || _height <= 0)
+                return;
 
-            if (pixelCount > uhdPixelCount && _targetFps > 30)
+            long pixels = (long)_width * _height;
+
+            if (pixels >= 3840L * 2160L)
             {
-                _targetFps = 30;
+                _targetFps = Math.Min(_targetFps, 30);
+            }
+            else if (pixels >= 2560L * 1440L)
+            {
+                _targetFps = Math.Min(_targetFps, 45);
+            }
+            else
+            {
+                _targetFps = Math.Min(_targetFps, 60);
             }
         }
 
@@ -263,15 +273,16 @@ namespace Zink.Services.Recording
                     if (wait > TimeSpan.Zero)
                     {
                         await Task.Delay(wait, token);
+                        now = _stopwatch.Elapsed;
                     }
 
-                    // Timestamp from the scheduled cadence, not the wall-clock jitter after delays.
-                    TimeSpan packetTimestamp = nextFrameDue;
-                    nextFrameDue += _targetFrameInterval;
+                    TimeSpan packetTimestamp = now;
+                    nextFrameDue = now + _targetFrameInterval;
 
                     DxgiOutputDuplicateFrameInformation frameInfo;
+                    int acquireTimeoutMs = _targetFps > 60 ? 0 : 8;
                     var result = _duplication.TryAcquireNextFrame(
-                        16,
+                        acquireTimeoutMs,
                         out frameInfo,
                         out desktopResource);
 

@@ -1,4 +1,4 @@
-using Microsoft.UI.Xaml;
+﻿using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Controls;
 using System;
@@ -36,6 +36,7 @@ namespace Zink
         {
             this.InitializeComponent();
             DiagnosticLogService.InitializeFromSettings();
+            DiagnosticLogService.EnsureLogFile("app constructor");
             DiagnosticLogService.WriteLine("Zink app constructor started.");
             HookDiagnosticCrashLogging();
 
@@ -56,6 +57,7 @@ namespace Zink
                     Directory.CreateDirectory(DiagnosticLogService.LogDirectoryPath);
                     var crashLogPath = Path.Combine(DiagnosticLogService.LogDirectoryPath, $"CrashLog-{DiagnosticLogService.DeviceName}-latest.txt");
                     File.WriteAllText(crashLogPath, e.Exception + Environment.NewLine);
+                    WriteScreenShareCrashCopy("UnhandledException", e.Exception);
                 }
                 catch { }
                 finally
@@ -74,6 +76,7 @@ namespace Zink
                 try
                 {
                     DiagnosticLogService.WriteLine("AppDomain unhandled exception: " + e.ExceptionObject);
+                    WriteScreenShareCrashCopy("AppDomainUnhandledException", e.ExceptionObject);
                 }
                 catch
                 {
@@ -125,6 +128,23 @@ namespace Zink
                     DiagnosticLogService.Flush();
                 }
             };
+        }
+
+        private static void WriteScreenShareCrashCopy(string source, object crash)
+        {
+            try
+            {
+                Directory.CreateDirectory(DiagnosticLogService.ScreenShareDocumentsDirectoryPath);
+                var crashLogPath = Path.Combine(
+                    DiagnosticLogService.ScreenShareDocumentsDirectoryPath,
+                    $"CrashLog-{DiagnosticLogService.DeviceName}-latest.txt");
+
+                var body = $"{DateTimeOffset.Now:O} {source}{Environment.NewLine}{crash}{Environment.NewLine}";
+                File.WriteAllText(crashLogPath, body);
+            }
+            catch
+            {
+            }
         }
 
         private static bool IsScreenShareDiagnosticException(Exception exception)
@@ -658,4 +678,3 @@ namespace Zink
         }
     }
 }
-

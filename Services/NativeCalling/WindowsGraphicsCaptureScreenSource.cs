@@ -6,6 +6,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using Windows.Graphics.Capture;
 using Windows.Graphics.DirectX;
@@ -28,6 +29,7 @@ namespace Zink.Services.NativeCalling
         private Bitmap? _latestFrame;
         private CapturedGpuFrame? _latestGpuFrame;
         private long _frameArrivedCount;
+        private int _frameArrivedBreadcrumbs;
         private uint _lastFrameFingerprint;
         private int _sameFrameCount;
         private DateTimeOffset _lastFrameLogUtc = DateTimeOffset.MinValue;
@@ -61,6 +63,7 @@ namespace Zink.Services.NativeCalling
 
                 DiagnosticLogService.WriteLine("[ScreenShare:WGC] StartAsync entered.");
                 DiagnosticLogService.Flush();
+                ScreenShareCrashBreadcrumb.Mark("WGC StartAsync entered");
 
                 var hwnd = App.MainWindow?.GetWindowHandle() ?? IntPtr.Zero;
                 var item = await CaptureSourceHelper.GetPrimaryScreenOrPromptAsync(hwnd);
@@ -76,26 +79,40 @@ namespace Zink.Services.NativeCalling
 
                 DiagnosticLogService.WriteLine($"[ScreenShare:WGC] Capture item ready {item.Size.Width}x{item.Size.Height}; arm64={IsArm64Process}.");
                 DiagnosticLogService.Flush();
+                ScreenShareCrashBreadcrumb.Mark($"WGC capture item ready {item.Size.Width}x{item.Size.Height}; arm64={IsArm64Process}");
 
                 _sharpDxDevice = CreateCaptureDevice();
                 EnableMultithreadProtection(_sharpDxDevice);
 
                 DiagnosticLogService.WriteLine("[ScreenShare:WGC] D3D11 capture device created.");
                 DiagnosticLogService.Flush();
+                ScreenShareCrashBreadcrumb.Mark("WGC D3D11 capture device created");
 
                 _winRtDevice = Direct3D11Helpers.CreateD3DDevice(_sharpDxDevice);
 
                 DiagnosticLogService.WriteLine("[ScreenShare:WGC] WinRT Direct3D device created.");
                 DiagnosticLogService.Flush();
+                ScreenShareCrashBreadcrumb.Mark("WGC WinRT Direct3D device created");
 
-                _framePool = Direct3D11CaptureFramePool.CreateFreeThreaded(
-                    _winRtDevice,
-                    DirectXPixelFormat.B8G8R8A8UIntNormalized,
-                    2,
-                    item.Size);
+                _framePool = IsArm64Process
+                    ? Direct3D11CaptureFramePool.Create(
+                        _winRtDevice,
+                        DirectXPixelFormat.B8G8R8A8UIntNormalized,
+                        2,
+                        item.Size)
+                    : Direct3D11CaptureFramePool.CreateFreeThreaded(
+                        _winRtDevice,
+                        DirectXPixelFormat.B8G8R8A8UIntNormalized,
+                        2,
+                        item.Size);
 
-                DiagnosticLogService.WriteLine("[ScreenShare:WGC] Free-threaded frame pool created.");
+                DiagnosticLogService.WriteLine(IsArm64Process
+                    ? "[ScreenShare:WGC] Dispatcher-backed frame pool created for ARM64 automatic capture."
+                    : "[ScreenShare:WGC] Free-threaded frame pool created.");
                 DiagnosticLogService.Flush();
+                ScreenShareCrashBreadcrumb.Mark(IsArm64Process
+                    ? "WGC dispatcher-backed frame pool created"
+                    : "WGC free-threaded frame pool created");
 
                 _session = _framePool.CreateCaptureSession(item);
                 TryDisableCaptureBorder(_session);
@@ -106,8 +123,10 @@ namespace Zink.Services.NativeCalling
                 }
 
                 _framePool.FrameArrived += FramePool_FrameArrived;
+                ScreenShareCrashBreadcrumb.Mark("WGC FrameArrived handler attached");
                 _session.StartCapture();
                 _started = true;
+                ScreenShareCrashBreadcrumb.Mark("WGC StartCapture returned");
 
                 Debug.WriteLine($"[ScreenShare:WGC] Windows Graphics Capture started {item.Size.Width}x{item.Size.Height} via native D3D11 GPU capture device.");
                 DiagnosticLogService.WriteLine($"[ScreenShare:WGC] Windows Graphics Capture started {item.Size.Width}x{item.Size.Height} via native D3D11 GPU capture device.");
@@ -140,8 +159,30 @@ namespace Zink.Services.NativeCalling
             {
                 Debug.WriteLine($"[ScreenShare:WGC] D3D11 capture device with VideoSupport failed; retrying BGRA-only: {ex.Message}");
                 DiagnosticLogService.WriteLine($"[ScreenShare:WGC] D3D11 capture device with VideoSupport failed; retrying BGRA-only: {ex.Message}");
+                ScreenShareCrashBreadcrumb.Mark("WGC capture hardware device retrying BGRA-only");
+                try
+                {
+                    return new SharpDX.Direct3D11.Device(
+                        SharpDX.Direct3D.DriverType.Hardware,
+                        DeviceCreationFlags.BgraSupport);
+                }
+                catch (Exception retryEx)
+                {
+                    Debug.WriteLine($"[ScreenShare:WGC] D3D11 hardware capture device failed; retrying WARP BGRA-only: {retryEx.Message}");
+                    DiagnosticLogService.WriteLine($"[ScreenShare:WGC] D3D11 hardware capture device failed; retrying WARP BGRA-only: {retryEx.Message}");
+                    ScreenShareCrashBreadcrumb.Mark("WGC capture hardware device failed; retrying WARP");
+                    return new SharpDX.Direct3D11.Device(
+                        SharpDX.Direct3D.DriverType.Warp,
+                        DeviceCreationFlags.BgraSupport);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ScreenShare:WGC] D3D11 capture device failed; retrying WARP BGRA-only: {ex.Message}");
+                DiagnosticLogService.WriteLine($"[ScreenShare:WGC] D3D11 capture device failed; retrying WARP BGRA-only: {ex.Message}");
+                ScreenShareCrashBreadcrumb.Mark("WGC capture device failed; retrying WARP");
                 return new SharpDX.Direct3D11.Device(
-                    SharpDX.Direct3D.DriverType.Hardware,
+                    SharpDX.Direct3D.DriverType.Warp,
                     DeviceCreationFlags.BgraSupport);
             }
         }
@@ -168,6 +209,11 @@ namespace Zink.Services.NativeCalling
 
         private void FramePool_FrameArrived(Direct3D11CaptureFramePool sender, object args)
         {
+            var breadcrumbId = Interlocked.Increment(ref _frameArrivedBreadcrumbs);
+            var writeBreadcrumb = IsArm64Process && breadcrumbId <= 4;
+            if (writeBreadcrumb)
+                ScreenShareCrashBreadcrumb.Mark($"WGC FrameArrived entry #{breadcrumbId}");
+
             lock (_disposeSync)
             {
                 if (_disposed || _sharpDxDevice == null)
@@ -175,13 +221,25 @@ namespace Zink.Services.NativeCalling
 
                 try
                 {
+                    if (writeBreadcrumb)
+                        ScreenShareCrashBreadcrumb.Mark($"WGC FrameArrived #{breadcrumbId} before TryGetNextFrame");
+
                     using var frame = sender.TryGetNextFrame();
                     if (frame == null)
                         return;
 
+                    if (writeBreadcrumb)
+                        ScreenShareCrashBreadcrumb.Mark($"WGC FrameArrived #{breadcrumbId} got frame");
+
                     var quality = NativeScreenShareStreamingService.Instance.CurrentQuality;
+                    if (writeBreadcrumb)
+                        ScreenShareCrashBreadcrumb.Mark($"WGC FrameArrived #{breadcrumbId} before surface texture");
+
                     using var sourceTexture = Direct3D11Helpers.CreateSharpDXTexture2D(frame.Surface);
                     var description = sourceTexture.Description;
+                    if (writeBreadcrumb)
+                        ScreenShareCrashBreadcrumb.Mark($"WGC FrameArrived #{breadcrumbId} texture {description.Width}x{description.Height}");
+
                     var gpuFrame = CaptureGpuFrame(sourceTexture, description);
                     if (gpuFrame != null)
                     {
@@ -195,8 +253,13 @@ namespace Zink.Services.NativeCalling
                         }
 
                         LogFrameArrival(description.Width, description.Height, quality.Width, quality.Height, 0);
+                        if (writeBreadcrumb)
+                            ScreenShareCrashBreadcrumb.Mark($"WGC FrameArrived #{breadcrumbId} stored GPU frame");
                         return;
                     }
+
+                    if (writeBreadcrumb)
+                        ScreenShareCrashBreadcrumb.Mark($"WGC FrameArrived #{breadcrumbId} before staging readback");
 
                     EnsureStagingTexture(description);
                     if (_stagingTexture == null || _sharpDxDevice == null)
@@ -204,9 +267,15 @@ namespace Zink.Services.NativeCalling
 
                     _sharpDxDevice.ImmediateContext.CopyResource(sourceTexture, _stagingTexture);
                     _sharpDxDevice.ImmediateContext.Flush();
+                    if (writeBreadcrumb)
+                        ScreenShareCrashBreadcrumb.Mark($"WGC FrameArrived #{breadcrumbId} before MapSubresource");
+
                     var dataBox = _sharpDxDevice.ImmediateContext.MapSubresource(_stagingTexture, 0, MapMode.Read, SharpDX.Direct3D11.MapFlags.None);
                     try
                     {
+                        if (writeBreadcrumb)
+                            ScreenShareCrashBreadcrumb.Mark($"WGC FrameArrived #{breadcrumbId} mapped frame");
+
                         var fingerprint = SampleFrameFingerprint(
                             dataBox.DataPointer,
                             dataBox.RowPitch,
@@ -230,6 +299,8 @@ namespace Zink.Services.NativeCalling
                         }
 
                         LogFrameArrival(description.Width, description.Height, quality.Width, quality.Height, fingerprint);
+                        if (writeBreadcrumb)
+                            ScreenShareCrashBreadcrumb.Mark($"WGC FrameArrived #{breadcrumbId} stored bitmap frame");
                     }
                     finally
                     {

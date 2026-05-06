@@ -16,7 +16,7 @@ namespace Zink.Services.NativeCalling
     {
         public static NativeScreenShareStreamingService Instance { get; } = new NativeScreenShareStreamingService();
 
-        public const int TargetFps = 60;
+        public const int TargetFps = 30;
         public const long JpegQuality = 62L;
         private const int ReceiverSafe1080pFps = 24;
         internal const bool EnableDirectGpuTexturePath = false;
@@ -26,6 +26,9 @@ namespace Zink.Services.NativeCalling
         private static readonly TimeSpan StartupRecoveryKeyFrameThrottle = TimeSpan.FromMilliseconds(2200);
         private static readonly TimeSpan RecoveryKeyFrameThrottle = TimeSpan.FromMilliseconds(900);
         private const int ReceiverPressureSignalsBeforeResolutionDrop = 2;
+        private static bool IsArm64Process =>
+            RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ||
+            RuntimeInformation.OSArchitecture == Architecture.Arm64;
 
         private readonly object _qualitySync = new();
         private CancellationTokenSource? _cts;
@@ -43,6 +46,9 @@ namespace Zink.Services.NativeCalling
         private DateTimeOffset _lastReceiverPacingLogUtc = DateTimeOffset.MinValue;
         private DateTimeOffset _lastReceiverPressureKeyFrameQueuedUtc = DateTimeOffset.MinValue;
         private DateTimeOffset _lastRecoveryKeyFrameQueuedUtc = DateTimeOffset.MinValue;
+        private DateTimeOffset _lastStatsFileLogUtc = DateTimeOffset.MinValue;
+        private DateTimeOffset _lastOutputClockOverrunLogUtc = DateTimeOffset.MinValue;
+        private DateTimeOffset _lastNoRecoveryIdrLogUtc = DateTimeOffset.MinValue;
         private int _healthyWindows;
         private int _pendingRecoveryKeyFrame;
         private int _receiverPressureSignals;
@@ -114,9 +120,14 @@ namespace Zink.Services.NativeCalling
                 _lastReceiverPacingLogUtc = DateTimeOffset.MinValue;
                 _lastReceiverPressureKeyFrameQueuedUtc = DateTimeOffset.MinValue;
                 _lastRecoveryKeyFrameQueuedUtc = _streamStartedAtUtc;
+                _lastStatsFileLogUtc = DateTimeOffset.MinValue;
+                _lastOutputClockOverrunLogUtc = DateTimeOffset.MinValue;
+                _lastNoRecoveryIdrLogUtc = DateTimeOffset.MinValue;
                 EncoderMode = "Starting";
                 EncoderInputFormat = "Unknown";
-                EncoderGpuDeviceMode = RequireHardwareEncoder
+                EncoderGpuDeviceMode = IsArm64Process
+                    ? "ARM64 compatibility capture; hardware H.264 encoder preferred when available"
+                    : RequireHardwareEncoder
                     ? "DirectX 12 GPU hardware required; no software fallback"
                     : "GPU preferred with software fallback";
                 RecoveryKeyFrameInterval = 0;
@@ -128,14 +139,41 @@ namespace Zink.Services.NativeCalling
                 Interlocked.Exchange(ref _pendingRecoveryKeyFrame, 0);
             }
 
-            DiagnosticLogService.WriteLine("[ScreenShare:UI] Starting Windows Graphics Capture source.");
-            DiagnosticLogService.Flush();
-            _wgcCapture = new WindowsGraphicsCaptureScreenSource();
-            var wgcStarted = await _wgcCapture.StartAsync();
-            DiagnosticLogService.WriteLine($"[ScreenShare:UI] Windows Graphics Capture source start result: {wgcStarted}; available={_wgcCapture.IsAvailable}.");
+            if (IsArm64Process)
+            {
+                ScreenShareCrashBreadcrumb.Mark("Native stream StartAsync using ARM64 compatibility capture path");
+                DiagnosticLogService.WriteLine("[ScreenShare:UI] ARM64 device detected; using compatibility capture path to avoid native WGC readback crash.");
+                DiagnosticLogService.Flush();
+            }
+            else
+            {
+                DiagnosticLogService.WriteLine("[ScreenShare:UI] Starting Windows Graphics Capture source.");
+                DiagnosticLogService.Flush();
+                ScreenShareCrashBreadcrumb.Mark("Native stream StartAsync before WGC source creation");
+                _wgcCapture = new WindowsGraphicsCaptureScreenSource();
+                ScreenShareCrashBreadcrumb.Mark("Native stream StartAsync before WGC StartAsync");
+                var wgcStarted = await _wgcCapture.StartAsync();
+                DiagnosticLogService.WriteLine($"[ScreenShare:UI] Windows Graphics Capture source start result: {wgcStarted}; available={_wgcCapture.IsAvailable}.");
+                ScreenShareCrashBreadcrumb.Mark($"Native stream StartAsync after WGC StartAsync result={wgcStarted}");
+                if (!wgcStarted || !_wgcCapture.IsAvailable)
+                {
+                    ScreenShareCrashBreadcrumb.Mark("Native stream StartAsync aborted because WGC did not start");
+                    DiagnosticLogService.WriteLine("[ScreenShare:UI] Windows Graphics Capture did not start; aborting before the capture loop is created.");
+                    DiagnosticLogService.Flush();
+                    IsRunning = false;
+                    _cts.Cancel();
+                    _cts.Dispose();
+                    _cts = null;
+                    _wgcCapture.Dispose();
+                    _wgcCapture = null;
+                    throw new InvalidOperationException("Windows Graphics Capture could not start on this device. Check the screen-share crash breadcrumb log for the failing stage.");
+                }
+            }
 
+            ScreenShareCrashBreadcrumb.Mark("Native stream StartAsync before GPU diagnostics");
             WriteGpuStreamDiagnostics("start");
             DiagnosticLogService.Flush();
+            ScreenShareCrashBreadcrumb.Mark("Native stream StartAsync before capture task start");
             _captureTask = Task.Factory
                 .StartNew(
                     () => CaptureLoopAsync(_cts.Token),
@@ -143,6 +181,7 @@ namespace Zink.Services.NativeCalling
                     TaskCreationOptions.LongRunning,
                     TaskScheduler.Default)
                 .Unwrap();
+            ScreenShareCrashBreadcrumb.Mark("Native stream StartAsync capture task created");
         }
 
         public void SetQuality(ScreenShareQualityPreset preset)
@@ -258,6 +297,8 @@ namespace Zink.Services.NativeCalling
                 return;
 
             Debug.WriteLine("[ScreenShare:H264] Stop requested.");
+            DiagnosticLogService.WriteLine(
+                $"[ScreenShare:H264] Stop requested; captureFps={CaptureFps:0.0}; encodedFps={EncodedFps:0.0}; encoder='{EncoderMode}'; quality={CurrentQuality.Width}x{CurrentQuality.Height}; bitrate={CurrentBitrate}; congestionSignals={CongestionSignals}; recoveryKeyFrames={RecoveryKeyFrameRequests}.");
             DiagnosticLogService.Flush();
             IsRunning = false;
 
@@ -271,6 +312,7 @@ namespace Zink.Services.NativeCalling
             catch (Exception ex)
             {
                 Debug.WriteLine($"[ScreenShare:H264] Stop capture task failed: {ex}");
+                DiagnosticLogService.WriteLine("[ScreenShare:H264] Stop capture task failed: " + ex);
             }
             finally
             {
@@ -278,12 +320,14 @@ namespace Zink.Services.NativeCalling
                 _cts?.Dispose();
                 _cts = null;
                 Debug.WriteLine("[ScreenShare:H264] Stop completed.");
+                DiagnosticLogService.WriteLine("[ScreenShare:H264] Stop completed.");
                 DiagnosticLogService.Flush();
             }
         }
 
         private async Task CaptureLoopAsync(CancellationToken cancellationToken)
         {
+            ScreenShareCrashBreadcrumb.Mark("Native stream CaptureLoopAsync entered");
             try
             {
                 Thread.CurrentThread.Priority = ThreadPriority.AboveNormal;
@@ -362,11 +406,13 @@ namespace Zink.Services.NativeCalling
 
                         if (encoder == null)
                         {
+                            ScreenShareCrashBreadcrumb.Mark($"Native stream before encoder create {quality.Width}x{quality.Height}; arm64={IsArm64Process}");
                             encoder = CreateEncoderWithFallback(
                                 quality,
                                 bitrate,
                                 preferHardware: preferHardwareEncoder,
-                                requireHardware: RequireHardwareEncoder);
+                                requireHardware: IsArm64Process ? false : RequireHardwareEncoder);
+                            ScreenShareCrashBreadcrumb.Mark($"Native stream after encoder create; mode={encoder.EncoderMode}");
                             encoderBitrate = bitrate;
                             encoder.ForceNextKeyFrame();
                             Debug.WriteLine($"[ScreenShare:H264] Encoder created for {quality.Width}x{quality.Height}; forcing first GPU output to IDR.");
@@ -506,8 +552,14 @@ namespace Zink.Services.NativeCalling
                                 if (encodedFramesSinceLastIdr >= recoveryInterval ||
                                     (idrAge >= TimeSpan.FromSeconds(2) && idrRequestAge >= TimeSpan.FromSeconds(1)))
                                 {
-                                    Debug.WriteLine(
-                                        $"[ScreenShare:H264] GPU encoder has produced no recovery IDR for {idrAge.TotalSeconds:0.0}s ({encodedFramesSinceLastIdr} delta outputs); requesting an IDR without restarting NVENC.");
+                                    var idrLogNow = DateTimeOffset.UtcNow;
+                                    if (idrLogNow - _lastNoRecoveryIdrLogUtc >= TimeSpan.FromSeconds(2))
+                                    {
+                                        _lastNoRecoveryIdrLogUtc = idrLogNow;
+                                        Debug.WriteLine(
+                                            $"[ScreenShare:H264] GPU encoder has produced no recovery IDR for {idrAge.TotalSeconds:0.0}s ({encodedFramesSinceLastIdr} delta outputs); requesting an IDR without restarting NVENC.");
+                                    }
+
                                     encoder.ForceNextKeyFrame();
                                     lastPeriodicIdrRequestAtUtc = DateTimeOffset.UtcNow;
                                     encodedFramesSinceLastIdr = 0;
@@ -558,11 +610,22 @@ namespace Zink.Services.NativeCalling
                             capturedInWindow = 0;
                             encodedInWindow = 0;
                             statsWindowStartedAt = now;
-                            Debug.WriteLine($"[ScreenShare:H264:STATS] capture={CaptureFps:0.0}fps encoded={EncodedFps:0.0}fps captureMs={LastCaptureMilliseconds:0.0} encodeMs={LastEncodeMilliseconds:0.0} previewMs={LastPreviewMilliseconds:0.0} loopMs={LastLoopMilliseconds:0.0}");
+                            if (now - _lastStatsFileLogUtc >= TimeSpan.FromSeconds(5))
+                            {
+                                _lastStatsFileLogUtc = now;
+                                var statsLine = $"[ScreenShare:H264:STATS] capture={CaptureFps:0.0}fps encoded={EncodedFps:0.0}fps target={effectiveTargetFps}; captureMs={LastCaptureMilliseconds:0.0}; encodeMs={LastEncodeMilliseconds:0.0}; previewMs={LastPreviewMilliseconds:0.0}; loopMs={LastLoopMilliseconds:0.0}; encoder='{EncoderMode}'; input='{EncoderInputFormat}'; gpu='{EncoderGpuDeviceMode}'; bitrate={CurrentBitrate}; quality={CurrentQuality.Width}x{CurrentQuality.Height}; arm64={IsArm64Process}.";
+                                Debug.WriteLine(statsLine);
+                                DiagnosticLogService.WriteLine(statsLine);
+                            }
+
                             if (EncodedFps < effectiveTargetFps * 0.85 || LastEncodeMilliseconds > 10 || LastLoopMilliseconds > 20)
                             {
-                                Debug.WriteLine($"[ScreenShare:GPU:VIDEO] pressure capture={CaptureFps:0.0}fps encoded={EncodedFps:0.0}fps target={effectiveTargetFps}; captureMs={LastCaptureMilliseconds:0.0}; encodeMs={LastEncodeMilliseconds:0.0}; previewMs={LastPreviewMilliseconds:0.0}; loopMs={LastLoopMilliseconds:0.0}; encoder='{EncoderMode}'; input='{EncoderInputFormat}'; gpu='{EncoderGpuDeviceMode}'; bitrate={CurrentBitrate}; quality={CurrentQuality.Width}x{CurrentQuality.Height}; directGpuTexture={EnableDirectGpuTexturePath}; hardwareRequired={RequireHardwareEncoder}; dx12Required={RequireDirectX12CapturePath}.");
-                                DiagnosticLogService.Flush();
+                                if (now - _lastStatsFileLogUtc < TimeSpan.FromMilliseconds(150))
+                                {
+                                    var pressureLine = $"[ScreenShare:GPU:VIDEO] pressure capture={CaptureFps:0.0}fps encoded={EncodedFps:0.0}fps target={effectiveTargetFps}; captureMs={LastCaptureMilliseconds:0.0}; encodeMs={LastEncodeMilliseconds:0.0}; previewMs={LastPreviewMilliseconds:0.0}; loopMs={LastLoopMilliseconds:0.0}; encoder='{EncoderMode}'; input='{EncoderInputFormat}'; gpu='{EncoderGpuDeviceMode}'; bitrate={CurrentBitrate}; quality={CurrentQuality.Width}x{CurrentQuality.Height}; directGpuTexture={EnableDirectGpuTexturePath}; hardwareRequired={RequireHardwareEncoder}; dx12Required={RequireDirectX12CapturePath}; arm64={IsArm64Process}.";
+                                    Debug.WriteLine(pressureLine);
+                                    DiagnosticLogService.WriteLine(pressureLine);
+                                }
                             }
                             UpdateAdaptiveState();
                         }
@@ -570,6 +633,9 @@ namespace Zink.Services.NativeCalling
                     catch (Exception ex)
                     {
                         Debug.WriteLine($"[ScreenShare:H264] Capture or encode failed: {ex}");
+                        ScreenShareCrashBreadcrumb.Mark("Native stream CaptureLoopAsync failed: " + ex.GetType().Name);
+                        DiagnosticLogService.WriteLine("[ScreenShare:H264] CRITICAL capture or encode failed: " + ex);
+                        DiagnosticLogService.Flush();
                         IsRunning = false;
                         StreamingFailed?.Invoke(this, ex.Message);
                         return;
@@ -583,7 +649,12 @@ namespace Zink.Services.NativeCalling
                     if (outputClock.ElapsedTicks - nextFrameDueTicks > frameBudgetTicks * 2)
                     {
                         nextFrameDueTicks = outputClock.ElapsedTicks;
-                        Debug.WriteLine("[ScreenShare:H264] 60 FPS output clock resynced after encode/capture overrun.");
+                        var overrunNow = DateTimeOffset.UtcNow;
+                        if (overrunNow - _lastOutputClockOverrunLogUtc >= TimeSpan.FromSeconds(2))
+                        {
+                            _lastOutputClockOverrunLogUtc = overrunNow;
+                            Debug.WriteLine("[ScreenShare:H264] 60 FPS output clock resynced after encode/capture overrun.");
+                        }
                     }
                 }
             }
@@ -598,6 +669,9 @@ namespace Zink.Services.NativeCalling
                 EncoderMode = IsRunning ? EncoderMode : "Stopped";
                 if (highResolutionTimerEnabled)
                     NativeMethods.timeEndPeriod(1);
+                DiagnosticLogService.WriteLine(
+                    $"[ScreenShare:H264] CaptureLoopAsync exiting; isRunning={IsRunning}; captureFps={CaptureFps:0.0}; encodedFps={EncodedFps:0.0}; lastCaptureMs={LastCaptureMilliseconds:0.0}; lastEncodeMs={LastEncodeMilliseconds:0.0}; lastLoopMs={LastLoopMilliseconds:0.0}; encoder='{EncoderMode}'; hardwareFallbacks={HardwareEncoderFallbackCount}.");
+                DiagnosticLogService.Flush();
             }
         }
 
@@ -696,13 +770,15 @@ namespace Zink.Services.NativeCalling
                     quality.Height,
                     bitrate,
                     preferHardware,
-                    requireHardware,
+                    IsArm64Process ? false : requireHardware,
                     EnableDirectGpuTexturePath ? _wgcCapture?.CaptureDevice : null);
             }
             catch (Exception ex) when (preferHardware && !requireHardware)
             {
                 HardwareEncoderFallbackCount++;
-                Debug.WriteLine($"[ScreenShare:H264] Hardware encoder startup failed, falling back to software MFT: {ex.Message}");
+                var fallbackLine = $"[ScreenShare:H264] Hardware encoder startup failed, falling back to software MFT: {ex.Message}; arm64={IsArm64Process}; quality={quality.Width}x{quality.Height}; bitrate={bitrate}.";
+                Debug.WriteLine(fallbackLine);
+                DiagnosticLogService.WriteLine(fallbackLine);
                 return new MediaFoundationH264Encoder(quality.Width, quality.Height, bitrate, preferHardware: false);
             }
         }
@@ -739,12 +815,15 @@ namespace Zink.Services.NativeCalling
             RecoveryKeyFrameInterval = encoder.RecoveryKeyFrameInterval;
             EncoderRealtimeModeEnabled = encoder.RealtimeModeEnabled;
             EncoderLowLatencyOutputEnabled = encoder.LowLatencyOutputEnabled;
+            DiagnosticLogService.WriteLine($"[ScreenShare:H264] Encoder active: mode='{EncoderMode}'; input='{EncoderInputFormat}'; gpu='{EncoderGpuDeviceMode}'; realtime={EncoderRealtimeModeEnabled}; lowLatency={EncoderLowLatencyOutputEnabled}; recoveryKeyFrameInterval={RecoveryKeyFrameInterval}; arm64={IsArm64Process}.");
         }
 
         private void WriteGpuStreamDiagnostics(string stage)
         {
             var quality = CurrentQuality;
-            Debug.WriteLine($"[ScreenShare:GPU:VIDEO] {stage}; device={Environment.MachineName}; target={TargetFps}fps; quality={quality.Width}x{quality.Height}; bitrate={CurrentBitrate}; requestedPreset={_qualityPreset}; effectivePreset={_effectiveQualityPreset}; captureDx12Required={RequireDirectX12CapturePath}; hardwareEncoderRequired={RequireHardwareEncoder}; directGpuTexture={EnableDirectGpuTexturePath}; encoder='{EncoderMode}'; input='{EncoderInputFormat}'; gpu='{EncoderGpuDeviceMode}'; adaptive='{AdaptiveState}'; log='{DiagnosticLogService.CurrentLogPath}'.");
+            var line = $"[ScreenShare:GPU:VIDEO] {stage}; device={Environment.MachineName}; target={TargetFps}fps; quality={quality.Width}x{quality.Height}; bitrate={CurrentBitrate}; requestedPreset={_qualityPreset}; effectivePreset={_effectiveQualityPreset}; captureDx12Required={RequireDirectX12CapturePath}; hardwareEncoderRequired={RequireHardwareEncoder}; directGpuTexture={EnableDirectGpuTexturePath}; encoder='{EncoderMode}'; input='{EncoderInputFormat}'; gpu='{EncoderGpuDeviceMode}'; adaptive='{AdaptiveState}'; log='{DiagnosticLogService.CurrentLogPath}'; arm64={IsArm64Process}.";
+            Debug.WriteLine(line);
+            DiagnosticLogService.WriteLine(line);
         }
 
         private static Bitmap CaptureBitmap(ScreenShareQualityProfile quality)
@@ -787,6 +866,9 @@ namespace Zink.Services.NativeCalling
 
         private Bitmap? CaptureBitmapWithBestAvailablePath(ScreenShareQualityProfile quality)
         {
+            if (IsArm64Process)
+                return CaptureBitmap(quality);
+
             if (_wgcCapture?.IsAvailable == true)
             {
                 var waitStartedAt = Stopwatch.StartNew();
@@ -1105,8 +1187,8 @@ namespace Zink.Services.NativeCalling
                     "540p realtime",
                     960,
                     540,
-                    bitrate: 3_500_000,
-                    minimumBitrate: 2_500_000,
+                    bitrate: 2_200_000,
+                    minimumBitrate: 1_600_000,
                     previewFrameInterval: NativeScreenShareStreamingService.TargetFps,
                     previewMaxWidth: 960,
                     previewJpegQuality: NativeScreenShareStreamingService.JpegQuality),
@@ -1115,8 +1197,8 @@ namespace Zink.Services.NativeCalling
                     "720p",
                     1280,
                     720,
-                    bitrate: 6_000_000,
-                    minimumBitrate: 4_500_000,
+                    bitrate: 3_500_000,
+                    minimumBitrate: 2_500_000,
                     previewFrameInterval: NativeScreenShareStreamingService.TargetFps,
                     previewMaxWidth: 1280,
                     previewJpegQuality: 66L),
@@ -1125,8 +1207,8 @@ namespace Zink.Services.NativeCalling
                     "1440p",
                     2560,
                     1440,
-                    bitrate: 22_000_000,
-                    minimumBitrate: 14_000_000,
+                    bitrate: 12_000_000,
+                    minimumBitrate: 8_000_000,
                     previewFrameInterval: NativeScreenShareStreamingService.TargetFps * 6,
                     previewMaxWidth: 1280,
                     previewJpegQuality: 68L),
@@ -1135,8 +1217,8 @@ namespace Zink.Services.NativeCalling
                     "4K",
                     3840,
                     2160,
-                    bitrate: 36_000_000,
-                    minimumBitrate: 24_000_000,
+                    bitrate: 20_000_000,
+                    minimumBitrate: 14_000_000,
                     previewFrameInterval: NativeScreenShareStreamingService.TargetFps * 10,
                     previewMaxWidth: 1280,
                     previewJpegQuality: 68L),
@@ -1145,8 +1227,8 @@ namespace Zink.Services.NativeCalling
                     "1080p",
                     1920,
                     1080,
-                    bitrate: 14_000_000,
-                    minimumBitrate: 9_000_000,
+                    bitrate: 8_000_000,
+                    minimumBitrate: 5_500_000,
                     previewFrameInterval: NativeScreenShareStreamingService.TargetFps,
                     previewMaxWidth: 1920,
                     previewJpegQuality: 70L)

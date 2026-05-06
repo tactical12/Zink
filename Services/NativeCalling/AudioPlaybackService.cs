@@ -43,6 +43,8 @@ namespace Zink.Services.NativeCalling
         private const int MediaDesiredLatencyMs = 120;
         private const int MediaTargetBufferedMs = 240;
         private const int MediaHardTrimBufferedMs = 640;
+        private const float VoicePlaybackGain = 1.8f;
+        private const float MediaPlaybackGain = 1.6f;
         private static readonly byte[] ScreenShareAudioHeader = { (byte)'Z', (byte)'S', (byte)'A', (byte)'1' };
 
         private int _selectedOutputDeviceNumber = -1;
@@ -265,6 +267,20 @@ namespace Zink.Services.NativeCalling
             }
         }
 
+        public static bool IsScreenShareAudioPacket(byte[] data)
+        {
+            if (data == null || data.Length <= ScreenShareAudioHeader.Length)
+                return false;
+
+            for (var i = 0; i < ScreenShareAudioHeader.Length; i++)
+            {
+                if (data[i] != ScreenShareAudioHeader[i])
+                    return false;
+            }
+
+            return true;
+        }
+
         private void PlayMediaLocked(byte[] data)
         {
             if (_mediaBuffer == null)
@@ -346,6 +362,8 @@ namespace Zink.Services.NativeCalling
                 return;
             }
 
+            ApplyPcmGain(pcm, decodedSamples, VoicePlaybackGain);
+
             byte[] pcmBytes = new byte[decodedSamples * sizeof(short)];
             Buffer.BlockCopy(pcm, 0, pcmBytes, 0, pcmBytes.Length);
             _buffer.AddSamples(pcmBytes, 0, pcmBytes.Length);
@@ -394,6 +412,8 @@ namespace Zink.Services.NativeCalling
             }
 
             var sampleCount = decodedSamples * MediaChannels;
+            ApplyPcmGain(pcm, sampleCount, MediaPlaybackGain);
+
             byte[] pcmBytes = new byte[sampleCount * sizeof(short)];
             Buffer.BlockCopy(pcm, 0, pcmBytes, 0, pcmBytes.Length);
             _mediaBuffer.AddSamples(pcmBytes, 0, pcmBytes.Length);
@@ -408,17 +428,24 @@ namespace Zink.Services.NativeCalling
             AudioActivityService.Instance.UpdateRemoteLevel(level);
         }
 
+        private static void ApplyPcmGain(short[] samples, int sampleCount, float gain)
+        {
+            if (gain <= 1f)
+                return;
+
+            var count = Math.Min(sampleCount, samples.Length);
+            for (var i = 0; i < count; i++)
+            {
+                var amplified = (int)MathF.Round(samples[i] * gain);
+                samples[i] = (short)Math.Clamp(amplified, short.MinValue, short.MaxValue);
+            }
+        }
+
         private static bool TryUnwrapScreenShareAudioPacket(byte[] data, out byte[] opusPacket)
         {
             opusPacket = Array.Empty<byte>();
-            if (data.Length <= ScreenShareAudioHeader.Length)
+            if (!IsScreenShareAudioPacket(data))
                 return false;
-
-            for (var i = 0; i < ScreenShareAudioHeader.Length; i++)
-            {
-                if (data[i] != ScreenShareAudioHeader[i])
-                    return false;
-            }
 
             opusPacket = new byte[data.Length - ScreenShareAudioHeader.Length];
             Buffer.BlockCopy(data, ScreenShareAudioHeader.Length, opusPacket, 0, opusPacket.Length);

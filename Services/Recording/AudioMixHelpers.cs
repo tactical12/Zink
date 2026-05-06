@@ -58,10 +58,10 @@ namespace Zink.Services.Recording
             IReadOnlyList<AudioPacket>? systemPackets,
             IReadOnlyList<AudioPacket>? micPackets)
         {
-            var values = new List<TimeSpan>();
-
             if (videoFrames.Count > 0)
-                values.Add(videoFrames.Min(v => v.Timestamp));
+                return videoFrames.Min(v => v.Timestamp);
+
+            var values = new List<TimeSpan>();
 
             if (systemPackets is not null && systemPackets.Count > 0)
                 values.Add(systemPackets.Min(p => p.Timestamp));

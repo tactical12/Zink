@@ -1,0 +1,192 @@
+<Window
+    x:Class="Zink.ZinkConnectWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:wv2="using:Microsoft.UI.Xaml.Controls">
+
+    <Window.SystemBackdrop>
+        <MicaBackdrop Kind="BaseAlt"/>
+    </Window.SystemBackdrop>
+
+    <Grid>
+        <Grid.Resources>
+            <SolidColorBrush x:Key="ConnectGlassPanelBrush" Color="#B0121B24"/>
+            <SolidColorBrush x:Key="ConnectGlassButtonBrush" Color="#22FFFFFF"/>
+            <SolidColorBrush x:Key="ConnectGlassStrokeBrush" Color="#36FFFFFF"/>
+            <SolidColorBrush x:Key="ConnectAccentBrush" Color="#67F7F3"/>
+            <SolidColorBrush x:Key="ConnectTextBrush" Color="#F5FFFFFF"/>
+            <SolidColorBrush x:Key="ConnectMutedBrush" Color="#BBD5E4EE"/>
+
+            <Style x:Key="ConnectIconButtonStyle" TargetType="Button">
+            <Setter Property="MinWidth" Value="44"/>
+                <Setter Property="MinHeight" Value="38"/>
+                <Setter Property="Padding" Value="0"/>
+                <Setter Property="CornerRadius" Value="18"/>
+                <Setter Property="Background" Value="{StaticResource ConnectGlassButtonBrush}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource ConnectGlassStrokeBrush}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="Foreground" Value="{StaticResource ConnectTextBrush}"/>
+            </Style>
+
+            <Style x:Key="ConnectActionButtonStyle" TargetType="Button">
+                <Setter Property="MinHeight" Value="38"/>
+                <Setter Property="Padding" Value="18,7"/>
+                <Setter Property="CornerRadius" Value="18"/>
+                <Setter Property="Background" Value="#3067F7F3"/>
+                <Setter Property="BorderBrush" Value="#7067F7F3"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="Foreground" Value="{StaticResource ConnectTextBrush}"/>
+            </Style>
+        </Grid.Resources>
+
+        <Grid.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#071018" Offset="0"/>
+                <GradientStop Color="#101D28" Offset="0.45"/>
+                <GradientStop Color="#020407" Offset="1"/>
+            </LinearGradientBrush>
+        </Grid.Background>
+
+        <Grid x:Name="BrowserLayoutRoot" RowSpacing="10" Padding="14">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <Border x:Name="BrowserTabsBar"
+                    CornerRadius="18"
+                    Background="{StaticResource ConnectGlassPanelBrush}"
+                    BorderBrush="{StaticResource ConnectGlassStrokeBrush}"
+                    BorderThickness="1"
+                    Padding="8">
+                <ScrollViewer HorizontalScrollBarVisibility="Hidden"
+                              VerticalScrollBarVisibility="Disabled">
+                    <StackPanel x:Name="TabStripPanel"
+                                Orientation="Horizontal"
+                                Spacing="6"/>
+                </ScrollViewer>
+            </Border>
+
+            <Border x:Name="BrowserToolbar"
+                    Grid.Row="1"
+                    CornerRadius="20"
+                    Background="{StaticResource ConnectGlassPanelBrush}"
+                    BorderBrush="{StaticResource ConnectGlassStrokeBrush}"
+                    BorderThickness="1"
+                    Padding="10">
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0"
+                            Width="38"
+                            Height="38"
+                            CornerRadius="14"
+                            Background="#2467F7F3"
+                            BorderBrush="#5867F7F3"
+                            BorderThickness="1">
+                        <FontIcon Glyph="&#xE774;"
+                                  FontFamily="Segoe Fluent Icons"
+                                  Foreground="{StaticResource ConnectAccentBrush}"
+                                  FontSize="20"/>
+                    </Border>
+
+                    <Button x:Name="BackButton" Grid.Column="1" Click="BackButton_Click" Style="{StaticResource ConnectIconButtonStyle}">
+                        <FontIcon Glyph="&#xE72B;" FontFamily="Segoe Fluent Icons"/>
+                    </Button>
+
+                    <Button x:Name="ForwardButton" Grid.Column="2" Click="ForwardButton_Click" Style="{StaticResource ConnectIconButtonStyle}">
+                        <FontIcon Glyph="&#xE72A;" FontFamily="Segoe Fluent Icons"/>
+                    </Button>
+
+                    <Button x:Name="RefreshButton" Grid.Column="3" Click="RefreshButton_Click" Style="{StaticResource ConnectIconButtonStyle}">
+                        <FontIcon Glyph="&#xE72C;" FontFamily="Segoe Fluent Icons"/>
+                    </Button>
+
+                    <Border Grid.Column="4"
+                            CornerRadius="17"
+                            Background="#ECF7FBFF"
+                            BorderBrush="#50FFFFFF"
+                            BorderThickness="1"
+                            Padding="10,0"
+                            MaxHeight="38">
+                        <Grid ColumnSpacing="10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <FontIcon Glyph="&#xE721;"
+                                      FontFamily="Segoe Fluent Icons"
+                                      Foreground="#5E7180"
+                                      FontSize="15"/>
+
+                            <AutoSuggestBox x:Name="AddressBox"
+                                            Grid.Column="1"
+                                            PlaceholderText="Search or enter a website"
+                                            MinHeight="34"
+                                            BorderThickness="0"
+                                            Background="Transparent"
+                                            Foreground="#101820"
+                                            QuerySubmitted="AddressBox_QuerySubmitted"
+                                            SuggestionChosen="AddressBox_SuggestionChosen"
+                                            TextChanged="AddressBox_TextChanged"/>
+                        </Grid>
+                    </Border>
+
+                    <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <TextBlock Text="Ads" Foreground="{StaticResource ConnectMutedBrush}" FontSize="12" VerticalAlignment="Center"/>
+                        <ToggleSwitch x:Name="AdBlockToggle"
+                                      IsOn="True"
+                                      Toggled="BlockerToggle_Toggled"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="6" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <TextBlock Text="Video ads" Foreground="{StaticResource ConnectMutedBrush}" FontSize="12" VerticalAlignment="Center"/>
+                        <ToggleSwitch x:Name="VideoAdBlockToggle"
+                                      IsOn="True"
+                                      Toggled="BlockerToggle_Toggled"/>
+                    </StackPanel>
+
+                    <Button Grid.Column="7"
+                            Content="Go"
+                            Click="GoButton_Click"
+                            Style="{StaticResource ConnectActionButtonStyle}"/>
+                </Grid>
+            </Border>
+
+            <Border x:Name="BrowserShell"
+                    Grid.Row="2"
+                    CornerRadius="26"
+                    Background="#B20B1017"
+                    BorderBrush="{StaticResource ConnectGlassStrokeBrush}"
+                    BorderThickness="1">
+                <Grid>
+                    <Grid x:Name="BrowserHost"/>
+
+                    <Grid x:Name="LoadingOverlay"
+                          Visibility="Collapsed"
+                          Background="#AA05080C">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="14">
+                            <ProgressRing IsActive="True" Width="54" Height="54"/>
+                            <TextBlock Text="Connecting..."
+                                       Foreground="#F4FFFFFF"
+                                       FontSize="16"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
+
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

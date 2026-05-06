@@ -100,16 +100,38 @@ namespace Zink.Pages
             if (sender.CoreWebView2 == null)
                 return;
 
-            sender.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
-            sender.CoreWebView2.Settings.AreDevToolsEnabled = true;
-            sender.CoreWebView2.Settings.IsZoomControlEnabled = true;
-            sender.CoreWebView2.Settings.IsStatusBarEnabled = false;
+            ApplyStoreCompliantTwitchWebViewPolicy(sender.CoreWebView2);
 
             // Keep window.open inside same WebView
             sender.CoreWebView2.NewWindowRequested += (s, e) =>
             {
                 e.Handled = true;
                 try { TwitchWebView.CoreWebView2.Navigate(e.Uri); } catch { }
+            };
+        }
+
+        private static void ApplyStoreCompliantTwitchWebViewPolicy(CoreWebView2 webView)
+        {
+            webView.Settings.AreDefaultContextMenusEnabled = true;
+            webView.Settings.AreDevToolsEnabled = true;
+            webView.Settings.IsZoomControlEnabled = true;
+            webView.Settings.IsStatusBarEnabled = false;
+            webView.Settings.AreHostObjectsAllowed = false;
+
+            try
+            {
+                webView.Profile.PreferredTrackingPreventionLevel = CoreWebView2TrackingPreventionLevel.Balanced;
+            }
+            catch { }
+
+            webView.PermissionRequested += (s, e) =>
+            {
+                if (e.PermissionKind == CoreWebView2PermissionKind.Notifications ||
+                    e.PermissionKind == CoreWebView2PermissionKind.Geolocation)
+                {
+                    e.State = CoreWebView2PermissionState.Deny;
+                    e.Handled = true;
+                }
             };
         }
 

@@ -21,10 +21,15 @@ namespace Zink.Services.NativeCalling
         private bool _audioStarted;
         private bool _localAudioMuted;
         private bool _remoteAudioDeafened;
+        private int _localUserId;
+        private bool _localUserIdLoadInProgress;
+
+        public DateTimeOffset LastRemoteVoiceAudioReceivedUtc { get; private set; } = DateTimeOffset.MinValue;
 
         private NativeCallCoordinator()
         {
             EnsureRealtimeHooks();
+            _ = EnsureLocalUserIdAsync();
         }
 
         public void Reset()
@@ -343,6 +348,27 @@ namespace Zink.Services.NativeCalling
             return string.Equals(reason, "closed-app", StringComparison.OrdinalIgnoreCase);
         }
 
+        private async Task EnsureLocalUserIdAsync()
+        {
+            if (_localUserId > 0 || _localUserIdLoadInProgress)
+                return;
+
+            _localUserIdLoadInProgress = true;
+            try
+            {
+                var userInfo = await Zink.Services.Calling.TokenStore.Instance.GetUserInfoAsync();
+                _localUserId = userInfo?.userId ?? 0;
+            }
+            catch
+            {
+                _localUserId = 0;
+            }
+            finally
+            {
+                _localUserIdLoadInProgress = false;
+            }
+        }
+
         private void Realtime_AudioChunkReceived(object? sender, AudioChunkEventArgs e)
         {
             try
@@ -358,6 +384,15 @@ namespace Zink.Services.NativeCalling
 
                 if (e.CallId != CurrentSession.CallId)
                     return;
+
+                if (_localUserId <= 0)
+                    _ = EnsureLocalUserIdAsync();
+
+                if (_localUserId > 0 && e.FromUserId == _localUserId)
+                    return;
+
+                if (!AudioPlaybackService.IsScreenShareAudioPacket(e.AudioData))
+                    LastRemoteVoiceAudioReceivedUtc = DateTimeOffset.UtcNow;
 
                 if (CurrentSession.RemoteUserId <= 0 || CurrentSession.RemoteUserId != e.FromUserId)
                 {

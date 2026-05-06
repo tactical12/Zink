@@ -1,0 +1,91 @@
+<Page
+    x:Class="Zink.Pages.ZinkConnectPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <Page.Resources>
+        <SolidColorBrush x:Key="ConnectGlassBrush" Color="#9A101820"/>
+        <SolidColorBrush x:Key="ConnectGlassStrokeBrush" Color="#34FFFFFF"/>
+        <SolidColorBrush x:Key="ConnectAccentBrush" Color="#60F8F6"/>
+        <SolidColorBrush x:Key="ConnectTextBrush" Color="#F4FFFFFF"/>
+        <SolidColorBrush x:Key="ConnectMutedBrush" Color="#B8D8E7F2"/>
+    </Page.Resources>
+
+    <Grid>
+        <Grid.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#061119" Offset="0"/>
+                <GradientStop Color="#0B1822" Offset="0.45"/>
+                <GradientStop Color="#030609" Offset="1"/>
+            </LinearGradientBrush>
+        </Grid.Background>
+
+        <Grid Padding="42" MaxWidth="980" HorizontalAlignment="Center" VerticalAlignment="Center" RowSpacing="24">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <Border CornerRadius="32"
+                    Background="{StaticResource ConnectGlassBrush}"
+                    BorderBrush="{StaticResource ConnectGlassStrokeBrush}"
+                    BorderThickness="1"
+                    Padding="34">
+                <StackPanel Spacing="18">
+                    <Border Width="74"
+                            Height="74"
+                            CornerRadius="24"
+                            HorizontalAlignment="Left"
+                            Background="#2460F8F6"
+                            BorderBrush="{StaticResource ConnectGlassStrokeBrush}"
+                            BorderThickness="1">
+                        <FontIcon Glyph="&#xE774;"
+                                  FontFamily="Segoe Fluent Icons"
+                                  Foreground="{StaticResource ConnectAccentBrush}"
+                                  FontSize="34"/>
+                    </Border>
+
+                    <TextBlock Text="Zink Connect"
+                               Foreground="{StaticResource ConnectTextBrush}"
+                               FontSize="44"
+                               FontWeight="SemiBold"/>
+                    <TextBlock Text="A Chromium browser for Zink, opened in its own window with Edge-style controls, persistent sessions, and Store-friendly ad filtering."
+                               Foreground="{StaticResource ConnectMutedBrush}"
+                               TextWrapping="WrapWholeWords"
+                               FontSize="17"
+                               LineHeight="26"/>
+
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <Button x:Name="OpenBrowserButton"
+                                Content="Open Zink Connect"
+                                Click="OpenBrowserButton_Click"
+                                MinHeight="46"
+                                Padding="18,8"
+                                CornerRadius="18"/>
+                        <Button Content="Bring browser forward"
+                                Click="OpenBrowserButton_Click"
+                                MinHeight="46"
+                                Padding="18,8"
+                                CornerRadius="18"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="1"
+                    CornerRadius="24"
+                    Background="#40111A22"
+                    BorderBrush="{StaticResource ConnectGlassStrokeBrush}"
+                    BorderThickness="1"
+                    Padding="22">
+                <TextBlock Text="YouTube ad blocking uses browser-safe request filtering and page cleanup. YouTube changes often, so this blocks common video ad paths and auto-skips removable ad overlays without adding unsafe system hooks."
+                           Foreground="{StaticResource ConnectMutedBrush}"
+                           TextWrapping="WrapWholeWords"
+                           FontSize="14"
+                           LineHeight="22"/>
+            </Border>
+        </Grid>
+    </Grid>
+</Page>

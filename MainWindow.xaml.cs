@@ -87,6 +87,7 @@ namespace Zink
 
             _ = EnsureRealtimeConnectedIfLoggedInAsync();
         }
+
         private void RegisterWindowClosingHandler()
         {
             try
@@ -118,7 +119,6 @@ namespace Zink
             HideToTray();
             _ = ZinkBackgroundModeService.Instance.ApplyAsync();
         }
-
 
         private async void MainWindow_Activated_EnsureRealtime(object sender, WindowActivatedEventArgs e)
         {
@@ -477,7 +477,8 @@ namespace Zink
         {
             try
             {
-                RootGrid.RequestedTheme = theme;
+                if (RootGrid != null)
+                    RootGrid.RequestedTheme = theme;
             }
             catch { }
         }
@@ -804,6 +805,7 @@ namespace Zink
             {
                 "Search" => typeof(SearchResultsPage),
                 "Home" => typeof(HomeDashboardPage),
+                "ZinkConnect" => typeof(ZinkConnectPage),
                 "MusicPlayer" => typeof(MusicPlayerPage),
                 "MusicLibrary" => typeof(MusicLibraryPage),
                 "YouTubeMusic" => typeof(YouTubeMusicPage),
@@ -1031,7 +1033,7 @@ namespace Zink
 
                 var category = tag switch
                 {
-                    "ScreenRecorder" or "FpsRecorder" or "Equalizer" or "Visualizer" => "Tools",
+                    "ScreenRecorder" or "FpsRecorder" or "Equalizer" or "Visualizer" or "ZinkConnect" => "Tools",
                     "Search" => "Search",
                     "Notifications" or "Feedback" or "PrivacyPolicy" or "LeaveReview" or "AppCustomization" or "Settings" or "About" => "App",
                     _ => "Zink"
@@ -1079,6 +1081,7 @@ namespace Zink
             return tag switch
             {
                 "Home" => "Home dashboard",
+                "ZinkConnect" => "Zink Connect",
                 "MusicPlayer" => "Music player",
                 "MusicLibrary" => "Music library",
                 "YouTubeMusic" => "YouTube Music",
@@ -1146,6 +1149,7 @@ namespace Zink
             {
                 if (t == typeof(SearchResultsPage)) return "Search";
                 if (t == typeof(HomeDashboardPage)) return "Home";
+                if (t == typeof(ZinkConnectPage)) return "ZinkConnect";
                 if (t == typeof(MusicPlayerPage)) return "MusicPlayer";
                 if (t == typeof(MusicLibraryPage)) return "MusicLibrary";
                 if (t == typeof(YouTubeMusicPage)) return "YouTubeMusic";

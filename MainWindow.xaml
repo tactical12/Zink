@@ -110,6 +110,12 @@
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
 
+                <NavigationViewItem Content="Zink Connect" Tag="ZinkConnect">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE774;" FontFamily="Segoe Fluent Icons"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+
                 <NavigationViewItem Content="Music" SelectsOnInvoked="False">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE8D6;" FontFamily="Segoe Fluent Icons"/>

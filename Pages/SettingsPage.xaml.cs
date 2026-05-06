@@ -22,6 +22,7 @@ namespace Zink.Pages
         private bool _isLoadingAppUpdatesState;
         private bool _isLoadingBackgroundNotificationsState;
         private bool _isLoadingLowResourceBackgroundState;
+        private bool _isLoadingDiscordRichPresenceState;
         private string? _latestHealthReportPath;
         private string? _latestSupportBundlePath;
 
@@ -58,6 +59,7 @@ namespace Zink.Pages
             LoadBackgroundNotificationSettingState();
             LoadLowResourceBackgroundSettingState();
             LoadReplaySettingState();
+            LoadDiscordRichPresenceSettingState();
             LoadDiagnosticLogSettingState();
             LoadAppUpdatesSettingState();
         }
@@ -68,6 +70,7 @@ namespace Zink.Pages
             LoadBackgroundNotificationSettingState();
             LoadLowResourceBackgroundSettingState();
             LoadReplaySettingState();
+            LoadDiscordRichPresenceSettingState();
             LoadDiagnosticLogSettingState();
             LoadAppUpdatesSettingState();
         }
@@ -255,11 +258,13 @@ namespace Zink.Pages
                 BackgroundModePreferences.SetBackgroundNotificationsEnabled(true);
                 BackgroundModePreferences.SetLowResourceBackgroundModeEnabled(true);
                 BackgroundModePreferences.SetAppUpdateChecksEnabled(true);
+                DiscordPresenceService.Instance.SetEnabled(true);
                 RecordingPreferences.SetGamingBackgroundReplayEnabled(false);
                 DiagnosticLogService.SetEnabled(true);
                 LoadBackgroundNotificationSettingState();
                 LoadLowResourceBackgroundSettingState();
                 LoadReplaySettingState();
+                LoadDiscordRichPresenceSettingState();
                 LoadDiagnosticLogSettingState();
                 LoadAppUpdatesSettingState();
                 await ZinkBackgroundModeService.Instance.ApplyAsync();
@@ -341,6 +346,39 @@ namespace Zink.Pages
                 ? "App update checks enabled."
                 : "App update checks disabled.";
             _ = ZinkBackgroundModeService.Instance.ApplyAsync();
+        }
+
+        private void LoadDiscordRichPresenceSettingState()
+        {
+            _isLoadingDiscordRichPresenceState = true;
+
+            try
+            {
+                var enabled = DiscordPresenceService.GetEnabledSetting();
+                DiscordRichPresenceToggle.IsOn = enabled;
+                DiscordRichPresenceStatusText.Text = enabled
+                    ? "Zink activity can appear on your Discord profile."
+                    : "Zink will not show activity on your Discord profile.";
+            }
+            finally
+            {
+                _isLoadingDiscordRichPresenceState = false;
+            }
+        }
+
+        private void DiscordRichPresenceToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (_isLoadingDiscordRichPresenceState)
+                return;
+
+            var enabled = DiscordRichPresenceToggle.IsOn;
+            DiscordPresenceService.Instance.SetEnabled(enabled);
+            DiscordRichPresenceStatusText.Text = enabled
+                ? "Zink activity can appear on your Discord profile."
+                : "Zink will not show activity on your Discord profile.";
+            StatusText.Text = enabled
+                ? "Discord Rich Presence enabled."
+                : "Discord Rich Presence disabled.";
         }
 
         private void LoadBackgroundNotificationSettingState()

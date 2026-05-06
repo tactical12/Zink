@@ -12,7 +12,7 @@
   <Identity
     Name="FrancisHayle.Zink-MusicVideoPlayer"
     Publisher="CN=Franc"
-    Version="3.0.61.0" />
+    Version="3.0.38.0" />
 
   <Properties>
     <DisplayName>Zink</DisplayName>

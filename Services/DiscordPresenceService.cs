@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using DiscordRPC;
+using Windows.Storage;
 
 namespace Zink.Services
 {
@@ -21,13 +22,42 @@ namespace Zink.Services
         private const string DiscordApplicationId = "1487472795767279857";
         private const string DefaultLargeImageKey = "zink_1024";
         private const string DefaultLargeImageText = "Zink";
+        private const string EnabledSettingKey = "ZinkDiscordRichPresenceEnabled";
         private static readonly TimeSpan DuplicatePresenceRefreshInterval = TimeSpan.FromSeconds(30);
 
         private DiscordPresenceService()
         {
         }
 
-        public bool IsEnabled { get; set; } = true;
+        public bool IsEnabled => GetEnabledSetting();
+
+        public static bool GetEnabledSetting()
+        {
+            try
+            {
+                object value = ApplicationData.Current.LocalSettings.Values[EnabledSettingKey];
+                if (value is bool boolValue)
+                    return boolValue;
+            }
+            catch
+            {
+            }
+
+            return true;
+        }
+
+        public void SetEnabled(bool enabled)
+        {
+            ApplicationData.Current.LocalSettings.Values[EnabledSettingKey] = enabled;
+
+            if (enabled)
+            {
+                Initialize();
+                return;
+            }
+
+            Shutdown();
+        }
 
         public void Initialize()
         {

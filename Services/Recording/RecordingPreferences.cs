@@ -20,7 +20,7 @@ namespace Zink.Services.Recording
                 {
                 }
 
-                return true;
+                return false;
             }
         }
 

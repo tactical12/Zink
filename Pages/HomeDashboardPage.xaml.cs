@@ -20,7 +20,9 @@ using WFileProps = global::Windows.Storage.FileProperties;
 using WPerms = global::Windows.Storage.AccessCache;
 
 using WinRT.Interop;
+using Zink.Services.NativeCalling;
 using Zink.Services;
+using Zink.Services.Social;
 using DispatcherTimer = Microsoft.UI.Xaml.DispatcherTimer;
 
 namespace Zink.Pages
@@ -37,6 +39,13 @@ namespace Zink.Pages
             public string? Kind { get; set; }
         }
 
+        private sealed class MissedCallNotification
+        {
+            public string CallId { get; set; } = "";
+            public string CallerName { get; set; } = "";
+            public DateTimeOffset WhenUtc { get; set; }
+        }
+
         private readonly ObservableCollection<RecentItem> _recent = new();
         private RecentItem? _lastPlayable;
         private readonly DispatcherTimer _nowPlayingTimer = new();
@@ -46,6 +55,7 @@ namespace Zink.Pages
         private bool _spotifyDesktopRefreshInFlight;
         private string _lastSpotifyDesktopDisplay = "";
         private DateTimeOffset _lastSpotifyDiagnosticAtUtc;
+        private readonly List<MissedCallNotification> _missedCalls = new();
 
         private static readonly HashSet<string> MusicExt = new(StringComparer.OrdinalIgnoreCase)
         {
@@ -96,6 +106,10 @@ namespace Zink.Pages
 
             SpotifyControllerService.Instance.PlayingChanged -= SpotifyControllerService_PlayingChanged;
             SpotifyControllerService.Instance.PlayingChanged += SpotifyControllerService_PlayingChanged;
+
+            NativeSignalingBridge.Instance.EnsureHooked();
+            NativeSignalingBridge.Instance.IncomingCallReceived -= NativeSignalingBridge_IncomingCallReceived;
+            NativeSignalingBridge.Instance.IncomingCallReceived += NativeSignalingBridge_IncomingCallReceived;
 
             Loaded += HomeDashboardPage_Loaded;
             Unloaded += HomeDashboardPage_Unloaded;
@@ -151,6 +165,33 @@ namespace Zink.Pages
                 SpotifyControllerService.Instance.TrackChanged -= SpotifyControllerService_TrackChanged;
                 SpotifyControllerService.Instance.PlayingChanged -= SpotifyControllerService_PlayingChanged;
                 DiagnosticLogService.StateChanged -= DiagnosticLogService_StateChanged;
+                NativeSignalingBridge.Instance.IncomingCallReceived -= NativeSignalingBridge_IncomingCallReceived;
+            }
+            catch { }
+        }
+
+        private void NativeSignalingBridge_IncomingCallReceived(object? sender, IncomingCallEventArgs e)
+        {
+            try
+            {
+                DispatcherQueue?.TryEnqueue(() =>
+                {
+                    var caller = GetCallerDisplayName(e.FromDisplayName, e.FromUsername, e.FromUserId);
+                    if (!_missedCalls.Any(call => string.Equals(call.CallId, e.CallId, StringComparison.Ordinal)))
+                    {
+                        _missedCalls.Insert(0, new MissedCallNotification
+                        {
+                            CallId = e.CallId,
+                            CallerName = caller,
+                            WhenUtc = DateTimeOffset.UtcNow
+                        });
+                    }
+
+                    if (_missedCalls.Count > 5)
+                        _missedCalls.RemoveRange(5, _missedCalls.Count - 5);
+
+                    RefreshNotifications();
+                });
             }
             catch { }
         }
@@ -1768,6 +1809,7 @@ namespace Zink.Pages
         private void PulseStream_Click(object sender, RoutedEventArgs e) => App.MainWindow.MainFrame.Navigate(typeof(Social.CallPage));
         private void PulseFps_Click(object sender, RoutedEventArgs e) => App.MainWindow.MainFrame.Navigate(typeof(FpsRecorderPage));
         private void PulseFriends_Click(object sender, RoutedEventArgs e) => App.MainWindow.MainFrame.Navigate(typeof(Social.FriendsPage));
+        private void PulseMessages_Click(object sender, RoutedEventArgs e) => App.MainWindow.MainFrame.Navigate(typeof(Social.MessagesPage));
         private void PulseProfile_Click(object sender, RoutedEventArgs e) => App.MainWindow.MainFrame.Navigate(typeof(Social.ProfilePage));
         private void PulseLogs_Click(object sender, RoutedEventArgs e) => App.MainWindow.MainFrame.Navigate(typeof(SettingsPage));
 
@@ -2031,32 +2073,39 @@ namespace Zink.Pages
             return false;
         }
 
-        private void RefreshNotifications()
+        private async void RefreshNotifications()
         {
             try
             {
-                var items = new List<(string Title, string Detail, string Accent)>
-                {
-                    (
-                        DiagnosticLogService.IsEnabled ? "Diagnostics logging is on" : "Diagnostics logging is off",
-                        DiagnosticLogService.IsEnabled
-                            ? "Writing this device to " + DiagnosticLogService.CurrentLogPath
-                            : "Turn logging on in Settings before testing calls.",
-                        DiagnosticLogService.IsEnabled ? "#65D887" : "#FFB84D"
-                    ),
-                    (
-                        "GPU screen share logging",
-                        "Receiver now logs H.264 input format, decoder output, RTP frames and preview fallback frames.",
-                        "#5AB4FF"
-                    )
-                };
+                var items = new List<(string Title, string Detail, string Accent, string Icon)>();
+
+                await AddFriendRequestNotificationsAsync(items);
+                await AddMessageNotificationsAsync(items);
+                AddMissedCallNotifications(items);
+
+                items.Add((
+                    DiagnosticLogService.IsEnabled ? "Diagnostics logging is on" : "Diagnostics logging is off",
+                    DiagnosticLogService.IsEnabled
+                        ? "Writing this device to " + DiagnosticLogService.CurrentLogPath
+                        : "Turn logging on in Settings before testing calls.",
+                    DiagnosticLogService.IsEnabled ? "#65D887" : "#FFB84D",
+                    "\uE946"
+                ));
+
+                items.Add((
+                    "GPU screen share logging",
+                    "Receiver now logs H.264 input format, decoder output, RTP frames and preview fallback frames.",
+                    "#5AB4FF",
+                    "\uE7F4"
+                ));
 
                 if (!HasLiveNowPlaying())
                 {
                     items.Add((
                         "No live playback detected",
                         "Start Spotify, music, radio or video playback and the dashboard will update automatically.",
-                        "#B9C9D6"
+                        "#B9C9D6",
+                        "\uE768"
                     ));
                 }
 
@@ -2083,14 +2132,22 @@ namespace Zink.Pages
                     grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
                     grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-                    var dot = new Border
+                    var iconHost = new Border
                     {
-                        Width = 10,
-                        Height = 10,
-                        CornerRadius = new CornerRadius(10),
+                        Width = 32,
+                        Height = 32,
+                        CornerRadius = new CornerRadius(16),
                         Background = ColorBrushFromHex(item.Accent),
                         VerticalAlignment = VerticalAlignment.Top,
-                        Margin = new Thickness(0, 5, 0, 0)
+                        Child = new FontIcon
+                        {
+                            Glyph = item.Icon,
+                            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Segoe Fluent Icons"),
+                            FontSize = 14,
+                            Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(global::Windows.UI.Color.FromArgb(0xFF, 0x08, 0x0D, 0x12)),
+                            HorizontalAlignment = HorizontalAlignment.Center,
+                            VerticalAlignment = VerticalAlignment.Center
+                        }
                     };
 
                     var text = new StackPanel { Spacing = 3 };
@@ -2111,7 +2168,7 @@ namespace Zink.Pages
                     });
 
                     Grid.SetColumn(text, 1);
-                    grid.Children.Add(dot);
+                    grid.Children.Add(iconHost);
                     grid.Children.Add(text);
                     row.Child = grid;
                     NotificationsList.Items.Add(row);
@@ -2120,6 +2177,107 @@ namespace Zink.Pages
             catch
             {
             }
+        }
+
+        private async Task AddFriendRequestNotificationsAsync(List<(string Title, string Detail, string Accent, string Icon)> items)
+        {
+            try
+            {
+                var requests = await SocialManager.Instance.Api.GetRequestsAsync();
+                foreach (var request in requests
+                    .Where(r => string.IsNullOrWhiteSpace(r.Status) || r.Status.Equals("pending", StringComparison.OrdinalIgnoreCase))
+                    .OrderByDescending(r => r.CreatedUtc)
+                    .Take(4))
+                {
+                    var name = GetCallerDisplayName(request.FromDisplayName, request.FromUsername, request.FromUserId);
+                    items.Add((
+                        "New friend request",
+                        $"{name} wants to connect with you on Zink Social.",
+                        "#7BF5B5",
+                        "\uE715"
+                    ));
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        private async Task AddMessageNotificationsAsync(List<(string Title, string Detail, string Accent, string Icon)> items)
+        {
+            try
+            {
+                var conversations = await LocalMessageStore.Instance.LoadAsync();
+                foreach (var conversation in conversations
+                    .Select(c => new
+                    {
+                        Conversation = c,
+                        Message = c.Messages.Where(m => !m.IsFromMe).OrderByDescending(m => m.SentUtc).FirstOrDefault()
+                    })
+                    .Where(x => x.Message != null)
+                    .OrderByDescending(x => x.Message!.SentUtc)
+                    .Take(4))
+                {
+                    var sender = GetConversationTitle(conversation.Conversation);
+                    items.Add((
+                        "New message",
+                        $"{sender}: {conversation.Message!.Text}",
+                        "#5AB4FF",
+                        "\uE8BD"
+                    ));
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        private void AddMissedCallNotifications(List<(string Title, string Detail, string Accent, string Icon)> items)
+        {
+            foreach (var call in _missedCalls.Take(4))
+            {
+                items.Add((
+                    "Missed call",
+                    $"You missed a call from {call.CallerName} {FormatRelativeTime(call.WhenUtc)}.",
+                    "#FF6F86",
+                    "\uE717"
+                ));
+            }
+        }
+
+        private static string GetCallerDisplayName(string displayName, string username, long userId)
+        {
+            if (!string.IsNullOrWhiteSpace(displayName))
+                return displayName;
+
+            if (!string.IsNullOrWhiteSpace(username))
+                return "@" + username;
+
+            return userId > 0 ? $"User {userId}" : "Someone";
+        }
+
+        private static string GetConversationTitle(SavedConversation conversation)
+        {
+            if (!string.IsNullOrWhiteSpace(conversation.DisplayName))
+                return conversation.DisplayName;
+
+            if (!string.IsNullOrWhiteSpace(conversation.Username))
+                return conversation.Username;
+
+            return conversation.TargetUserId > 0 ? $"User {conversation.TargetUserId}" : "Someone";
+        }
+
+        private static string FormatRelativeTime(DateTimeOffset whenUtc)
+        {
+            var elapsed = DateTimeOffset.UtcNow - whenUtc;
+            if (elapsed.TotalSeconds < 60)
+                return "just now";
+            if (elapsed.TotalMinutes < 60)
+                return $"{Math.Max(1, (int)elapsed.TotalMinutes)} min ago";
+            if (elapsed.TotalHours < 24)
+                return $"{Math.Max(1, (int)elapsed.TotalHours)} hr ago";
+
+            return whenUtc.ToLocalTime().ToString("MMM d, HH:mm");
         }
 
         private static Microsoft.UI.Xaml.Media.SolidColorBrush ColorBrushFromHex(string hex)

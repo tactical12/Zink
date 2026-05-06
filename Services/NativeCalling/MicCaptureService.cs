@@ -191,9 +191,9 @@ namespace Zink.Services.NativeCalling
             float gain = 1.0f;
             if (max > 0f)
             {
-                gain = 12000f / max;
+                gain = 18000f / max;
 
-                if (gain > 3.0f) gain = 3.0f;
+                if (gain > 4.0f) gain = 4.0f;
                 if (gain < 1.0f) gain = 1.0f;
             }
 

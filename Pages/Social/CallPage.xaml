@@ -156,6 +156,88 @@
                              HorizontalAlignment="Center"/>
                                 </StackPanel>
 
+                                <Border x:Name="RemoteScreenWatchPanel"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        MinWidth="340"
+                        MaxWidth="520"
+                        Padding="26,24"
+                        CornerRadius="26"
+                        Background="#DD111318"
+                        BorderBrush="#36FFFFFF"
+                        BorderThickness="1"
+                        Visibility="Collapsed"
+                        IsHitTestVisible="True"
+                        Canvas.ZIndex="82">
+                                    <StackPanel Spacing="16"
+                                  HorizontalAlignment="Stretch">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Border Width="54"
+                                                    Height="54"
+                                                    CornerRadius="18"
+                                                    Background="#263DDC84"
+                                                    BorderBrush="#663DDC84"
+                                                    BorderThickness="1">
+                                                <FontIcon Glyph="&#xE8D4;"
+                                                          FontFamily="Segoe Fluent Icons"
+                                                          FontSize="24"
+                                                          Foreground="#7CFFB2"
+                                                          HorizontalAlignment="Center"
+                                                          VerticalAlignment="Center"/>
+                                            </Border>
+                                            <StackPanel Grid.Column="1"
+                                                        Margin="14,0,0,0"
+                                                        VerticalAlignment="Center"
+                                                        Spacing="2">
+                                                <TextBlock x:Name="RemoteScreenWatchTitle"
+                                                           Text="A stream is ready"
+                                                           Foreground="White"
+                                                           FontSize="20"
+                                                           FontWeight="SemiBold"/>
+                                                <TextBlock x:Name="RemoteScreenWatchSubtitle"
+                                                           Text="Choose a stream to watch."
+                                                           Foreground="#C9CDD4"
+                                                           FontSize="13"
+                                                           TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <Border Height="150"
+                                                CornerRadius="18"
+                                                Background="#FF0B0D11"
+                                                BorderBrush="#28FFFFFF"
+                                                BorderThickness="1">
+                                            <Grid>
+                                                <Image x:Name="RemoteScreenWatchPreviewImage"
+                                                       Stretch="UniformToFill"/>
+                                                <Grid x:Name="RemoteScreenWatchPreviewPlaceholder"
+                                                      Background="#66000000">
+                                                    <StackPanel HorizontalAlignment="Center"
+                                                                VerticalAlignment="Center"
+                                                                Spacing="6">
+                                                        <FontIcon Glyph="&#xE714;"
+                                                                  FontFamily="Segoe Fluent Icons"
+                                                                  FontSize="22"
+                                                                  Foreground="#DDE7ECF3"/>
+                                                        <TextBlock Text="Waiting for live preview"
+                                                                   Foreground="#DDE7ECF3"
+                                                                   FontSize="13"
+                                                                   FontWeight="SemiBold"
+                                                                   HorizontalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Grid>
+                                        </Border>
+
+                                        <StackPanel x:Name="RemoteScreenWatchUsersPanel"
+                                                    Spacing="10"/>
+                                    </StackPanel>
+                                </Border>
+
                                 <Border x:Name="RemoteScreenLoadingPanel"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center"
@@ -167,6 +249,7 @@
                         BorderBrush="#36FFFFFF"
                         BorderThickness="1"
                         Visibility="Collapsed"
+                        IsHitTestVisible="False"
                         Canvas.ZIndex="80">
                                     <StackPanel Spacing="12"
                                   HorizontalAlignment="Center">

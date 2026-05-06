@@ -54,6 +54,12 @@ namespace Zink.Services.Recording
         private int _directManualFps;
         private long _directManualVideoFrames;
         private long _directManualAudioPackets;
+        private TimeSpan? _directManualAudioTimestampOffset;
+        private long _directManualLastVideoTimestamp100ns;
+        private long _directManualNextVideoTimestamp100ns;
+        private TimeSpan? _lastObservedVideoTimestamp;
+        private TimeSpan? _systemAudioTimestampOffset;
+        private TimeSpan? _microphoneTimestampOffset;
 
         public bool IsRecording { get; private set; }
         public bool IsReplayMode { get; private set; }
@@ -164,6 +170,9 @@ namespace Zink.Services.Recording
                 IsReplayMode = replayMode;
                 _isSavingReplay = false;
                 _droppedVideoFrames = 0;
+                _lastObservedVideoTimestamp = null;
+                _systemAudioTimestampOffset = null;
+                _microphoneTimestampOffset = null;
             }
 
             try
@@ -231,6 +240,11 @@ namespace Zink.Services.Recording
 
         private void CaptureEngine_VideoFrameArrived(object? sender, VideoFramePacket packet)
         {
+            lock (_gate)
+            {
+                _lastObservedVideoTimestamp = packet.Timestamp;
+            }
+
             if (TryWriteDirectManualVideo(packet))
                 return;
 
@@ -288,6 +302,7 @@ namespace Zink.Services.Recording
 
             lock (_gate)
             {
+                packet = AlignAudioPacketToVideoClockNoLock(packet, ref _systemAudioTimestampOffset);
                 _activeSystemAudioBuffer?.Add(packet);
             }
         }
@@ -296,6 +311,7 @@ namespace Zink.Services.Recording
         {
             lock (_gate)
             {
+                packet = AlignAudioPacketToVideoClockNoLock(packet, ref _microphoneTimestampOffset);
                 _activeMicrophoneBuffer?.Add(packet);
             }
         }
@@ -471,7 +487,7 @@ namespace Zink.Services.Recording
                         throw new InvalidOperationException("Manual recording finished but the output file is empty.");
 
                     await CleanupSessionFolderAsync();
-                    ReleaseRecorderMemory();
+                    await Task.Run(ReleaseRecorderMemory);
                     StatusChanged?.Invoke(this, $"Manual recording saved: {outputPath}");
                     StatusChanged?.Invoke(this, "Manual recording stopped.");
                     return;
@@ -532,7 +548,7 @@ namespace Zink.Services.Recording
                 }
 
                 await CleanupSessionFolderAsync();
-                ReleaseRecorderMemory();
+                await Task.Run(ReleaseRecorderMemory);
                 StatusChanged?.Invoke(this, "Manual recording stopped.");
             }
             catch (Exception ex)
@@ -637,7 +653,7 @@ namespace Zink.Services.Recording
             _activeMicrophoneBuffer = null;
 
             await CleanupSessionFolderAsync();
-            ReleaseRecorderMemory();
+            await Task.Run(ReleaseRecorderMemory);
         }
 
         private static bool ShouldUseDirectManualWriter(RecordingOptions options)
@@ -670,7 +686,20 @@ namespace Zink.Services.Recording
                 _directManualFps = 0;
                 _directManualVideoFrames = 0;
                 _directManualAudioPackets = 0;
+                _directManualAudioTimestampOffset = null;
+                _directManualLastVideoTimestamp100ns = 0;
+                _directManualNextVideoTimestamp100ns = 0;
             }
+        }
+
+        private AudioPacket AlignAudioPacketToVideoClockNoLock(AudioPacket packet, ref TimeSpan? audioTimestampOffset)
+        {
+            if (_lastObservedVideoTimestamp is null)
+                return packet;
+
+            audioTimestampOffset ??= _lastObservedVideoTimestamp.Value - packet.Timestamp;
+            packet.Timestamp += audioTimestampOffset.Value;
+            return packet;
         }
 
         private bool TryWriteDirectManualVideo(VideoFramePacket packet)
@@ -723,13 +752,23 @@ namespace Zink.Services.Recording
 
                         NativeMuxWriter.ThrowIfFailed(hr, nameof(NativeMuxWriter.ZrmCreateWriter));
                         _directManualWriterStarted = true;
+                        _directManualNextVideoTimestamp100ns = 0;
+                        _directManualLastVideoTimestamp100ns = 0;
 
                         _ = RecorderLog.InfoAsync(nameof(ManualRecordingService),
                             $"Direct manual writer started. Output='{outputPath}', Size={_directManualWidth}x{_directManualHeight}, Fps={_directManualFps}");
                     }
 
-                    long timestamp100ns = Math.Max(0, (packet.Timestamp - (_directManualOrigin ?? packet.Timestamp)).Ticks);
                     long duration100ns = TimeSpan.FromMilliseconds(1000.0 / Math.Max(1, _directManualFps)).Ticks;
+                    long elapsed100ns = _directManualOrigin is null
+                        ? 0
+                        : Math.Max(0, (packet.Timestamp - _directManualOrigin.Value).Ticks);
+
+                    long timestamp100ns = Math.Max(elapsed100ns, _directManualLastVideoTimestamp100ns + duration100ns);
+                    if (_directManualVideoFrames == 0)
+                        timestamp100ns = 0;
+
+                    _directManualLastVideoTimestamp100ns = timestamp100ns;
 
                     int hrWrite = NativeMuxWriter.ZrmWriteVideoFrame(
                         timestamp100ns,
@@ -739,6 +778,7 @@ namespace Zink.Services.Recording
 
                     NativeMuxWriter.ThrowIfFailed(hrWrite, nameof(NativeMuxWriter.ZrmWriteVideoFrame));
                     _directManualVideoFrames++;
+                    _directManualNextVideoTimestamp100ns = timestamp100ns + duration100ns;
                 }
 
                 packet.Dispose();
@@ -773,23 +813,28 @@ namespace Zink.Services.Recording
                     if (!_directManualWriterStarted || _directManualOrigin is null)
                         return true;
 
-                    if (packet.PcmData.Length == 0)
+                    var normalizedPacket = AudioMixHelpers.NormalizePacket(packet);
+
+                    if (normalizedPacket.PcmData.Length == 0)
                         return true;
 
-                    long timestamp100ns = (packet.Timestamp - _directManualOrigin.Value).Ticks;
+                    _directManualAudioTimestampOffset ??=
+                        TimeSpan.FromTicks(_directManualLastVideoTimestamp100ns) - normalizedPacket.Timestamp;
+
+                    long timestamp100ns = (normalizedPacket.Timestamp + _directManualAudioTimestampOffset.Value).Ticks;
                     if (timestamp100ns < 0)
                         return true;
 
-                    int blockAlign = packet.Channels * (packet.BitsPerSample / 8);
-                    long duration100ns = blockAlign > 0 && packet.SampleRate > 0
-                        ? (10_000_000L * packet.PcmData.Length) / ((long)packet.SampleRate * blockAlign)
+                    int blockAlign = normalizedPacket.Channels * (normalizedPacket.BitsPerSample / 8);
+                    long duration100ns = blockAlign > 0 && normalizedPacket.SampleRate > 0
+                        ? (10_000_000L * normalizedPacket.PcmData.Length) / ((long)normalizedPacket.SampleRate * blockAlign)
                         : 0;
 
                     int hr = NativeMuxWriter.ZrmWriteAudioPacket(
                         timestamp100ns,
                         duration100ns,
-                        packet.PcmData,
-                        (uint)packet.PcmData.Length);
+                        normalizedPacket.PcmData,
+                        (uint)normalizedPacket.PcmData.Length);
 
                     NativeMuxWriter.ThrowIfFailed(hr, nameof(NativeMuxWriter.ZrmWriteAudioPacket));
                     _directManualAudioPackets++;
@@ -831,23 +876,26 @@ namespace Zink.Services.Recording
         private async Task FinalizeDirectManualWriterAsync(string outputPath)
         {
             var finalizeStartedUtc = DateTimeOffset.UtcNow;
-            long videoFrames;
-            long audioPackets;
+            long videoFrames = 0;
+            long audioPackets = 0;
 
-            lock (_directWriterGate)
+            await Task.Run(() =>
             {
-                if (!_directManualWriterStarted || _directManualVideoFrames == 0)
-                    throw new InvalidOperationException("No direct manual frames were written.");
+                lock (_directWriterGate)
+                {
+                    if (!_directManualWriterStarted || _directManualVideoFrames == 0)
+                        throw new InvalidOperationException("No direct manual frames were written.");
 
-                NativeMuxWriter.ThrowIfFailed(
-                    NativeMuxWriter.ZrmFinalizeWriter(),
-                    nameof(NativeMuxWriter.ZrmFinalizeWriter));
+                    NativeMuxWriter.ThrowIfFailed(
+                        NativeMuxWriter.ZrmFinalizeWriter(),
+                        nameof(NativeMuxWriter.ZrmFinalizeWriter));
 
-                NativeMuxWriter.ZrmShutdownWriter();
-                videoFrames = _directManualVideoFrames;
-                audioPackets = _directManualAudioPackets;
-                _directManualWriterStarted = false;
-            }
+                    NativeMuxWriter.ZrmShutdownWriter();
+                    videoFrames = _directManualVideoFrames;
+                    audioPackets = _directManualAudioPackets;
+                    _directManualWriterStarted = false;
+                }
+            });
 
             await RecorderLog.InfoAsync(nameof(ManualRecordingService),
                 $"Direct manual writer finalized. Output='{outputPath}', VideoFrames={videoFrames}, AudioPackets={audioPackets}, ElapsedMs={(DateTimeOffset.UtcNow - finalizeStartedUtc).TotalMilliseconds:F0}");
@@ -855,12 +903,8 @@ namespace Zink.Services.Recording
 
         private static int CalculateDirectManualFps(int width, int height, uint requestedFps)
         {
-            int fps = (int)Math.Clamp(requestedFps == 0 ? 60 : requestedFps, 1u, 60u);
-            long pixels = (long)width * height;
-
-            return pixels > 3840L * 2160L
-                ? Math.Min(fps, 30)
-                : fps;
+            int fps = (int)Math.Clamp(requestedFps == 0 ? 120 : requestedFps, 1u, 120u);
+            return fps;
         }
 
         private static uint CalculateDirectManualBitrate(uint width, uint height, uint fps)
