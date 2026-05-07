@@ -9,6 +9,8 @@ namespace Zink.Services.Gaming
         public double OnePercentLowFps { get; init; }
         public double PointOnePercentLowFps { get; init; }
         public double FrameTimeMs { get; init; }
+        public double CpuUsagePercent { get; init; }
+        public string FpsSource { get; init; } = "Capture";
         public long FrameCount { get; init; }
         public bool IsMonitoring { get; init; }
         public bool IsRecording { get; init; }

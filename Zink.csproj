@@ -219,6 +219,10 @@
     <Content Include="WebRTC\index.html">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="Tools\RTSS\RTSSSetup.exe">
+      <Link>RTSSSetup.exe</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>

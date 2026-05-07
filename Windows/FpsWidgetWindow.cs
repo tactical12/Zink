@@ -17,8 +17,8 @@ namespace Zink.Windows
 {
     public sealed class FpsWidgetWindow : Window
     {
-        private const int WidgetWidth = 230;
-        private const int WidgetHeight = 96;
+        private const int WidgetWidth = 300;
+        private const int WidgetHeight = 74;
         private const int WmNcButtonDown = 0x00A1;
         private const int HtCaption = 2;
 
@@ -26,19 +26,22 @@ namespace Zink.Windows
 
         private readonly TextBlock _fpsText = new()
         {
-            Text = "--",
-            FontSize = 34,
+            Text = "FPS --",
+            FontSize = 18,
             FontWeight = FontWeights.SemiBold,
-            HorizontalAlignment = HorizontalAlignment.Left
+            HorizontalAlignment = HorizontalAlignment.Left,
+            TextWrapping = TextWrapping.NoWrap
         };
 
         private readonly TextBlock _detailText = new()
         {
-            Text = "FPS",
-            FontSize = 13,
+            Text = "CPU --%",
+            FontSize = 16,
             Opacity = 0.78
         };
 
+        private TextBlock? _titleText;
+        private bool _textOnly;
         private readonly Border _shell;
         private IntPtr _hwnd;
         private AppWindow? _appWindow;
@@ -64,17 +67,19 @@ namespace Zink.Windows
             };
         }
 
-        public static void ShowSingleton(int opacity)
+        public static void ShowSingleton(int opacity, bool textOnly = false)
         {
             if (_singleton == null)
             {
                 _singleton = new FpsWidgetWindow();
                 _singleton.SetOpacity(opacity);
+                _singleton.SetTextOnly(textOnly);
                 _singleton.ShowAtTopRight();
             }
             else
             {
                 _singleton.SetOpacity(opacity);
+                _singleton.SetTextOnly(textOnly);
                 _singleton.Activate();
                 _singleton.MakeTopMost(noActivate: true);
             }
@@ -92,12 +97,21 @@ namespace Zink.Windows
             _shell.Background = new SolidColorBrush(Color.FromArgb(alpha, 9, 14, 20));
         }
 
+        public void SetTextOnly(bool textOnly)
+        {
+            _textOnly = textOnly;
+            if (_titleText != null)
+                _titleText.Visibility = Visibility.Visible;
+
+            _detailText.Visibility = Visibility.Visible;
+        }
+
         private Border BuildUi()
         {
             var root = new Border
             {
-                Padding = new Thickness(16, 12, 16, 12),
-                CornerRadius = new CornerRadius(22),
+                Padding = new Thickness(14, 8, 14, 8),
+                CornerRadius = new CornerRadius(14),
                 BorderThickness = new Thickness(1),
                 BorderBrush = new SolidColorBrush(Color.FromArgb(95, 255, 255, 255)),
                 Background = new SolidColorBrush(Color.FromArgb(232, 9, 14, 20))
@@ -105,32 +119,32 @@ namespace Zink.Windows
 
             var grid = new Grid
             {
-                RowSpacing = 2
+                RowSpacing = 0
             };
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
             var title = new TextBlock
             {
-                Text = "ZINK FPS",
-                FontSize = 12,
+                Text = "FPS --   CPU --%",
+                FontSize = 18,
                 FontWeight = FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(Color.FromArgb(210, 174, 239, 255))
+                Foreground = new SolidColorBrush(Color.FromArgb(210, 174, 239, 255)),
+                TextWrapping = TextWrapping.NoWrap,
+                TextTrimming = TextTrimming.Clip,
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center
             };
+            _titleText = title;
 
-            var row = new StackPanel
+            var fitText = new Viewbox
             {
-                Orientation = Orientation.Horizontal,
-                Spacing = 10,
-                VerticalAlignment = VerticalAlignment.Center
+                Stretch = Stretch.Uniform,
+                MaxHeight = 30,
+                Child = title
             };
-            row.Children.Add(_fpsText);
-            row.Children.Add(_detailText);
 
-            Grid.SetRow(title, 0);
-            Grid.SetRow(row, 1);
-            grid.Children.Add(title);
-            grid.Children.Add(row);
+            Grid.SetRow(fitText, 0);
+            grid.Children.Add(fitText);
             root.Child = grid;
 
             root.PointerPressed += Root_PointerPressed;
@@ -141,8 +155,13 @@ namespace Zink.Windows
         {
             DispatcherQueue.TryEnqueue(() =>
             {
-                _fpsText.Text = e.CurrentFps > 0 ? e.CurrentFps.ToString("0") : "--";
-                _detailText.Text = $"{e.FrameTimeMs:0.0} ms\n1% {e.OnePercentLowFps:0}";
+                var fpsText = e.CurrentFps > 0 ? $"FPS {e.CurrentFps:0}" : "FPS --";
+                var cpuText = $"CPU {e.CpuUsagePercent:0}%";
+                if (_titleText != null)
+                    _titleText.Text = $"{fpsText}   {cpuText}";
+
+                _fpsText.Text = fpsText;
+                _detailText.Text = $"CPU {e.CpuUsagePercent:0}%";
             });
         }
 
@@ -228,7 +247,7 @@ namespace Zink.Windows
         {
             StopTopMostKeeper();
             _topmostTimer = DispatcherQueue.CreateTimer();
-            _topmostTimer.Interval = TimeSpan.FromMilliseconds(750);
+            _topmostTimer.Interval = TimeSpan.FromMilliseconds(250);
             _topmostTimer.Tick += (_, _) => MakeTopMost(noActivate: true);
             _topmostTimer.Start();
         }

@@ -221,6 +221,31 @@
                                       IsOn="True"
                                       Toggled="Settings_Changed"/>
 
+                        <Button x:Name="InstallRtssButton"
+                                Click="InstallRtssButton_Click"
+                                HorizontalAlignment="Stretch">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon Glyph="&#xE896;" FontFamily="Segoe Fluent Icons"/>
+                                <ProgressRing x:Name="InstallRtssProgressRing"
+                                              Width="16"
+                                              Height="16"
+                                              IsActive="False"
+                                              Visibility="Collapsed"/>
+                                <TextBlock x:Name="InstallRtssButtonText" Text="Set up real FPS"/>
+                            </StackPanel>
+                        </Button>
+
+                        <TextBlock x:Name="InstallRtssStatusText"
+                                   Text=""
+                                   FontSize="12"
+                                   Opacity="0.72"
+                                   TextWrapping="Wrap"/>
+
+                        <ToggleSwitch x:Name="WidgetTextOnlyToggle"
+                                      Header="Text only FPS"
+                                      IsOn="False"
+                                      Toggled="Settings_Changed"/>
+
                         <Slider x:Name="WidgetOpacitySlider"
                                 Header="Glass opacity"
                                 Minimum="35"

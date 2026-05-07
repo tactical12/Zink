@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Windows.Graphics.Capture;
 using Windows.Graphics.DirectX;
@@ -22,6 +23,8 @@ namespace Zink.Services.Gaming
         private readonly Queue<FrameSample> _recentSamples = new();
         private readonly Stopwatch _clock = new();
         private readonly DispatcherQueueTimer _publishTimer;
+        private readonly GameFpsCounterService _gameFpsCounter = new();
+        private const double MaxDisplayedGameFps = 500.0;
 
         private IDirect3DDevice? _winRtDevice;
         private Device? _d3dDevice;
@@ -30,10 +33,18 @@ namespace Zink.Services.Gaming
         private GraphicsCaptureItem? _captureItem;
         private StreamWriter? _recordWriter;
         private FpsMonitorSettings _settings = new();
+        private FILETIME _lastIdleTime;
+        private FILETIME _lastKernelTime;
+        private FILETIME _lastUserTime;
+        private DateTimeOffset _lastCpuSampleAt;
         private DateTimeOffset _sessionStartedAtUtc;
         private long _frameCount;
         private long _lastFrameTicks;
         private double _lastFrameTimeMs;
+        private double _lastCaptureFps;
+        private double _lastDisplayedGameFps;
+        private double _cpuUsagePercent;
+        private bool _hasCpuSample;
         private bool _isMonitoring;
         private bool _isRecording;
         private string _targetName = "No game selected";
@@ -46,7 +57,7 @@ namespace Zink.Services.Gaming
         {
             var dispatcher = App.MainWindow?.DispatcherQueue ?? DispatcherQueue.GetForCurrentThread();
             _publishTimer = dispatcher.CreateTimer();
-            _publishTimer.Interval = TimeSpan.FromMilliseconds(250);
+            _publishTimer.Interval = TimeSpan.FromMilliseconds(100);
             _publishTimer.Tick += (_, _) => PublishSnapshot();
         }
 
@@ -76,6 +87,19 @@ namespace Zink.Services.Gaming
                 ? "Selected game"
                 : _captureItem.DisplayName;
             _captureItem.Closed += CaptureItem_Closed;
+
+            if (CaptureSourceHelper.LastSelectedProcessId > 0 &&
+                _gameFpsCounter.Start(CaptureSourceHelper.LastSelectedProcessId))
+            {
+                if (!string.IsNullOrWhiteSpace(CaptureSourceHelper.LastSelectedProcessName))
+                    _targetName = CaptureSourceHelper.LastSelectedProcessName;
+
+                _status = "Monitoring game FPS.";
+            }
+            else
+            {
+                _status = "Game FPS unavailable. PresentMon is required.";
+            }
 
             StartCapture();
         }
@@ -142,6 +166,7 @@ namespace Zink.Services.Gaming
                 try { _session?.Dispose(); } catch { }
                 try { _framePool?.Dispose(); } catch { }
                 try { _d3dDevice?.Dispose(); } catch { }
+                _gameFpsCounter.Stop();
 
                 _session = null;
                 _framePool = null;
@@ -156,6 +181,7 @@ namespace Zink.Services.Gaming
         public void Dispose()
         {
             Stop();
+            _gameFpsCounter.Dispose();
         }
 
         private void StartCapture()
@@ -183,10 +209,11 @@ namespace Zink.Services.Gaming
                 _frameCount = 0;
                 _lastFrameTicks = 0;
                 _lastFrameTimeMs = 0;
+                _lastCaptureFps = 0;
+                _lastDisplayedGameFps = 0;
                 _sessionStartedAtUtc = DateTimeOffset.UtcNow;
                 _clock.Restart();
                 _isMonitoring = true;
-                _status = "Monitoring FPS.";
 
                 _session.StartCapture();
                 _publishTimer.Start();
@@ -273,7 +300,12 @@ namespace Zink.Services.Gaming
         private FpsMonitorSnapshot BuildSnapshotLocked()
         {
             var samples = _recentSamples.ToArray();
-            var currentFps = CalculateCurrentFps(samples);
+            _lastCaptureFps = CalculateCurrentFps(samples);
+            var gameFps = _gameFpsCounter.Poll();
+            if (gameFps is > 0 and <= MaxDisplayedGameFps)
+                _lastDisplayedGameFps = gameFps;
+
+            var currentFps = _lastDisplayedGameFps;
             var averageFps = _clock.Elapsed.TotalSeconds > 0
                 ? _frameCount / _clock.Elapsed.TotalSeconds
                 : 0;
@@ -285,6 +317,8 @@ namespace Zink.Services.Gaming
                 OnePercentLowFps = CalculateLowFps(samples, 0.01),
                 PointOnePercentLowFps = CalculateLowFps(samples, 0.001),
                 FrameTimeMs = _lastFrameTimeMs,
+                CpuUsagePercent = GetCpuUsagePercent(),
+                FpsSource = "Game",
                 FrameCount = _frameCount,
                 IsMonitoring = _isMonitoring,
                 IsRecording = _isRecording,
@@ -320,6 +354,51 @@ namespace Zink.Services.Gaming
             return averageWorstFrameMs > 0 ? 1000.0 / averageWorstFrameMs : 0;
         }
 
+        private double GetCpuUsagePercent()
+        {
+            try
+            {
+                var now = DateTimeOffset.UtcNow;
+                if (_hasCpuSample && now - _lastCpuSampleAt < TimeSpan.FromMilliseconds(500))
+                    return _cpuUsagePercent;
+
+                if (!GetSystemTimes(out var idleTime, out var kernelTime, out var userTime))
+                    return _cpuUsagePercent;
+
+                if (!_hasCpuSample)
+                {
+                    _lastIdleTime = idleTime;
+                    _lastKernelTime = kernelTime;
+                    _lastUserTime = userTime;
+                    _lastCpuSampleAt = now;
+                    _hasCpuSample = true;
+                    return _cpuUsagePercent;
+                }
+
+                var idle = ToUInt64(idleTime) - ToUInt64(_lastIdleTime);
+                var kernel = ToUInt64(kernelTime) - ToUInt64(_lastKernelTime);
+                var user = ToUInt64(userTime) - ToUInt64(_lastUserTime);
+                var total = kernel + user;
+                if (total > 0)
+                {
+                    var rawCpu = Math.Clamp((total - idle) * 100.0 / total, 0, 100);
+                    _cpuUsagePercent = _cpuUsagePercent <= 0
+                        ? rawCpu
+                        : _cpuUsagePercent + (rawCpu - _cpuUsagePercent) * 0.35;
+                }
+
+                _lastIdleTime = idleTime;
+                _lastKernelTime = kernelTime;
+                _lastUserTime = userTime;
+                _lastCpuSampleAt = now;
+            }
+            catch
+            {
+            }
+
+            return _cpuUsagePercent;
+        }
+
         private void TryApplySessionSettings(GraphicsCaptureSession session)
         {
             try { session.IsCursorCaptureEnabled = _settings.IncludeCursor; } catch { }
@@ -349,6 +428,21 @@ namespace Zink.Services.Gaming
         private static string QuoteCsv(string value)
         {
             return "\"" + value.Replace("\"", "\"\"") + "\"";
+        }
+
+        private static ulong ToUInt64(FILETIME time)
+        {
+            return ((ulong)(uint)time.HighDateTime << 32) | (uint)time.LowDateTime;
+        }
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool GetSystemTimes(out FILETIME idleTime, out FILETIME kernelTime, out FILETIME userTime);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct FILETIME
+        {
+            public int LowDateTime;
+            public int HighDateTime;
         }
 
         private readonly record struct FrameSample(long Ticks, double FrameTimeMs);

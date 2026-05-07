@@ -33,13 +33,20 @@ namespace Zink.Services.Recording
         private const int GWL_EXSTYLE = -20;
         private const int WS_EX_TOOLWINDOW = 0x00000080;
         private const int DWMWA_CLOAKED = 14;
+        private const uint MONITOR_DEFAULTTONEAREST = 2;
         private static readonly Guid GraphicsCaptureItemInterfaceGuid = new("79C3F95B-31F7-4EC2-A464-632EF5D30760");
         private static readonly Guid GraphicsCaptureItemInteropGuid = new("3628E81B-3CAC-4C60-B7F4-23CE0E0C3356");
+
+        public static int LastSelectedProcessId { get; private set; }
+        public static string? LastSelectedProcessName { get; private set; }
 
         public static async Task<GraphicsCaptureItem?> GetOrCreateAsync(IntPtr hwnd)
         {
             if (!GraphicsCaptureSession.IsSupported())
                 return null;
+
+            LastSelectedProcessId = 0;
+            LastSelectedProcessName = null;
 
             var selection = await PickWithZinkDialogAsync(hwnd);
             if (selection == null)
@@ -48,7 +55,10 @@ namespace Zink.Services.Recording
                 return null;
             }
 
-            var item = selection.Kind == CaptureSourceKind.Screen
+            LastSelectedProcessId = selection.ProcessId;
+            LastSelectedProcessName = selection.ProcessName;
+
+            var item = selection.Kind == CaptureSourceKind.Screen || selection.Kind == CaptureSourceKind.Game
                 ? TryCreateForMonitor(selection.Handle)
                 : TryCreateForWindow(selection.Handle);
 
@@ -68,7 +78,7 @@ namespace Zink.Services.Recording
                 return null;
 
             var selection = options.Find(option => option.Kind == CaptureSourceKind.Screen) ?? options[0];
-            var item = selection.Kind == CaptureSourceKind.Screen
+            var item = selection.Kind == CaptureSourceKind.Screen || selection.Kind == CaptureSourceKind.Game
                 ? TryCreateForMonitor(selection.Handle)
                 : TryCreateForWindow(selection.Handle);
 
@@ -93,10 +103,12 @@ namespace Zink.Services.Recording
 
             var screens = options.FindAll(option => option.Kind == CaptureSourceKind.Screen);
             var windows = options.FindAll(option => option.Kind == CaptureSourceKind.Window);
-            var selected = screens.Count > 0 ? screens[0] : windows[0];
+            var games = options.FindAll(option => option.Kind == CaptureSourceKind.Game);
+            var selected = games.Count > 0 ? games[0] : screens.Count > 0 ? screens[0] : windows[0];
 
             var screensList = CreateSourceList(screens, selected);
             var windowsList = CreateSourceList(windows, selected);
+            var gamesList = CreateSourceList(games, selected);
 
             screensList.SelectionChanged += (_, _) =>
             {
@@ -104,6 +116,7 @@ namespace Zink.Services.Recording
                 {
                     selected = option;
                     windowsList.SelectedIndex = -1;
+                    gamesList.SelectedIndex = -1;
                 }
             };
 
@@ -113,21 +126,32 @@ namespace Zink.Services.Recording
                 {
                     selected = option;
                     screensList.SelectedIndex = -1;
+                    gamesList.SelectedIndex = -1;
+                }
+            };
+
+            gamesList.SelectionChanged += (_, _) =>
+            {
+                if (gamesList.SelectedItem is ListViewItem { Tag: CaptureSourceOption option })
+                {
+                    selected = option;
+                    screensList.SelectedIndex = -1;
+                    windowsList.SelectedIndex = -1;
                 }
             };
 
             var title = new TextBlock
             {
-                Text = "Choose Capture Source",
+                Text = "ZINK FPS Source Picker",
                 Foreground = new SolidColorBrush(Microsoft.UI.Colors.White),
-                FontSize = 24,
+                FontSize = 25,
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
                 Margin = new Thickness(0, 0, 0, 2)
             };
 
             var hint = new TextBlock
             {
-                Text = "Pick a display or app window for Zink to record.",
+                Text = "Choose a running game, app window, or display for the FPS monitor.",
                 Foreground = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(190, 255, 255, 255)),
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 0, 0, 10)
@@ -143,12 +167,12 @@ namespace Zink.Services.Recording
                         Width = 48,
                         Height = 48,
                         CornerRadius = new CornerRadius(16),
-                        Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(46, 66, 215, 181)),
+                        Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(48, 81, 214, 255)),
                         Child = new FontIcon
                         {
                             Glyph = "\uE7F4",
                             FontSize = 22,
-                            Foreground = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 66, 215, 181))
+                            Foreground = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 81, 214, 255))
                         }
                     }
                 }
@@ -171,10 +195,20 @@ namespace Zink.Services.Recording
 
             var content = new Border
             {
-                Padding = new Thickness(18),
-                CornerRadius = new CornerRadius(22),
-                Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(70, 255, 255, 255)),
-                BorderBrush = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(72, 255, 255, 255)),
+                Padding = new Thickness(20),
+                CornerRadius = new CornerRadius(24),
+                Background = new LinearGradientBrush
+                {
+                    StartPoint = new global::Windows.Foundation.Point(0, 0),
+                    EndPoint = new global::Windows.Foundation.Point(1, 1),
+                    GradientStops =
+                    {
+                        new GradientStop { Color = Microsoft.UI.ColorHelper.FromArgb(232, 8, 13, 20), Offset = 0 },
+                        new GradientStop { Color = Microsoft.UI.ColorHelper.FromArgb(220, 12, 24, 34), Offset = 0.55 },
+                        new GradientStop { Color = Microsoft.UI.ColorHelper.FromArgb(232, 7, 11, 18), Offset = 1 }
+                    }
+                },
+                BorderBrush = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(96, 255, 255, 255)),
                 BorderThickness = new Thickness(1),
                 Child = new StackPanel
                 {
@@ -188,6 +222,12 @@ namespace Zink.Services.Recording
 
             var stack = (StackPanel)content.Child;
 
+            if (games.Count > 0)
+            {
+                stack.Children.Add(CreateSectionHeader("Running Games", games.Count));
+                stack.Children.Add(gamesList);
+            }
+
             if (screens.Count > 0)
             {
                 stack.Children.Add(CreateSectionHeader("Displays", screens.Count));
@@ -200,6 +240,15 @@ namespace Zink.Services.Recording
                 stack.Children.Add(windowsList);
             }
 
+            stack.Children.Add(new TextBlock
+            {
+                Text = "Exclusive fullscreen games use display capture because Windows does not expose them like normal app windows.",
+                Foreground = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(155, 255, 255, 255)),
+                FontSize = 12,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 2, 0, 0)
+            });
+
             var dialog = new ContentDialog
             {
                 XamlRoot = root.XamlRoot,
@@ -207,7 +256,8 @@ namespace Zink.Services.Recording
                 Content = content,
                 PrimaryButtonText = "Use source",
                 CloseButtonText = "Cancel",
-                DefaultButton = ContentDialogButton.Primary
+                DefaultButton = ContentDialogButton.Primary,
+                RequestedTheme = ElementTheme.Dark
             };
 
             var result = await dialog.ShowAsync();
@@ -239,9 +289,7 @@ namespace Zink.Services.Recording
                 list.Items.Add(item);
 
                 if (ReferenceEquals(option, selected))
-                {
                     list.SelectedItem = item;
-                }
             }
 
             return list;
@@ -251,9 +299,9 @@ namespace Zink.Services.Recording
         {
             var icon = new FontIcon
             {
-                Glyph = option.Kind == CaptureSourceKind.Screen ? "\uE7F4" : "\uE8A7",
+                Glyph = option.Kind == CaptureSourceKind.Screen ? "\uE7F4" : option.Kind == CaptureSourceKind.Game ? "\uE7FC" : "\uE8A7",
                 FontSize = 18,
-                Foreground = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 66, 215, 181))
+                Foreground = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 81, 214, 255))
             };
 
             var iconBox = new Border
@@ -261,7 +309,7 @@ namespace Zink.Services.Recording
                 Width = 40,
                 Height = 40,
                 CornerRadius = new CornerRadius(12),
-                Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(38, 66, 215, 181)),
+                Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(38, 81, 214, 255)),
                 Child = icon
             };
 
@@ -298,7 +346,7 @@ namespace Zink.Services.Recording
                 Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(34, 255, 255, 255)),
                 Child = new TextBlock
                 {
-                    Text = option.Kind == CaptureSourceKind.Screen ? "Display" : "Window",
+                    Text = option.Kind == CaptureSourceKind.Screen ? "Display" : option.Kind == CaptureSourceKind.Game ? "Game" : "Window",
                     Foreground = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(220, 255, 255, 255)),
                     FontSize = 12,
                     FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
@@ -326,7 +374,7 @@ namespace Zink.Services.Recording
             return new Border
             {
                 CornerRadius = new CornerRadius(14),
-                BorderBrush = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(36, 255, 255, 255)),
+                BorderBrush = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(38, 255, 255, 255)),
                 BorderThickness = new Thickness(1),
                 Child = grid
             };
@@ -347,10 +395,16 @@ namespace Zink.Services.Recording
         private static List<CaptureSourceOption> EnumerateCaptureSources(IntPtr appHwnd)
         {
             var options = new List<CaptureSourceOption>();
+            var addedWindows = new HashSet<IntPtr>();
+            var addedGameProcesses = new HashSet<int>();
             var screenNumber = 1;
+            var primaryMonitor = IntPtr.Zero;
 
             EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, (IntPtr monitor, IntPtr hdc, ref RECT rect, IntPtr data) =>
             {
+                if (primaryMonitor == IntPtr.Zero)
+                    primaryMonitor = monitor;
+
                 var width = Math.Max(0, rect.Right - rect.Left);
                 var height = Math.Max(0, rect.Bottom - rect.Top);
                 if (width > 0 && height > 0)
@@ -359,7 +413,9 @@ namespace Zink.Services.Recording
                         CaptureSourceKind.Screen,
                         monitor,
                         $"Screen {screenNumber}",
-                        $"{width} x {height}"));
+                        $"{width} x {height}",
+                        0,
+                        null));
                     screenNumber++;
                 }
 
@@ -368,35 +424,147 @@ namespace Zink.Services.Recording
 
             EnumWindows((window, lParam) =>
             {
-                if (window == appHwnd || !IsWindowVisible(window) || IsWindowCloaked(window))
+                if (window == appHwnd)
                     return true;
 
-                var title = GetWindowTitle(window);
-                if (string.IsNullOrWhiteSpace(title))
-                    return true;
-
-                var exStyle = GetWindowLong(window, GWL_EXSTYLE);
-                if ((exStyle & WS_EX_TOOLWINDOW) != 0)
-                    return true;
-
-                if (!GetWindowRect(window, out var rect))
-                    return true;
-
-                var width = Math.Max(0, rect.Right - rect.Left);
-                var height = Math.Max(0, rect.Bottom - rect.Top);
-                if (width < 160 || height < 120)
-                    return true;
-
-                options.Add(new CaptureSourceOption(
-                    CaptureSourceKind.Window,
-                    window,
-                    title,
-                    $"{width} x {height}"));
+                TryAddWindowSource(options, addedWindows, window, allowGameProcessFallback: true);
 
                 return true;
             }, IntPtr.Zero);
 
+            AddProcessMainWindowSources(options, addedWindows, appHwnd);
+            AddExclusiveFullscreenGameSources(options, addedGameProcesses, primaryMonitor, appHwnd);
+
             return options;
+        }
+
+        private static void AddExclusiveFullscreenGameSources(
+            List<CaptureSourceOption> options,
+            HashSet<int> addedGameProcesses,
+            IntPtr primaryMonitor,
+            IntPtr appHwnd)
+        {
+            foreach (var process in Process.GetProcesses())
+            {
+                try
+                {
+                    if (!IsKnownGameProcess(process.ProcessName) || !addedGameProcesses.Add(process.Id))
+                        continue;
+
+                    var window = process.MainWindowHandle;
+                    if (window == appHwnd)
+                        continue;
+
+                    var monitor = window != IntPtr.Zero
+                        ? MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST)
+                        : primaryMonitor;
+
+                    if (monitor == IntPtr.Zero)
+                        monitor = primaryMonitor;
+
+                    if (monitor == IntPtr.Zero)
+                        continue;
+
+                    var displayName = !string.IsNullOrWhiteSpace(process.MainWindowTitle)
+                        ? process.MainWindowTitle.Trim()
+                        : process.ProcessName;
+
+                    options.Add(new CaptureSourceOption(
+                        CaptureSourceKind.Game,
+                        monitor,
+                        $"{displayName} (exclusive fullscreen)",
+                        "Display capture - running fullscreen game",
+                        process.Id,
+                        process.ProcessName));
+                }
+                catch
+                {
+                }
+                finally
+                {
+                    process.Dispose();
+                }
+            }
+        }
+
+        private static void AddProcessMainWindowSources(List<CaptureSourceOption> options, HashSet<IntPtr> addedWindows, IntPtr appHwnd)
+        {
+            foreach (var process in Process.GetProcesses())
+            {
+                try
+                {
+                    var window = process.MainWindowHandle;
+                    if (window == IntPtr.Zero || window == appHwnd)
+                        continue;
+
+                    TryAddWindowSource(options, addedWindows, window, allowGameProcessFallback: true, process.ProcessName);
+                }
+                catch
+                {
+                }
+                finally
+                {
+                    process.Dispose();
+                }
+            }
+        }
+
+        private static bool TryAddWindowSource(
+            List<CaptureSourceOption> options,
+            HashSet<IntPtr> addedWindows,
+            IntPtr window,
+            bool allowGameProcessFallback,
+            string? fallbackProcessName = null)
+        {
+            if (window == IntPtr.Zero || addedWindows.Contains(window))
+                return false;
+
+            var exStyle = GetWindowLong(window, GWL_EXSTYLE);
+            if ((exStyle & WS_EX_TOOLWINDOW) != 0)
+                return false;
+
+            if (!GetWindowRect(window, out var rect))
+                return false;
+
+            var width = Math.Max(0, rect.Right - rect.Left);
+            var height = Math.Max(0, rect.Bottom - rect.Top);
+            if (width < 160 || height < 120)
+                return false;
+
+            var title = GetWindowTitle(window);
+            var processId = GetWindowProcessId(window);
+            var processName = GetWindowProcessName(window);
+            if (string.IsNullOrWhiteSpace(processName))
+                processName = fallbackProcessName ?? string.Empty;
+
+            if (string.IsNullOrWhiteSpace(title) && string.IsNullOrWhiteSpace(processName))
+                return false;
+
+            var isLikelyFullscreen = IsLikelyFullscreenWindow(window, rect);
+            var isKnownGame = IsKnownGameProcess(processName);
+            var isVisible = IsWindowVisible(window);
+            var isCloaked = IsWindowCloaked(window);
+            if ((!isVisible || isCloaked) && !isLikelyFullscreen && !(allowGameProcessFallback && isKnownGame))
+                return false;
+
+            var name = !string.IsNullOrWhiteSpace(title)
+                ? title
+                : $"{processName} (fullscreen)";
+            var details = isLikelyFullscreen
+                ? $"{width} x {height} - fullscreen"
+                : $"{width} x {height}";
+            if (isKnownGame && !details.Contains("game", StringComparison.OrdinalIgnoreCase))
+                details += " - game";
+
+            options.Add(new CaptureSourceOption(
+                CaptureSourceKind.Window,
+                window,
+                name,
+                details,
+                processId,
+                processName));
+            addedWindows.Add(window);
+            return true;
         }
 
         private static GraphicsCaptureItem? TryCreateForMonitor(IntPtr monitor)
@@ -466,6 +634,73 @@ namespace Zink.Services.Recording
             }
         }
 
+        private static string GetWindowProcessName(IntPtr hwnd)
+        {
+            try
+            {
+                var processId = GetWindowProcessId(hwnd);
+                if (processId == 0)
+                    return string.Empty;
+
+                using var process = Process.GetProcessById(processId);
+                return string.IsNullOrWhiteSpace(process.MainWindowTitle)
+                    ? process.ProcessName
+                    : process.MainWindowTitle.Trim();
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
+        private static int GetWindowProcessId(IntPtr hwnd)
+        {
+            GetWindowThreadProcessId(hwnd, out var processId);
+            return processId > int.MaxValue ? 0 : (int)processId;
+        }
+
+        private static bool IsKnownGameProcess(string processName)
+        {
+            if (string.IsNullOrWhiteSpace(processName))
+                return false;
+
+            return processName.Equals("Overwatch", StringComparison.OrdinalIgnoreCase) ||
+                   processName.Equals("Overwatch Launcher", StringComparison.OrdinalIgnoreCase) ||
+                   processName.Contains("Overwatch", StringComparison.OrdinalIgnoreCase) ||
+                   processName.Contains("Game", StringComparison.OrdinalIgnoreCase) ||
+                   processName.Contains("Shipping", StringComparison.OrdinalIgnoreCase) ||
+                   processName.Contains("Win64", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsLikelyFullscreenWindow(IntPtr hwnd, RECT windowRect)
+        {
+            try
+            {
+                var monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+                if (monitor == IntPtr.Zero || !TryGetMonitorInfo(monitor, out var info))
+                    return false;
+
+                var monitorRect = info.rcMonitor;
+                return Math.Abs(windowRect.Left - monitorRect.Left) <= 2 &&
+                       Math.Abs(windowRect.Top - monitorRect.Top) <= 2 &&
+                       Math.Abs(windowRect.Right - monitorRect.Right) <= 2 &&
+                       Math.Abs(windowRect.Bottom - monitorRect.Bottom) <= 2;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static bool TryGetMonitorInfo(IntPtr monitor, out MONITORINFO info)
+        {
+            info = new MONITORINFO
+            {
+                cbSize = Marshal.SizeOf<MONITORINFO>()
+            };
+            return GetMonitorInfo(monitor, ref info);
+        }
+
         [DllImport("user32.dll")]
         private static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr clip, MonitorEnumProc proc, IntPtr data);
 
@@ -486,6 +721,15 @@ namespace Zink.Services.Recording
 
         [DllImport("user32.dll")]
         private static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
+
+        [DllImport("user32.dll")]
+        private static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        private static extern bool GetMonitorInfo(IntPtr monitor, ref MONITORINFO info);
 
         [DllImport("dwmapi.dll")]
         private static extern int DwmGetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
@@ -511,30 +755,44 @@ namespace Zink.Services.Recording
             public int Bottom;
         }
 
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MONITORINFO
+        {
+            public int cbSize;
+            public RECT rcMonitor;
+            public RECT rcWork;
+            public uint dwFlags;
+        }
+
         private enum CaptureSourceKind
         {
             Screen,
-            Window
+            Window,
+            Game
         }
 
         private sealed class CaptureSourceOption
         {
-            public CaptureSourceOption(CaptureSourceKind kind, IntPtr handle, string name, string details)
+            public CaptureSourceOption(CaptureSourceKind kind, IntPtr handle, string name, string details, int processId, string? processName)
             {
                 Kind = kind;
                 Handle = handle;
                 Name = name;
                 Details = details;
+                ProcessId = processId;
+                ProcessName = processName;
             }
 
             public CaptureSourceKind Kind { get; }
             public IntPtr Handle { get; }
             public string Name { get; }
             public string Details { get; }
+            public int ProcessId { get; }
+            public string? ProcessName { get; }
 
             public override string ToString()
             {
-                return $"{(Kind == CaptureSourceKind.Screen ? "Screen" : "Window")} - {Name} ({Details})";
+                return $"{(Kind == CaptureSourceKind.Screen ? "Screen" : Kind == CaptureSourceKind.Game ? "Game" : "Window")} - {Name} ({Details})";
             }
         }
 
