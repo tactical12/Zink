@@ -48,6 +48,7 @@ namespace Zink
 
         private DesktopAcrylicController? _acrylicController;
         private SystemBackdropConfiguration? _backdropConfig;
+        private ElementTheme _currentAppTheme = ElementTheme.Default;
 
         private bool _windowIsActivated = false;
 
@@ -475,12 +476,55 @@ namespace Zink
 
         public void ApplyAppTheme(ElementTheme theme)
         {
+            _currentAppTheme = theme;
+
             try
             {
-                if (RootGrid != null)
-                    RootGrid.RequestedTheme = theme;
+                ApplicationData.Current.LocalSettings.Values["Zink.Theme"] = theme switch
+                {
+                    ElementTheme.Light => "Light",
+                    ElementTheme.Dark => "Dark",
+                    _ => "Default"
+                };
             }
             catch { }
+
+            try
+            {
+                RootGrid.RequestedTheme = theme;
+                SidebarNav.RequestedTheme = theme;
+                ContentFrame.RequestedTheme = theme;
+
+                if (ContentFrame.Content is FrameworkElement content)
+                {
+                    content.RequestedTheme = theme;
+                }
+
+                SetBackdropThemeFromRoot(RootGrid);
+                ApplyShellThemeColors();
+            }
+            catch { }
+        }
+
+        private ElementTheme GetEffectiveAppTheme()
+        {
+            try
+            {
+                if (_currentAppTheme != ElementTheme.Default)
+                    return _currentAppTheme;
+
+                if (RootGrid?.ActualTheme == ElementTheme.Light || RootGrid?.ActualTheme == ElementTheme.Dark)
+                    return RootGrid.ActualTheme;
+
+                if (Content is FrameworkElement root &&
+                    (root.ActualTheme == ElementTheme.Light || root.ActualTheme == ElementTheme.Dark))
+                {
+                    return root.ActualTheme;
+                }
+            }
+            catch { }
+
+            return ElementTheme.Default;
         }
 
         public IntPtr GetWindowHandle()
@@ -528,6 +572,7 @@ namespace Zink
                     _ => ElementTheme.Default
                 };
 
+                _currentAppTheme = theme;
                 ApplyAppTheme(theme);
             }
             catch
@@ -924,6 +969,11 @@ namespace Zink
         private void RootElement_ActualThemeChanged(FrameworkElement sender, object args)
         {
             SetBackdropThemeFromRoot(sender);
+
+            if (_currentAppTheme == ElementTheme.Default)
+            {
+                ApplyShellThemeColors();
+            }
         }
 
         private void SetBackdropThemeFromRoot(FrameworkElement root)
@@ -938,12 +988,135 @@ namespace Zink
             };
         }
 
+        private void ApplyShellThemeColors()
+        {
+            var useLightTheme = GetEffectiveAppTheme() == ElementTheme.Light;
+
+            var panel = useLightTheme
+                ? global::Windows.UI.Color.FromArgb(218, 238, 246, 249)
+                : global::Windows.UI.Color.FromArgb(170, 17, 24, 32);
+            var border = useLightTheme
+                ? global::Windows.UI.Color.FromArgb(86, 82, 107, 116)
+                : global::Windows.UI.Color.FromArgb(47, 255, 255, 255);
+            var hover = useLightTheme
+                ? global::Windows.UI.Color.FromArgb(34, 0, 0, 0)
+                : global::Windows.UI.Color.FromArgb(32, 255, 255, 255);
+            var selected = useLightTheme
+                ? global::Windows.UI.Color.FromArgb(48, 0, 0, 0)
+                : global::Windows.UI.Color.FromArgb(54, 255, 255, 255);
+            var pressed = useLightTheme
+                ? global::Windows.UI.Color.FromArgb(42, 0, 0, 0)
+                : global::Windows.UI.Color.FromArgb(42, 255, 255, 255);
+            var sidebarText = useLightTheme
+                ? global::Windows.UI.Color.FromArgb(255, 0, 0, 0)
+                : global::Windows.UI.Color.FromArgb(234, 244, 250, 255);
+            var sidebarSelectedText = useLightTheme
+                ? global::Windows.UI.Color.FromArgb(255, 0, 0, 0)
+                : global::Windows.UI.Color.FromArgb(255, 255, 255, 255);
+
+            SetBrushColor("ShellGlassBrush", panel);
+            SetBrushColor("ShellGlassBorderBrush", border);
+            SetBrushColor("NavigationViewItemBackgroundPointerOver", hover);
+            SetBrushColor("NavigationViewItemBackgroundSelected", selected);
+            SetBrushColor("NavigationViewItemBackgroundPressed", pressed);
+            SetBrushColor("NavigationViewItemForeground", sidebarText);
+            SetBrushColor("NavigationViewItemForegroundPointerOver", sidebarSelectedText);
+            SetBrushColor("NavigationViewItemForegroundSelected", sidebarSelectedText);
+            SetBrushColor("NavigationViewItemIconForeground", sidebarText);
+            SetBrushColor("NavigationViewItemIconForegroundPointerOver", sidebarSelectedText);
+            SetBrushColor("NavigationViewItemIconForegroundSelected", sidebarSelectedText);
+            SetBrushColor("NavigationViewItemHeaderForeground", sidebarText);
+            SetBrushColor("NavigationViewItemSeparatorForeground", sidebarText);
+
+            SidebarNav.Foreground = new SolidColorBrush(sidebarText);
+            ApplySidebarItemTextColor(sidebarText);
+
+            if (useLightTheme)
+            {
+                ShellGradientStart.Color = global::Windows.UI.Color.FromArgb(255, 244, 249, 251);
+                ShellGradientMiddle.Color = global::Windows.UI.Color.FromArgb(255, 226, 239, 244);
+                ShellGradientEnd.Color = global::Windows.UI.Color.FromArgb(255, 248, 251, 252);
+            }
+            else
+            {
+                ShellGradientStart.Color = global::Windows.UI.Color.FromArgb(255, 13, 23, 31);
+                ShellGradientMiddle.Color = global::Windows.UI.Color.FromArgb(255, 20, 37, 53);
+                ShellGradientEnd.Color = global::Windows.UI.Color.FromArgb(255, 7, 10, 15);
+            }
+        }
+
+        private void ApplySidebarItemTextColor(global::Windows.UI.Color color)
+        {
+            try
+            {
+                var brush = new SolidColorBrush(color);
+                ApplySidebarItemTextColor(SidebarNav.MenuItems, brush);
+                ApplySidebarItemTextColor(SidebarNav.FooterMenuItems, brush);
+            }
+            catch { }
+        }
+
+        private void ApplySidebarItemTextColor(System.Collections.Generic.IList<object> items, Brush brush)
+        {
+            try
+            {
+                foreach (var item in items)
+                {
+                    switch (item)
+                    {
+                        case NavigationViewItem navItem:
+                            navItem.Foreground = brush;
+
+                            if (navItem.Icon is FontIcon fontIcon)
+                            {
+                                fontIcon.Foreground = brush;
+                            }
+
+                            if (navItem.MenuItems != null && navItem.MenuItems.Count > 0)
+                            {
+                                ApplySidebarItemTextColor(navItem.MenuItems, brush);
+                            }
+                            break;
+
+                        case NavigationViewItemHeader header:
+                            header.Foreground = brush;
+                            break;
+                    }
+                }
+            }
+            catch { }
+        }
+
+        private void SetBrushColor(string resourceKey, global::Windows.UI.Color color)
+        {
+            try
+            {
+                if (RootGrid.Resources.TryGetValue(resourceKey, out var shellValue) &&
+                    shellValue is SolidColorBrush shellBrush)
+                {
+                    shellBrush.Color = color;
+                }
+
+                if (Application.Current.Resources.TryGetValue(resourceKey, out var appValue) &&
+                    appValue is SolidColorBrush appBrush)
+                {
+                    appBrush.Color = color;
+                }
+            }
+            catch { }
+        }
+
         private void ContentFrame_Navigated(object sender, NavigationEventArgs e)
         {
             try
             {
                 var t = e?.SourcePageType;
                 if (t == null) return;
+
+                if (ContentFrame.Content is FrameworkElement content)
+                {
+                    content.RequestedTheme = _currentAppTheme;
+                }
 
                 try
                 {
