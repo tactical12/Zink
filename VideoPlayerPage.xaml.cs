@@ -23,6 +23,8 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Collections.Generic;
 
 using DispatcherTimer = Microsoft.UI.Xaml.DispatcherTimer;
 using Zink.Services;
@@ -52,6 +54,7 @@ namespace Zink
     {
         private bool isFullScreen;
         private DispatcherTimer hideControlsTimer;
+        private DispatcherTimer _nvidiaOverlaySuppressTimer;
 
         private WStorage.StorageFile _currentFile;
 
@@ -134,6 +137,9 @@ namespace Zink
             _positionTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
             _positionTimer.Tick += (_, _) => UpdateSeekUI();
             _positionTimer.Start();
+
+            _nvidiaOverlaySuppressTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+            _nvidiaOverlaySuppressTimer.Tick += (_, _) => SuppressNvidiaOverlayWindows();
 
             _discordPresenceTimer = new DispatcherTimer
             {
@@ -1383,6 +1389,7 @@ namespace Zink
 
             if (!isFullScreen)
             {
+                StartNvidiaOverlaySuppression();
                 appWindow.SetPresenter(AppWindowPresenterKind.FullScreen);
 
                 if (sidebarColumnDef != null)
@@ -1394,6 +1401,7 @@ namespace Zink
             else
             {
                 appWindow.SetPresenter(AppWindowPresenterKind.Overlapped);
+                StopNvidiaOverlaySuppression();
 
                 if (sidebarColumnDef != null)
                     sidebarColumnDef.Width = new GridLength(250);
@@ -1402,6 +1410,159 @@ namespace Zink
                 FullScreenLabel.Text = "Fullscreen";
             }
         }
+
+        private void StartNvidiaOverlaySuppression()
+        {
+            try
+            {
+                SuppressNvidiaOverlayWindows();
+                _nvidiaOverlaySuppressTimer?.Stop();
+                _nvidiaOverlaySuppressTimer?.Start();
+            }
+            catch { }
+        }
+
+        private void StopNvidiaOverlaySuppression()
+        {
+            try
+            {
+                _nvidiaOverlaySuppressTimer?.Stop();
+            }
+            catch { }
+        }
+
+        private static void SuppressNvidiaOverlayWindows()
+        {
+            try
+            {
+                EnumWindows((hwnd, _) =>
+                {
+                    try
+                    {
+                        if (!IsWindowVisible(hwnd))
+                            return true;
+
+                        GetWindowThreadProcessId(hwnd, out var processId);
+                        if (processId == 0)
+                            return true;
+
+                        using var process = Process.GetProcessById((int)processId);
+                        var processName = process.ProcessName ?? "";
+                        var windowText = GetWindowText(hwnd);
+                        var className = GetWindowClassName(hwnd);
+
+                        if (IsNvidiaOverlayProcess(processName) ||
+                            IsNvidiaOverlayWindow(processName, windowText, className))
+                            ShowWindow(hwnd, SW_HIDE);
+                    }
+                    catch { }
+
+                    return true;
+                }, IntPtr.Zero);
+
+                foreach (var processName in GetNvidiaOverlayProcessNames())
+                {
+                    try
+                    {
+                        foreach (var process in Process.GetProcessesByName(processName))
+                        {
+                            try
+                            {
+                                if (!process.HasExited)
+                                    process.Kill();
+                            }
+                            catch { }
+                            finally
+                            {
+                                try { process.Dispose(); } catch { }
+                            }
+                        }
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+        }
+
+        private static bool IsNvidiaOverlayProcess(string processName)
+        {
+            return string.Equals(processName, "NVIDIA Overlay", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(processName, "NVIDIA Share", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(processName, "NVIDIA Web Helper", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(processName, "nvsphelper64", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsNvidiaOverlayWindow(string processName, string windowText, string className)
+        {
+            var combined = $"{processName} {windowText} {className}";
+
+            return combined.IndexOf("NVIDIA Overlay", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   combined.IndexOf("NVIDIA Share", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   combined.IndexOf("GeForce Overlay", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   combined.IndexOf("NVIDIA GeForce", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   combined.IndexOf("ShadowPlay", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   combined.IndexOf("NvCamera", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   combined.IndexOf("NvOverlay", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   combined.IndexOf("NVIDIA Notification", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static IEnumerable<string> GetNvidiaOverlayProcessNames()
+        {
+            yield return "NVIDIA Overlay";
+            yield return "NVIDIA Share";
+            yield return "NVIDIA Web Helper";
+            yield return "nvsphelper64";
+        }
+
+        private static string GetWindowText(IntPtr hwnd)
+        {
+            try
+            {
+                var builder = new StringBuilder(512);
+                GetWindowText(hwnd, builder, builder.Capacity);
+                return builder.ToString();
+            }
+            catch
+            {
+                return "";
+            }
+        }
+
+        private static string GetWindowClassName(IntPtr hwnd)
+        {
+            try
+            {
+                var builder = new StringBuilder(512);
+                GetClassName(hwnd, builder, builder.Capacity);
+                return builder.ToString();
+            }
+            catch
+            {
+                return "";
+            }
+        }
+
+        private delegate bool EnumWindowsProc(IntPtr hwnd, IntPtr lParam);
+
+        private const int SW_HIDE = 0;
+
+        [DllImport("user32.dll")]
+        private static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        private static extern bool IsWindowVisible(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        [DllImport("user32.dll")]
+        private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        private static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        private static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
 
         private void FlyoutVolumeSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
         {
@@ -1546,6 +1707,21 @@ namespace Zink
         {
             try
             {
+                if (isFullScreen)
+                {
+                    var hwnd = WindowNative.GetWindowHandle(App.MainWindow);
+                    var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
+                    var appWindow = AppWindow.GetFromWindowId(windowId);
+                    appWindow.SetPresenter(AppWindowPresenterKind.Overlapped);
+                    StopNvidiaOverlaySuppression();
+
+                    var mainWindow = App.MainWindow as MainWindow;
+                    if (mainWindow?.SidebarColumnReference != null)
+                        mainWindow.SidebarColumnReference.Width = new GridLength(250);
+
+                    isFullScreen = false;
+                }
+
                 ForceSaveResumePositionNow_Video();
 
                 _positionTimer?.Stop();

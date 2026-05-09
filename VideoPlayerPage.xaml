@@ -10,38 +10,78 @@
     PointerMoved="Page_PointerMoved">
 
     <Page.Resources>
-        <mediaX:AcrylicBrush
-            x:Key="ControlPanelBackground"
-            TintColor="{ThemeResource SystemAccentColor}"
-            TintOpacity="0.10"
-            FallbackColor="{ThemeResource SystemChromeLowColor}"
-            AlwaysUseFallback="False" />
+        <SolidColorBrush x:Key="ControlPanelBackground" Color="#FF101820" />
+        <SolidColorBrush x:Key="GlassButtonBackground" Color="#FF1E3946" />
+        <SolidColorBrush x:Key="GlassAccentButtonBackground" Color="{ThemeResource SystemAccentColor}" />
+
+        <SolidColorBrush x:Key="VideoPageBackgroundBrush" Color="#05080D" />
+        <SolidColorBrush x:Key="GlassPanelBorderBrush" Color="#59FFFFFF" />
+        <SolidColorBrush x:Key="GlassSubtleBorderBrush" Color="#24FFFFFF" />
+        <SolidColorBrush x:Key="GlassTextBrush" Color="#F4FAFF" />
+        <SolidColorBrush x:Key="GlassMutedTextBrush" Color="#B9C8D4" />
 
         <local:SecondsToTimeConverter x:Key="SecondsToTimeConverter" />
+
+        <Style x:Key="GlassControlButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource GlassButtonBackground}" />
+            <Setter Property="BorderBrush" Value="{StaticResource GlassSubtleBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="18" />
+            <Setter Property="Foreground" Value="{StaticResource GlassTextBrush}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="MinHeight" Value="40" />
+            <Setter Property="MinWidth" Value="92" />
+            <Setter Property="Padding" Value="18,8" />
+        </Style>
+
+        <Style
+            x:Key="GlassPrimaryButtonStyle"
+            BasedOn="{StaticResource GlassControlButtonStyle}"
+            TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource GlassAccentButtonBackground}" />
+            <Setter Property="BorderBrush" Value="#90FFFFFF" />
+            <Setter Property="MinWidth" Value="104" />
+        </Style>
     </Page.Resources>
 
-    <Grid>
+    <Grid Background="{StaticResource VideoPageBackgroundBrush}">
         <controls:MediaPlayerElement
             x:Name="mediaPlayerElement"
             AreTransportControlsEnabled="False"
             AutoPlay="False"
             Stretch="Uniform" />
 
+        <Grid
+            IsHitTestVisible="False"
+            Opacity="0.86">
+            <Grid.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Color="#76000000" Offset="0" />
+                    <GradientStop Color="#10000000" Offset="0.32" />
+                    <GradientStop Color="#00000000" Offset="0.52" />
+                    <GradientStop Color="#88000000" Offset="1" />
+                </LinearGradientBrush>
+            </Grid.Background>
+        </Grid>
+
         <Border
             x:Name="SubtitleOverlay"
             HorizontalAlignment="Center"
             VerticalAlignment="Bottom"
-            Margin="20,0,20,80"
-            Background="#66000000"
-            CornerRadius="6"
-            Padding="10"
+            Margin="28,0,28,126"
+            Background="{StaticResource ControlPanelBackground}"
+            BorderBrush="{StaticResource GlassSubtleBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="16"
+            Padding="18,12"
             Visibility="Collapsed">
 
             <TextBlock
                 x:Name="SubtitleTextBlock"
                 Text=""
-                Foreground="White"
+                Foreground="{StaticResource GlassTextBrush}"
                 FontSize="24"
+                FontWeight="SemiBold"
                 TextWrapping="WrapWholeWords"
                 TextAlignment="Center"
                 MaxWidth="1100" />
@@ -50,99 +90,140 @@
         <Border
             x:Name="ControlPanel"
             Background="{StaticResource ControlPanelBackground}"
-            CornerRadius="12"
-            Padding="16"
+            BorderBrush="{StaticResource GlassPanelBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="26"
+            Padding="18,16"
             HorizontalAlignment="Center"
             VerticalAlignment="Bottom"
-            Margin="0,0,0,20"
-            Width="1180"
-            MaxWidth="1180">
+            Margin="24,0,24,24"
+            MaxWidth="1220">
 
-            <StackPanel
-                Spacing="10"
-                HorizontalAlignment="Center">
+            <Grid
+                Width="1160"
+                MaxWidth="1160">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="14" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
 
-                <Grid Width="1120" MaxWidth="1120">
+                <Border
+                    Padding="14,8"
+                    Background="#22000000"
+                    BorderBrush="{StaticResource GlassSubtleBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="18">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock
+                            x:Name="CurrentTimeText"
+                            Text="00:00"
+                            Foreground="{StaticResource GlassMutedTextBrush}"
+                            FontWeight="SemiBold"
+                            VerticalAlignment="Center"
+                            Margin="0,0,14,0" />
+
+                        <Slider
+                            x:Name="SeekSlider"
+                            Grid.Column="1"
+                            Minimum="0"
+                            Maximum="1"
+                            Value="0"
+                            IsEnabled="False"
+                            IsThumbToolTipEnabled="True"
+                            ThumbToolTipValueConverter="{StaticResource SecondsToTimeConverter}"
+                            ValueChanged="SeekSlider_ValueChanged"
+                            VerticalAlignment="Center" />
+
+                        <TextBlock
+                            x:Name="TotalTimeText"
+                            Grid.Column="2"
+                            Text="00:00"
+                            Foreground="{StaticResource GlassMutedTextBrush}"
+                            FontWeight="SemiBold"
+                            VerticalAlignment="Center"
+                            Margin="14,0,0,0" />
+                    </Grid>
+                </Border>
+
+                <Grid Grid.Row="2">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
-                    <TextBlock
-                        x:Name="CurrentTimeText"
-                        Text="00:00"
+                    <StackPanel
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Center"
                         VerticalAlignment="Center"
-                        Margin="0,0,10,0" />
+                        Spacing="10">
 
-                    <Slider
-                        x:Name="SeekSlider"
-                        Grid.Column="1"
-                        Minimum="0"
-                        Maximum="1"
-                        Value="0"
-                        IsEnabled="False"
-                        IsThumbToolTipEnabled="True"
-                        ThumbToolTipValueConverter="{StaticResource SecondsToTimeConverter}"
-                        ValueChanged="SeekSlider_ValueChanged"
-                        VerticalAlignment="Center" />
+                        <Button
+                            Click="Rewind_Click"
+                            Content="Rewind"
+                            Style="{StaticResource GlassControlButtonStyle}" />
 
-                    <TextBlock
-                        x:Name="TotalTimeText"
+                        <Button
+                            Click="Play_Click"
+                            Style="{StaticResource GlassPrimaryButtonStyle}">
+                            <TextBlock Text="Play" />
+                        </Button>
+
+                        <Button
+                            Click="Pause_Click"
+                            Content="Pause"
+                            Style="{StaticResource GlassControlButtonStyle}" />
+
+                        <Button
+                            Click="Forward_Click"
+                            Content="Forward"
+                            Style="{StaticResource GlassControlButtonStyle}" />
+                    </StackPanel>
+
+                    <StackPanel
                         Grid.Column="2"
-                        Text="00:00"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Center"
                         VerticalAlignment="Center"
-                        Margin="10,0,0,0" />
+                        Spacing="10">
+
+                        <Button
+                            x:Name="FullScreenButton"
+                            Click="FullScreenButton_Click"
+                            Style="{StaticResource GlassControlButtonStyle}">
+                            <TextBlock
+                                x:Name="FullScreenLabel"
+                                Text="Fullscreen" />
+                        </Button>
+
+                        <Button
+                            Click="Browse_Click"
+                            Content="Browse files"
+                            Style="{StaticResource GlassControlButtonStyle}" />
+
+                        <Button
+                            x:Name="SubtitlesButton"
+                            Click="SubtitlesButton_Click"
+                            Style="{StaticResource GlassControlButtonStyle}">
+                            <TextBlock
+                                x:Name="SubtitlesButtonLabel"
+                                Text="Subtitles" />
+                        </Button>
+
+                        <Button
+                            x:Name="SoundButton"
+                            Content="Sound"
+                            Style="{StaticResource GlassControlButtonStyle}" />
+                    </StackPanel>
                 </Grid>
-
-                <StackPanel
-                    Orientation="Horizontal"
-                    HorizontalAlignment="Center"
-                    Spacing="46">
-
-                    <Button
-                        Click="Rewind_Click"
-                        Content="Rewind" />
-
-                    <Button
-                        Click="Play_Click"
-                        Style="{ThemeResource AccentButtonStyle}">
-                        <TextBlock Text="Play" />
-                    </Button>
-
-                    <Button
-                        Click="Pause_Click"
-                        Content="Pause" />
-
-                    <Button
-                        Click="Forward_Click"
-                        Content="Forward" />
-
-                    <Button
-                        x:Name="FullScreenButton"
-                        Click="FullScreenButton_Click">
-                        <TextBlock
-                            x:Name="FullScreenLabel"
-                            Text="Fullscreen" />
-                    </Button>
-
-                    <Button
-                        Click="Browse_Click"
-                        Content="Browse files" />
-
-                    <Button
-                        x:Name="SubtitlesButton"
-                        Click="SubtitlesButton_Click">
-                        <TextBlock
-                            x:Name="SubtitlesButtonLabel"
-                            Text="Subtitles" />
-                    </Button>
-
-                    <Button
-                        x:Name="SoundButton"
-                        Content="Sound" />
-                </StackPanel>
-            </StackPanel>
+            </Grid>
         </Border>
     </Grid>
 </Page>
