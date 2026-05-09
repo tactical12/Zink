@@ -54,6 +54,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Pages\FeedbackPage.xaml.cs" />
     <Content Remove="Assets\BadgeLogo.scale-100.png" />
     <Content Remove="Assets\BadgeLogo.scale-125.png" />
     <Content Remove="Assets\BadgeLogo.scale-150.png" />
@@ -62,6 +63,7 @@
     <Content Remove="Assets\Square44x44Logo.altform-*_targetsize-*.png" />
     <Content Remove="Assets\Square150x150Logo.scale-100.png" />
     <Content Remove="Assets\Wide310x150Logo.scale-100.png" />
+    <Page Remove="Pages\FeedbackPage.xaml" />
   </ItemGroup>
 
   <ItemGroup>

@@ -502,12 +502,6 @@
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
 
-                <NavigationViewItem Content="Feedback" Tag="Feedback">
-                    <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xED15;" FontFamily="Segoe Fluent Icons"/>
-                    </NavigationViewItem.Icon>
-                </NavigationViewItem>
-
                 <NavigationViewItem Content="Privacy Policy" Tag="PrivacyPolicy">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE72E;" FontFamily="Segoe Fluent Icons"/>

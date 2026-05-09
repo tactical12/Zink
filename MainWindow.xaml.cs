@@ -904,7 +904,6 @@ namespace Zink
                 "Boosteroid" => typeof(BoosteroidPage),
                 "ShadowPC" => typeof(ShadowPCPage),
                 "Notifications" => typeof(NotificationsPage),
-                "Feedback" => typeof(FeedbackPage),
                 "PrivacyPolicy" => typeof(PrivacyPolicyPage),
                 "LeaveReview" => typeof(ReviewPage),
                 "AppCustomization" => typeof(AppCustomizationPage),
@@ -1208,7 +1207,7 @@ namespace Zink
                 {
                     "ScreenRecorder" or "FpsRecorder" or "Equalizer" or "Visualizer" or "ZinkConnect" => "Tools",
                     "Search" => "Search",
-                    "Notifications" or "Feedback" or "PrivacyPolicy" or "LeaveReview" or "AppCustomization" or "Settings" or "About" => "App",
+                    "Notifications" or "PrivacyPolicy" or "LeaveReview" or "AppCustomization" or "Settings" or "About" => "App",
                     _ => "Zink"
                 };
 
@@ -1376,7 +1375,6 @@ namespace Zink
                 if (t == typeof(BoosteroidPage)) return "Boosteroid";
                 if (t == typeof(ShadowPCPage)) return "ShadowPC";
                 if (t == typeof(NotificationsPage)) return "Notifications";
-                if (t == typeof(FeedbackPage)) return "Feedback";
                 if (t == typeof(PrivacyPolicyPage)) return "PrivacyPolicy";
                 if (t == typeof(ReviewPage)) return "LeaveReview";
                 if (t == typeof(AppCustomizationPage)) return "AppCustomization";
