@@ -81,6 +81,22 @@ namespace Zink.Pages
             WriteBool(K_ShowHeroInsights, ToggleHeroInsights.IsOn);
         }
 
+        private void BackButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (Frame.CanGoBack)
+                {
+                    Frame.GoBack();
+                }
+                else
+                {
+                    Frame.Navigate(typeof(AppCustomizationPage));
+                }
+            }
+            catch { }
+        }
+
         private void TogglePowerTools_Toggled(object sender, RoutedEventArgs e)
         {
             if (_loading) return;

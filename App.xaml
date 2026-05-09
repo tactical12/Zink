@@ -17,6 +17,12 @@
             <!-- Use your custom BooleanToVisibilityConverter -->
             <conv:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
 
+            <SolidColorBrush x:Key="ZinkGlassPanelBrush" Color="#AA3F6F7F"/>
+            <SolidColorBrush x:Key="ZinkGlassCardBrush" Color="#823F6F7F"/>
+            <SolidColorBrush x:Key="ZinkGlassBorderBrush" Color="#48A5CFDF"/>
+            <SolidColorBrush x:Key="ZinkGlassHoverBrush" Color="#2C76A6B6"/>
+            <SolidColorBrush x:Key="ZinkGlassSelectedBrush" Color="#4492C4D4"/>
+
             <!-- Other app resources here -->
         </ResourceDictionary>
     </Application.Resources>

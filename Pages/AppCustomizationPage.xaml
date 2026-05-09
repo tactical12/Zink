@@ -5,9 +5,6 @@
     RequestedTheme="Dark">
 
     <Page.Resources>
-        <SolidColorBrush x:Key="GlassPanelBrush" Color="#B0141820"/>
-        <SolidColorBrush x:Key="GlassCardBrush" Color="#82121C26"/>
-        <SolidColorBrush x:Key="GlassBorderBrush" Color="#34FFFFFF"/>
         <SolidColorBrush x:Key="MutedTextBrush" Color="#B8C8D2DC"/>
     </Page.Resources>
 
@@ -53,8 +50,8 @@
                             BorderThickness="0">
                         <Border Padding="24"
                                 CornerRadius="30"
-                                Background="{StaticResource GlassPanelBrush}"
-                                BorderBrush="{StaticResource GlassBorderBrush}"
+                                Background="{StaticResource ZinkGlassPanelBrush}"
+                                BorderBrush="{StaticResource ZinkGlassBorderBrush}"
                                 BorderThickness="1">
                             <Grid RowSpacing="18">
                                 <Grid.RowDefinitions>
@@ -90,11 +87,11 @@
                                 </Grid>
 
                                 <StackPanel Grid.Row="1" Spacing="6">
-                                    <TextBlock Text="App theme"
+                                    <TextBlock Text="App theme and glass"
                                                FontSize="22"
                                                FontWeight="SemiBold"
                                                Foreground="White"/>
-                                    <TextBlock Text="Choose Light, Dark, or follow Windows."
+                                    <TextBlock Text="Choose Light, Dark, or follow Windows, then tint the fluent glass UI."
                                                Foreground="{StaticResource MutedTextBrush}"
                                                TextWrapping="Wrap"/>
                                 </StackPanel>
@@ -130,8 +127,8 @@
                             BorderThickness="0">
                         <Border Padding="24"
                                 CornerRadius="30"
-                                Background="{StaticResource GlassPanelBrush}"
-                                BorderBrush="{StaticResource GlassBorderBrush}"
+                                Background="{StaticResource ZinkGlassPanelBrush}"
+                                BorderBrush="{StaticResource ZinkGlassBorderBrush}"
                                 BorderThickness="1">
                             <Grid RowSpacing="18">
                                 <Grid.RowDefinitions>
@@ -194,7 +191,7 @@
                 <Border Grid.Row="2"
                         Padding="22"
                         CornerRadius="26"
-                        Background="{StaticResource GlassCardBrush}"
+                        Background="{StaticResource ZinkGlassCardBrush}"
                         BorderBrush="#26FFFFFF"
                         BorderThickness="1">
                     <Grid ColumnSpacing="16">
@@ -214,10 +211,10 @@
                         </Border>
 
                         <StackPanel Grid.Column="1" Spacing="4">
-                            <TextBlock Text="Changes apply when you return to the dashboard."
+                            <TextBlock Text="Theme and glass colour changes apply immediately."
                                        Foreground="White"
                                        FontWeight="SemiBold"/>
-                            <TextBlock Text="Theme controls the overall app appearance. Dashboard customisation controls the Home sections and quick tiles."
+                            <TextBlock Text="Theme controls the overall app appearance. Glass colour controls the fluent shell tint, selected states, and theme preview."
                                        Foreground="{StaticResource MutedTextBrush}"
                                        TextWrapping="Wrap"/>
                         </StackPanel>

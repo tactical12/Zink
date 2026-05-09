@@ -3,20 +3,18 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows10.0.22621.0</TargetFramework>
-    <TargetPlatformIdentifier>Windows</TargetPlatformIdentifier>
-    <TargetPlatformVersion>10.0.22621.0</TargetPlatformVersion>
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
     <RootNamespace>Zink</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\Zink.ico</ApplicationIcon>
 
     <!-- Store upload fix: increment package/app version to avoid duplicate identity in Partner Center -->
-    <Version>3.0.14.0</Version>
-    <AssemblyVersion>3.0.14.0</AssemblyVersion>
-    <FileVersion>3.0.14.0</FileVersion>
+    <Version>3.0.0.0</Version>
+    <AssemblyVersion>3.0.0.0</AssemblyVersion>
+    <FileVersion>3.0.0.0</FileVersion>
 
-    <!-- x86 + x64 + ARM64 support (Store-complete) -->
-    <Platforms>x86;x64;ARM64</Platforms>
+    <!-- x86 + x64 + arm64 support (Store-complete) -->
+    <Platforms>x86;x64;arm64</Platforms>
 
     <!-- Ensure restore generates assets for all targets -->
     <RuntimeIdentifiers>win-x86;win-x64;win-arm64</RuntimeIdentifiers>
@@ -48,7 +46,7 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Platform)'=='arm64' Or '$(Platform)'=='ARM64'">
+  <PropertyGroup Condition="'$(Platform)'=='arm64'">
     <PlatformTarget>arm64</PlatformTarget>
     <RuntimeIdentifier>win-arm64</RuntimeIdentifier>
   </PropertyGroup>
@@ -89,7 +87,7 @@
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3912.50" />
     <PackageReference Include="Microsoft.Windows.CsWinRT" Version="2.2.0" />
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260416003" />
-    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.7705" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.1721" />
     <PackageReference Include="NAudio" Version="2.3.0" />
     <PackageReference Include="NAudio.Core" Version="2.3.0" />
     <PackageReference Include="NAudio.WinMM" Version="2.3.0" />
@@ -108,10 +106,6 @@
   <ItemGroup Condition="'$(Platform)'=='x64'">
     <Content Include="$(SolutionDir)x64\Debug\ZinkRecorderMux.dll">
       <Link>ZinkRecorderMux.dll</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="$(MSBuildThisFileDirectory)..\Zink.NativeRecorder\x64\Release\Zink.NativeRecorder.dll">
-      <Link>Zink.NativeRecorder.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
@@ -147,7 +141,6 @@
     <None Remove="Pages\FeedbackPage.xaml" />
     <None Remove="Pages\GeForceNowPage.xaml" />
     <None Remove="Pages\HomeDashboardPage.xaml" />
-    <None Remove="Pages\ZinkConnectPage.xaml" />
     <None Remove="Pages\InstagramPage.xaml" />
     <None Remove="Pages\LikedRadioSongsPage.xaml" />
     <None Remove="Pages\LinkedInPage.xaml" />
@@ -178,6 +171,7 @@
     <None Remove="Pages\Social\MessagesPage.xaml" />
     <None Remove="Pages\Social\ProfilePage.xaml" />
     <None Remove="Pages\Social\RegisterPage.xaml" />
+    <None Remove="Pages\SpotifyBetaPage.xaml" />
     <None Remove="Pages\SpotifyHomePage.xaml" />
     <None Remove="Pages\SpotifyLoginPage.xaml" />
     <None Remove="Pages\SpotifyWidgetPage.xaml" />
@@ -197,7 +191,6 @@
     <None Remove="smoothradio.png" />
     <None Remove="SplashPage.xaml" />
     <None Remove="SpotifyWidgetWindow.xaml" />
-    <None Remove="ZinkConnectWindow.xaml" />
     <None Remove="VideoPlayerPage.xaml" />
     <None Remove="WebRTC\app.js" />
     <None Remove="WebRTC\index.html" />
@@ -222,6 +215,10 @@
     <Content Include="Tools\RTSS\RTSSSetup.exe">
       <Link>RTSSSetup.exe</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Extensions\uBlockOrigin\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <ExcludeFromPRIResource>true</ExcludeFromPRIResource>
     </Content>
   </ItemGroup>
 
@@ -283,6 +280,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Page Update="Pages\SpotifyBetaPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Page Update="Pages\ScreenRecorderPage.xaml">
       <Generator>MSBuild:Compile</Generator>
     </Page>
@@ -343,9 +343,9 @@
 
     <GenerateAppInstallerFile>False</GenerateAppInstallerFile>
 
-    <!-- Let the Visual Studio Create App Packages wizard decide the checked architecture rows. -->
-    <AppxBundle Condition="'$(AppxBundle)'==''">Always</AppxBundle>
-    <AppxBundlePlatforms Condition="'$(AppxBundlePlatforms)'=='' And '$(AppxBuildConfigurationSelection)'!=''">$(AppxBuildConfigurationSelection)</AppxBundlePlatforms>
+    <!-- Store: ALWAYS create a bundle for upload -->
+    <AppxBundle>Always</AppxBundle>
+    <AppxBundlePlatforms>x64</AppxBundlePlatforms>
 
     <AppxPackageSigningTimestampDigestAlgorithm>SHA256</AppxPackageSigningTimestampDigestAlgorithm>
     <AppxAutoIncrementPackageRevision>True</AppxAutoIncrementPackageRevision>
@@ -357,9 +357,8 @@
 
     <HoursBetweenUpdateChecks>0</HoursBetweenUpdateChecks>
 
-    <!-- Keep Visual Studio package output away from OneDrive sync locks. -->
+    <!-- Keep packaging outputs inside this workspace so builds do not depend on another user profile. -->
     <AppxPackageDir>C:\Users\Franc\Downloads\app packages\</AppxPackageDir>
-    <ZinkPackageArtifactDir>$(LOCALAPPDATA)\Zink\PackageOutput\BundleArtifacts\</ZinkPackageArtifactDir>
 
     <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
 
@@ -373,21 +372,16 @@
     <!-- Keep final override as in your file -->
     <AppxPackageSigningEnabled>True</AppxPackageSigningEnabled>
     <PackageCertificateKeyFile>Zink_TemporaryKey.pfx</PackageCertificateKeyFile>
-    <AppxBundlePlatforms>x64</AppxBundlePlatforms>
-    <AppxBundle>Auto</AppxBundle>
   </PropertyGroup>
 
   <Target Name="CopyZinkRecorderMuxToAppX" AfterTargets="Build" Condition="'$(Platform)'=='x64'">
     <PropertyGroup>
       <_MuxSource>$(SolutionDir)x64\Debug\ZinkRecorderMux.dll</_MuxSource>
       <_AppXPath>$(OutDir)AppX\ZinkRecorderMux.dll</_AppXPath>
-      <_NativeRecorderSource>$(MSBuildThisFileDirectory)..\Zink.NativeRecorder\x64\Release\Zink.NativeRecorder.dll</_NativeRecorderSource>
-      <_NativeRecorderAppXPath>$(OutDir)AppX\Zink.NativeRecorder.dll</_NativeRecorderAppXPath>
     </PropertyGroup>
 
     <MakeDir Directories="$(OutDir)AppX" Condition="!Exists('$(OutDir)AppX')" />
     <Copy SourceFiles="$(_MuxSource)" DestinationFiles="$(_AppXPath)" SkipUnchangedFiles="true" Condition="Exists('$(_MuxSource)')" />
-    <Copy SourceFiles="$(_NativeRecorderSource)" DestinationFiles="$(_NativeRecorderAppXPath)" SkipUnchangedFiles="true" Condition="Exists('$(_NativeRecorderSource)')" />
   </Target>
 
   <Target Name="CopyBouncyCastleToAppXLayouts" AfterTargets="Build;_CreatePackageLayout">
@@ -414,9 +408,11 @@
 
     <Copy SourceFiles="@(ZinkInstallTrustFiles)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" Condition="'$(OutDir)'!='' And Exists('%(ZinkInstallTrustFiles.FullPath)')" />
     <Copy SourceFiles="@(ZinkInstallTrustFiles)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" Condition="'$(PublishDir)'!='' And Exists('$(PublishDir)') And Exists('%(ZinkInstallTrustFiles.FullPath)')" />
+    <MakeDir Directories="$(AppxPackageDir)" Condition="'$(AppxPackageDir)'!=''" />
+    <Copy SourceFiles="@(ZinkInstallTrustFiles)" DestinationFolder="$(AppxPackageDir)" SkipUnchangedFiles="true" Condition="'$(AppxPackageDir)'!='' And Exists('%(ZinkInstallTrustFiles.FullPath)')" />
     <Copy SourceFiles="@(ZinkInstallTrustFiles)" DestinationFolder="%(ZinkPackageTestDirectories.Identity)" SkipUnchangedFiles="true" Condition="Exists('%(ZinkPackageTestDirectories.Identity)') And Exists('%(ZinkInstallTrustFiles.FullPath)')" />
-    <MakeDir Directories="$(ZinkPackageArtifactDir)" Condition="'$(ZinkPackageArtifactDir)'!=''" />
-    <Copy SourceFiles="@(ZinkInstallTrustFiles)" DestinationFolder="$(ZinkPackageArtifactDir)" SkipUnchangedFiles="true" Condition="'$(ZinkPackageArtifactDir)'!='' And Exists('%(ZinkInstallTrustFiles.FullPath)')" />
+    <MakeDir Directories="$(MSBuildProjectDirectory)\BundleArtifacts" />
+    <Copy SourceFiles="@(ZinkInstallTrustFiles)" DestinationFolder="$(MSBuildProjectDirectory)\BundleArtifacts" SkipUnchangedFiles="true" Condition="Exists('%(ZinkInstallTrustFiles.FullPath)')" />
   </Target>
 
 </Project>

@@ -1,5 +1,8 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
+using System;
+using System.Globalization;
 using Windows.Storage;
 
 namespace Zink.Pages
@@ -7,11 +10,24 @@ namespace Zink.Pages
     public sealed partial class AppThemePage : Page
     {
         private bool _loaded;
+        private bool _loadingGlass;
+        private readonly DispatcherTimer _glassApplyTimer;
+        private global::Windows.UI.Color _pendingGlassColor;
+        private static readonly global::Windows.UI.Color DefaultGlassColor =
+            global::Windows.UI.Color.FromArgb(255, 63, 111, 127);
 
         public AppThemePage()
         {
             InitializeComponent();
+
+            _glassApplyTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(500)
+            };
+            _glassApplyTimer.Tick += GlassApplyTimer_Tick;
+
             LoadThemeSelection();
+            LoadGlassSelection();
         }
 
         private void LoadThemeSelection()
@@ -51,7 +67,7 @@ namespace Zink.Pages
 
             try
             {
-                selected.BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemControlForegroundAccentBrush"];
+                selected.BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Resources["SelectedStrokeBrush"];
                 selected.BorderThickness = new Thickness(2);
             }
             catch
@@ -62,9 +78,11 @@ namespace Zink.Pages
 
         private void ResetTileBorders()
         {
-            LightThemeButton.BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"];
-            DarkThemeButton.BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"];
-            SystemThemeButton.BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"];
+            var borderBrush = (Microsoft.UI.Xaml.Media.Brush)Resources["ThemeBorderBrush"];
+
+            LightThemeButton.BorderBrush = borderBrush;
+            DarkThemeButton.BorderBrush = borderBrush;
+            SystemThemeButton.BorderBrush = borderBrush;
 
             LightThemeButton.BorderThickness = new Thickness(1);
             DarkThemeButton.BorderThickness = new Thickness(1);
@@ -100,9 +118,46 @@ namespace Zink.Pages
             ApplySelectionUI(value);
         }
 
+        private void LoadGlassSelection()
+        {
+            _loadingGlass = true;
+            var value = ColorToHex(DefaultGlassColor);
+
+            try
+            {
+                value = ApplicationData.Current.LocalSettings.Values["Zink.GlassTint"] as string ?? value;
+            }
+            catch { }
+
+            if (!TryParseHexColor(value, out var color))
+            {
+                color = DefaultGlassColor;
+            }
+
+            GlassColorPicker.Color = color;
+            ApplyGlassColor(color, false);
+            _loadingGlass = false;
+        }
+
         private void SystemThemeButton_Click(object sender, RoutedEventArgs e)
         {
             SaveAndApply("Default");
+        }
+
+        private void BackButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (Frame.CanGoBack)
+                {
+                    Frame.GoBack();
+                }
+                else
+                {
+                    Frame.Navigate(typeof(AppCustomizationPage));
+                }
+            }
+            catch { }
         }
 
         private void LightThemeButton_Click(object sender, RoutedEventArgs e)
@@ -113,6 +168,132 @@ namespace Zink.Pages
         private void DarkThemeButton_Click(object sender, RoutedEventArgs e)
         {
             SaveAndApply("Dark");
+        }
+
+        private void PresetColor_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button button || button.Tag is not string hex)
+                return;
+
+            if (!TryParseHexColor(hex, out var color))
+                return;
+
+            _glassApplyTimer.Stop();
+            GlassColorPicker.Color = color;
+            ApplyGlassColor(color, true, true);
+        }
+
+        private void ResetGlassColor_Click(object sender, RoutedEventArgs e)
+        {
+            _glassApplyTimer.Stop();
+            GlassColorPicker.Color = DefaultGlassColor;
+            ApplyGlassColor(DefaultGlassColor, true, true);
+        }
+
+        private void GlassColorPicker_ColorChanged(ColorPicker sender, ColorChangedEventArgs args)
+        {
+            if (_loadingGlass) return;
+
+            ApplyGlassColor(args.NewColor, false, false);
+            _pendingGlassColor = args.NewColor;
+
+            _glassApplyTimer.Stop();
+            _glassApplyTimer.Start();
+        }
+
+        private void GlassApplyTimer_Tick(object? sender, object e)
+        {
+            _glassApplyTimer.Stop();
+
+            try
+            {
+                if (App.MainWindow is MainWindow mainWindow)
+                {
+                    mainWindow.ApplyGlassTint(_pendingGlassColor, true);
+                }
+            }
+            catch { }
+        }
+
+        private void ApplyGlassColor(global::Windows.UI.Color color, bool save, bool tintCurrentPage = false)
+        {
+            var hex = ColorToHex(color);
+            CurrentGlassText.Text = $"Glass colour: {hex}";
+
+            SetBrush("ThemePanelBrush", WithAlpha(color, 176));
+            SetBrush("ThemeCardBrush", WithAlpha(color, 130));
+            PageGradientStart.Color = Darken(color, 110);
+            PageGradientMiddle.Color = Darken(color, 52);
+
+            try
+            {
+                if (save && App.MainWindow is MainWindow mainWindow)
+                {
+                    mainWindow.ApplyGlassTint(color, tintCurrentPage);
+
+                    if (tintCurrentPage)
+                    {
+                        _glassApplyTimer.Stop();
+                    }
+                }
+            }
+            catch { }
+        }
+
+        private void SetBrush(string key, global::Windows.UI.Color color)
+        {
+            try
+            {
+                if (Resources.TryGetValue(key, out var value) && value is SolidColorBrush brush)
+                {
+                    brush.Color = color;
+                }
+            }
+            catch { }
+        }
+
+        private static global::Windows.UI.Color WithAlpha(global::Windows.UI.Color color, byte alpha)
+        {
+            return global::Windows.UI.Color.FromArgb(alpha, color.R, color.G, color.B);
+        }
+
+        private static global::Windows.UI.Color Darken(global::Windows.UI.Color color, byte amount)
+        {
+            return global::Windows.UI.Color.FromArgb(
+                color.A,
+                (byte)Math.Max(0, color.R - amount),
+                (byte)Math.Max(0, color.G - amount),
+                (byte)Math.Max(0, color.B - amount));
+        }
+
+        private static string ColorToHex(global::Windows.UI.Color color)
+        {
+            return $"#{color.R:X2}{color.G:X2}{color.B:X2}";
+        }
+
+        private static bool TryParseHexColor(string? hex, out global::Windows.UI.Color color)
+        {
+            color = DefaultGlassColor;
+
+            if (string.IsNullOrWhiteSpace(hex))
+                return false;
+
+            var value = hex.Trim().TrimStart('#');
+            if (value.Length == 8)
+                value = value.Substring(2);
+
+            if (value.Length != 6)
+                return false;
+
+            if (!byte.TryParse(value.Substring(0, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var r) ||
+                !byte.TryParse(value.Substring(2, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var g) ||
+                !byte.TryParse(value.Substring(4, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var b))
+            {
+                return false;
+            }
+
+            color = global::Windows.UI.Color.FromArgb(255, r, g, b);
+            return true;
         }
     }
 }

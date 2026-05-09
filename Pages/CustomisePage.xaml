@@ -13,12 +13,28 @@
             </Grid.RowDefinitions>
 
             <!-- Header -->
-            <StackPanel Grid.Row="0" Spacing="6">
-                <TextBlock Text="Customise" FontSize="34" FontWeight="Bold"/>
-                <TextBlock Text="Choose what shows on your dashboard."
-                           Opacity="0.75"
-                           FontSize="14"/>
-            </StackPanel>
+            <Grid Grid.Row="0" ColumnSpacing="14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <Button Click="BackButton_Click"
+                        Width="44"
+                        Height="44"
+                        CornerRadius="14"
+                        VerticalAlignment="Top">
+                    <FontIcon Glyph="&#xE72B;"
+                              FontFamily="Segoe Fluent Icons"/>
+                </Button>
+
+                <StackPanel Grid.Column="1" Spacing="6">
+                    <TextBlock Text="Customise" FontSize="34" FontWeight="Bold"/>
+                    <TextBlock Text="Choose what shows on your dashboard."
+                               Opacity="0.75"
+                               FontSize="14"/>
+                </StackPanel>
+            </Grid>
 
             <!-- Sections -->
             <Border Grid.Row="1"

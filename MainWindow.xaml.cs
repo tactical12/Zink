@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Navigation;
 using System;
+using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -48,6 +49,10 @@ namespace Zink
 
         private DesktopAcrylicController? _acrylicController;
         private SystemBackdropConfiguration? _backdropConfig;
+        private static readonly global::Windows.UI.Color DefaultGlassTint =
+            global::Windows.UI.Color.FromArgb(255, 63, 111, 127);
+        private global::Windows.UI.Color _currentGlassTint = DefaultGlassTint;
+        private ElementTheme _currentAppTheme = ElementTheme.Default;
 
         private bool _windowIsActivated = false;
 
@@ -61,6 +66,7 @@ namespace Zink
             this.InitializeComponent();
 
             ApplySavedThemeOnStartup();
+            ApplySavedGlassTintOnStartup();
 
             this.Activated += MainWindow_Activated;
             this.Closed += MainWindow_Closed;
@@ -76,11 +82,11 @@ namespace Zink
             SidebarNav.IsPaneOpen = true;
             SetSidebarColumnForPaneState(true);
 
+            ContentFrame.Navigated += ContentFrame_Navigated;
             ContentFrame.Navigate(typeof(HomeDashboardPage));
 
             TrySelectHomeItem();
-
-            ContentFrame.Navigated += ContentFrame_Navigated;
+            DispatcherQueue.TryEnqueue(ApplyGlassTintToCurrentPage);
 
             SocialManager.Instance.Realtime.IncomingCall -= Realtime_IncomingCall_Global;
             SocialManager.Instance.Realtime.IncomingCall += Realtime_IncomingCall_Global;
@@ -475,10 +481,29 @@ namespace Zink
 
         public void ApplyAppTheme(ElementTheme theme)
         {
+            _currentAppTheme = theme;
+
+            try
+            {
+                ApplicationData.Current.LocalSettings.Values["Zink.Theme"] = theme switch
+                {
+                    ElementTheme.Light => "Light",
+                    ElementTheme.Dark => "Dark",
+                    _ => "Default"
+                };
+            }
+            catch { }
+
             try
             {
                 if (RootGrid != null)
                     RootGrid.RequestedTheme = theme;
+
+                if (ContentFrame != null)
+                    ContentFrame.RequestedTheme = theme;
+
+                if (ContentFrame?.Content is FrameworkElement content)
+                    content.RequestedTheme = theme;
             }
             catch { }
         }
@@ -528,6 +553,7 @@ namespace Zink
                     _ => ElementTheme.Default
                 };
 
+                _currentAppTheme = theme;
                 ApplyAppTheme(theme);
             }
             catch
@@ -938,12 +964,486 @@ namespace Zink
             };
         }
 
+        public void ApplyGlassTint(global::Windows.UI.Color tint)
+        {
+            ApplyGlassTint(tint, true);
+        }
+
+        public void ApplyGlassTint(global::Windows.UI.Color tint, bool tintCurrentPage)
+        {
+            _currentGlassTint = tint;
+
+            try
+            {
+                ApplicationData.Current.LocalSettings.Values["Zink.GlassTint"] = ColorToHex(tint);
+            }
+            catch { }
+
+            ApplyGlassTintToResources(tint, tintCurrentPage);
+        }
+
+        private void ApplySavedGlassTintOnStartup()
+        {
+            try
+            {
+                var saved = ApplicationData.Current.LocalSettings.Values["Zink.GlassTint"] as string;
+                var tint = TryParseHexColor(saved, out var savedTint)
+                    ? savedTint
+                    : DefaultGlassTint;
+
+                _currentGlassTint = tint;
+                ApplyGlassTintToResources(tint, true);
+            }
+            catch { }
+        }
+
+        private void ApplyGlassTintToResources(global::Windows.UI.Color tint, bool tintCurrentPage)
+        {
+            var panel = WithAlpha(tint, 170);
+            var card = WithAlpha(tint, 130);
+            var hover = WithAlpha(Lighten(tint, 55), 44);
+            var selected = WithAlpha(Lighten(tint, 72), 68);
+            var pressed = WithAlpha(Lighten(tint, 48), 56);
+            var primaryText = GetTintedTextColor(tint, TextBrushRole.Primary);
+            var mutedText = GetTintedTextColor(tint, TextBrushRole.Muted);
+
+            SetBrushColor("ZinkGlassPanelBrush", panel);
+            SetBrushColor("ZinkGlassCardBrush", card);
+            SetBrushColor("ZinkGlassBorderBrush", WithAlpha(Lighten(tint, 90), 72));
+            SetBrushColor("ZinkGlassHoverBrush", hover);
+            SetBrushColor("ZinkGlassSelectedBrush", selected);
+            SetBrushColor("NavigationViewItemBackgroundPointerOver", hover);
+            SetBrushColor("NavigationViewItemBackgroundSelected", selected);
+            SetBrushColor("NavigationViewItemBackgroundPressed", pressed);
+            SetBrushColor("NavigationViewItemForeground", mutedText);
+            SetBrushColor("NavigationViewItemForegroundPointerOver", primaryText);
+            SetBrushColor("NavigationViewItemForegroundSelected", primaryText);
+            SetBrushColor("NavigationViewItemIconForeground", mutedText);
+            SetBrushColor("NavigationViewItemIconForegroundPointerOver", primaryText);
+            SetBrushColor("NavigationViewItemIconForegroundSelected", primaryText);
+
+            ShellGradientStart.Color = Darken(tint, 110);
+            ShellGradientMiddle.Color = WithAlpha(Darken(tint, 52), 255);
+
+            if (tintCurrentPage)
+            {
+                ApplyGlassTintToCurrentPage();
+            }
+        }
+
+        private void ApplyGlassTintToCurrentPage()
+        {
+            try
+            {
+                if (ContentFrame?.Content is FrameworkElement content)
+                {
+                    content.RequestedTheme = _currentAppTheme;
+                    content.Loaded -= CurrentPage_Loaded;
+                    content.Loaded += CurrentPage_Loaded;
+
+                    ApplyGlassTintToElementTree(content, _currentGlassTint);
+                    QueueGlassTintPass(content, 3);
+                }
+            }
+            catch { }
+        }
+
+        private void CurrentPage_Loaded(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (sender is FrameworkElement content)
+                {
+                    content.RequestedTheme = _currentAppTheme;
+                    ApplyGlassTintToElementTree(content, _currentGlassTint);
+                    QueueGlassTintPass(content, 3);
+                }
+            }
+            catch { }
+        }
+
+        private void QueueGlassTintPass(FrameworkElement content, int remainingPasses)
+        {
+            if (remainingPasses <= 0)
+                return;
+
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                try
+                {
+                    ApplyGlassTintToElementTree(content, _currentGlassTint);
+                    QueueGlassTintPass(content, remainingPasses - 1);
+                }
+                catch { }
+            });
+        }
+
+        private void ApplyGlassTintToElementTree(DependencyObject element, global::Windows.UI.Color tint)
+        {
+            if (IsWebViewElement(element))
+                return;
+
+            if (element is FrameworkElement frameworkElement)
+            {
+                frameworkElement.RequestedTheme = _currentAppTheme;
+                ApplyGlassTintToResourceDictionary(frameworkElement.Resources, tint);
+                TintElementBrushes(frameworkElement, tint);
+            }
+
+            var childCount = VisualTreeHelper.GetChildrenCount(element);
+            for (var i = 0; i < childCount; i++)
+            {
+                ApplyGlassTintToElementTree(VisualTreeHelper.GetChild(element, i), tint);
+            }
+        }
+
+        private void ApplyGlassTintToResourceDictionary(ResourceDictionary resources, global::Windows.UI.Color tint)
+        {
+            SetResourceBrush(resources, "GlassPanelBrush", WithAlpha(tint, 176), tint);
+            SetResourceBrush(resources, "GlassPanelStrongBrush", WithAlpha(Darken(tint, 12), 206), Darken(tint, 12));
+            SetResourceBrush(resources, "GlassPanelBorderBrush", WithAlpha(Lighten(tint, 98), 74), Lighten(tint, 98));
+            SetResourceBrush(resources, "GlassStrongBrush", WithAlpha(Darken(tint, 28), 235), Darken(tint, 28));
+            SetResourceBrush(resources, "GlassCardBrush", WithAlpha(tint, 138), tint);
+            SetResourceBrush(resources, "GlassTileBrush", WithAlpha(tint, 108), tint);
+            SetResourceBrush(resources, "GlassTileHoverBrush", WithAlpha(Lighten(tint, 42), 144), Lighten(tint, 42));
+            SetResourceBrush(resources, "GlassBorderBrush", WithAlpha(Lighten(tint, 96), 72), Lighten(tint, 96));
+            SetResourceBrush(resources, "GlassBorderStrongBrush", WithAlpha(Lighten(tint, 112), 108), Lighten(tint, 112));
+            SetResourceBrush(resources, "ThemePanelBrush", WithAlpha(tint, 176), tint);
+            SetResourceBrush(resources, "ThemeCardBrush", WithAlpha(tint, 130), tint);
+            SetResourceTextBrush(resources, "MutedTextBrush", GetTintedTextColor(tint, TextBrushRole.Muted));
+            SetResourceTextBrush(resources, "DimTextBrush", GetTintedTextColor(tint, TextBrushRole.Dim));
+            SetResourceTextBrush(resources, "SubtleTextBrush", GetTintedTextColor(tint, TextBrushRole.Dim));
+            SetResourceTextBrush(resources, "PrimaryTextBrush", GetTintedTextColor(tint, TextBrushRole.Primary));
+        }
+
+        private void TintElementBrushes(FrameworkElement element, global::Windows.UI.Color tint)
+        {
+            try
+            {
+                switch (element)
+                {
+                    case TextBlock textBlock:
+                        textBlock.Foreground = TintTextBrush(textBlock.Foreground, tint, TextBrushRole.Primary);
+                        break;
+                    case RichTextBlock richTextBlock:
+                        richTextBlock.Foreground = TintTextBrush(richTextBlock.Foreground, tint, TextBrushRole.Primary);
+                        break;
+                    case FontIcon fontIcon:
+                        fontIcon.Foreground = TintTextBrush(fontIcon.Foreground, tint, TextBrushRole.Primary);
+                        break;
+                    case Grid grid:
+                        grid.Background = TintBrush(grid.Background, tint, GlassBrushRole.Surface);
+                        break;
+                    case StackPanel stackPanel:
+                        stackPanel.Background = TintBrush(stackPanel.Background, tint, GlassBrushRole.Surface);
+                        break;
+                    case Panel panel:
+                        panel.Background = TintBrush(panel.Background, tint, GlassBrushRole.Surface);
+                        break;
+                    case Border border:
+                        border.Background = TintBrush(border.Background, tint, GlassBrushRole.Surface);
+                        border.BorderBrush = TintBrush(border.BorderBrush, tint, GlassBrushRole.Border);
+                        break;
+                    case Control control:
+                        control.Background = TintBrush(control.Background, tint, GlassBrushRole.Control);
+                        control.BorderBrush = TintBrush(control.BorderBrush, tint, GlassBrushRole.Border);
+                        control.Foreground = TintTextBrush(control.Foreground, tint, TextBrushRole.Primary);
+                        break;
+                    case Microsoft.UI.Xaml.Shapes.Shape shape:
+                        shape.Fill = TintBrush(shape.Fill, tint, GlassBrushRole.Surface);
+                        shape.Stroke = TintBrush(shape.Stroke, tint, GlassBrushRole.Border);
+                        break;
+                }
+            }
+            catch { }
+        }
+
+        private enum GlassBrushRole
+        {
+            Surface,
+            Control,
+            Border
+        }
+
+        private enum TextBrushRole
+        {
+            Primary,
+            Muted,
+            Dim
+        }
+
+        private static Brush TintBrush(Brush brush, global::Windows.UI.Color tint, GlassBrushRole role)
+        {
+            try
+            {
+                switch (brush)
+                {
+                    case null:
+                        return brush;
+                    case SolidColorBrush solidBrush when solidBrush.Color.A == 0:
+                        return brush;
+                    case SolidColorBrush solidBrush when IsGlassLikeColor(solidBrush.Color):
+                        solidBrush.Color = role switch
+                        {
+                            GlassBrushRole.Border => WithAlpha(Lighten(tint, 100), Math.Max((byte)48, solidBrush.Color.A)),
+                            GlassBrushRole.Control => WithAlpha(Lighten(tint, 34), Math.Max((byte)45, solidBrush.Color.A)),
+                            _ => WithAlpha(tint, Math.Max((byte)70, solidBrush.Color.A))
+                        };
+                        return brush;
+                    case AcrylicBrush acrylicBrush:
+                        acrylicBrush.TintColor = tint;
+                        acrylicBrush.FallbackColor = WithAlpha(tint, Math.Max((byte)160, acrylicBrush.FallbackColor.A));
+                        return brush;
+                    case LinearGradientBrush gradientBrush:
+                        TintGradientStops(gradientBrush, tint);
+                        return brush;
+                }
+            }
+            catch { }
+
+            return brush;
+        }
+
+        private static Brush TintTextBrush(Brush brush, global::Windows.UI.Color tint, TextBrushRole fallbackRole)
+        {
+            try
+            {
+                if (brush is not SolidColorBrush solidBrush)
+                    return new SolidColorBrush(GetTintedTextColor(tint, fallbackRole));
+
+                if (solidBrush.Color.A == 0)
+                    return brush;
+
+                var role = IsTextLikeColor(solidBrush.Color)
+                    ? GetTextRole(solidBrush.Color)
+                    : fallbackRole;
+
+                return new SolidColorBrush(GetTintedTextColor(tint, role));
+            }
+            catch { }
+
+            return brush;
+        }
+
+        private static void TintGradientStops(LinearGradientBrush gradientBrush, global::Windows.UI.Color tint)
+        {
+            try
+            {
+                for (var i = 0; i < gradientBrush.GradientStops.Count; i++)
+                {
+                    var stop = gradientBrush.GradientStops[i];
+                    if (!IsGlassLikeColor(stop.Color))
+                        continue;
+
+                    stop.Color = i switch
+                    {
+                        0 => WithAlpha(Darken(tint, 112), stop.Color.A),
+                        1 => WithAlpha(Darken(tint, 52), stop.Color.A),
+                        _ => WithAlpha(Darken(tint, 126), stop.Color.A)
+                    };
+                }
+            }
+            catch { }
+        }
+
+        private static bool IsGlassLikeColor(global::Windows.UI.Color color)
+        {
+            if (color.A == 0)
+                return false;
+
+            if (color.A < 255)
+                return true;
+
+            var max = Math.Max(color.R, Math.Max(color.G, color.B));
+            var min = Math.Min(color.R, Math.Min(color.G, color.B));
+
+            return max <= 64 || (max - min <= 24 && max >= 210);
+        }
+
+        private static bool IsTextLikeColor(global::Windows.UI.Color color)
+        {
+            if (color.A == 0)
+                return false;
+
+            var max = Math.Max(color.R, Math.Max(color.G, color.B));
+            var min = Math.Min(color.R, Math.Min(color.G, color.B));
+
+            return max >= 120 && max - min <= 70;
+        }
+
+        private static TextBrushRole GetTextRole(global::Windows.UI.Color color)
+        {
+            if (color.A < 170)
+                return TextBrushRole.Dim;
+
+            var max = Math.Max(color.R, Math.Max(color.G, color.B));
+            if (max < 215 || color.A < 225)
+                return TextBrushRole.Muted;
+
+            return TextBrushRole.Primary;
+        }
+
+        private static global::Windows.UI.Color GetTintedTextColor(global::Windows.UI.Color tint, TextBrushRole role)
+        {
+            return role switch
+            {
+                TextBrushRole.Dim => WithAlpha(MixWithWhite(tint, 112), 165),
+                TextBrushRole.Muted => WithAlpha(MixWithWhite(tint, 136), 220),
+                _ => WithAlpha(MixWithWhite(tint, 168), 255)
+            };
+        }
+
+        private static global::Windows.UI.Color MixWithWhite(global::Windows.UI.Color color, byte whiteAmount)
+        {
+            var keep = 255 - whiteAmount;
+            return global::Windows.UI.Color.FromArgb(
+                color.A,
+                (byte)Math.Min(255, ((color.R * keep) + (255 * whiteAmount)) / 255),
+                (byte)Math.Min(255, ((color.G * keep) + (255 * whiteAmount)) / 255),
+                (byte)Math.Min(255, ((color.B * keep) + (255 * whiteAmount)) / 255));
+        }
+
+        private static void SetResourceBrush(
+            ResourceDictionary resources,
+            string key,
+            global::Windows.UI.Color color,
+            global::Windows.UI.Color tint)
+        {
+            try
+            {
+                if (!resources.TryGetValue(key, out var value))
+                    return;
+
+                if (value is SolidColorBrush solidBrush)
+                {
+                    solidBrush.Color = color;
+                    return;
+                }
+
+                if (value is AcrylicBrush acrylicBrush)
+                {
+                    acrylicBrush.TintColor = tint;
+                    acrylicBrush.FallbackColor = color;
+                }
+            }
+            catch { }
+        }
+
+        private static void SetResourceTextBrush(
+            ResourceDictionary resources,
+            string key,
+            global::Windows.UI.Color color)
+        {
+            try
+            {
+                if (resources.TryGetValue(key, out var value) &&
+                    value is SolidColorBrush solidBrush)
+                {
+                    solidBrush.Color = color;
+                }
+            }
+            catch { }
+        }
+
+        private static bool IsWebViewElement(DependencyObject root)
+        {
+            try
+            {
+                var typeName = root.GetType().FullName ?? root.GetType().Name;
+                if (typeName.Contains("WebView", StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            catch { }
+
+            return false;
+        }
+
+        private void SetBrushColor(string resourceKey, global::Windows.UI.Color color)
+        {
+            try
+            {
+                if (Application.Current.Resources.TryGetValue(resourceKey, out var appValue) &&
+                    appValue is SolidColorBrush appBrush)
+                {
+                    appBrush.Color = color;
+                    return;
+                }
+
+                if (RootGrid.Resources.TryGetValue(resourceKey, out var shellValue) &&
+                    shellValue is SolidColorBrush shellBrush)
+                {
+                    shellBrush.Color = color;
+                }
+            }
+            catch { }
+        }
+
+        private static global::Windows.UI.Color WithAlpha(global::Windows.UI.Color color, byte alpha)
+        {
+            return global::Windows.UI.Color.FromArgb(alpha, color.R, color.G, color.B);
+        }
+
+        private static global::Windows.UI.Color Lighten(global::Windows.UI.Color color, byte amount)
+        {
+            return global::Windows.UI.Color.FromArgb(
+                color.A,
+                (byte)Math.Min(255, color.R + amount),
+                (byte)Math.Min(255, color.G + amount),
+                (byte)Math.Min(255, color.B + amount));
+        }
+
+        private static global::Windows.UI.Color Darken(global::Windows.UI.Color color, byte amount)
+        {
+            return global::Windows.UI.Color.FromArgb(
+                color.A,
+                (byte)Math.Max(0, color.R - amount),
+                (byte)Math.Max(0, color.G - amount),
+                (byte)Math.Max(0, color.B - amount));
+        }
+
+        private static string ColorToHex(global::Windows.UI.Color color)
+        {
+            return $"#{color.R:X2}{color.G:X2}{color.B:X2}";
+        }
+
+        private static bool TryParseHexColor(string? hex, out global::Windows.UI.Color color)
+        {
+            color = DefaultGlassTint;
+
+            if (string.IsNullOrWhiteSpace(hex))
+                return false;
+
+            var value = hex.Trim().TrimStart('#');
+            if (value.Length == 8)
+                value = value.Substring(2);
+
+            if (value.Length != 6)
+                return false;
+
+            if (!byte.TryParse(value.Substring(0, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var r) ||
+                !byte.TryParse(value.Substring(2, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var g) ||
+                !byte.TryParse(value.Substring(4, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var b))
+            {
+                return false;
+            }
+
+            color = global::Windows.UI.Color.FromArgb(255, r, g, b);
+            return true;
+        }
+
         private void ContentFrame_Navigated(object sender, NavigationEventArgs e)
         {
             try
             {
                 var t = e?.SourcePageType;
                 if (t == null) return;
+
+                if (ContentFrame.Content is FrameworkElement content)
+                {
+                    content.RequestedTheme = _currentAppTheme;
+                }
+
+                ApplyGlassTintToCurrentPage();
 
                 try
                 {
