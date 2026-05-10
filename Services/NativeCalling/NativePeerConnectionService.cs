@@ -48,6 +48,19 @@ namespace Zink.Services.NativeCalling
         public long SentPliRequests => Interlocked.Read(ref _sentPliRequests);
         public long SentNackRequests => Interlocked.Read(ref _sentNackRequests);
         public string ConnectionState => _peerConnection?.connectionState.ToString() ?? "not-created";
+        public bool IsVideoTransportReady
+        {
+            get
+            {
+                lock (_syncRoot)
+                {
+                    return _peerConnection != null &&
+                        !_isClosed &&
+                        _peerConnection.connectionState == RTCPeerConnectionState.connected;
+                }
+            }
+        }
+
         public string TransportDescription => "WebRTC RTP H.264 media track";
         public string CodecParameters => H264FormatParameters;
 
@@ -142,6 +155,12 @@ namespace Zink.Services.NativeCalling
                 peerConnection.connectionState == RTCPeerConnectionState.disconnected)
             {
                 LogSendDiagnostic($"not sent: connectionState={peerConnection.connectionState}", h264Frame.Length);
+                return Task.FromResult(false);
+            }
+
+            if (peerConnection.connectionState != RTCPeerConnectionState.connected)
+            {
+                LogSendDiagnostic($"not sent: video transport not ready; connectionState={peerConnection.connectionState}", h264Frame.Length);
                 return Task.FromResult(false);
             }
 
