@@ -4307,10 +4307,18 @@ namespace Zink.Pages.Social
 
         private void FullscreenButton_Click(object sender, RoutedEventArgs e)
         {
+            SetScreenShareFullscreen(!_isFullscreen);
+        }
+
+        private void FullscreenExitButton_Click(object sender, RoutedEventArgs e)
+        {
+            SetScreenShareFullscreen(false);
+        }
+
+        private void SetScreenShareFullscreen(bool fullscreen)
+        {
             _fullscreenChromeTimer?.Stop();
-            FullscreenButton.Visibility = Visibility.Visible;
-            FullscreenExitButton.Visibility = Visibility.Collapsed;
-            _isFullscreen = !_isFullscreen;
+            _isFullscreen = fullscreen;
             ApplyScreenShareFocusMode();
             UpdateDockVisualStates();
         }
@@ -4339,7 +4347,7 @@ namespace Zink.Pages.Social
             _fullscreenChromeTimer?.Stop();
 
             if (_isFullscreen)
-                FullscreenButton.Visibility = Visibility.Collapsed;
+                FullscreenExitButton.Visibility = Visibility.Collapsed;
         }
 
         private void ShowFullscreenChrome()
@@ -4347,9 +4355,9 @@ namespace Zink.Pages.Social
             if (_isFullscreen)
             {
                 FullscreenPointerSurface.Visibility = Visibility.Visible;
-                FullscreenButton.Visibility = Visibility.Visible;
-                FullscreenButton.Opacity = 1;
-                FullscreenExitButton.Visibility = Visibility.Collapsed;
+                FullscreenButton.Visibility = Visibility.Collapsed;
+                FullscreenExitButton.Visibility = Visibility.Visible;
+                FullscreenExitButton.Opacity = 1;
             }
             else
             {
@@ -5629,8 +5637,8 @@ namespace Zink.Pages.Social
             CallSidePanel.Visibility = _isFullscreen ? Visibility.Collapsed : Visibility.Visible;
             CallStatusPanel.Visibility = Visibility.Collapsed;
             CallControlDock.Visibility = _isFullscreen ? Visibility.Collapsed : Visibility.Visible;
-            FullscreenButton.Visibility = Visibility.Visible;
-            FullscreenExitButton.Visibility = Visibility.Collapsed;
+            FullscreenButton.Visibility = _isFullscreen ? Visibility.Collapsed : Visibility.Visible;
+            FullscreenExitButton.Visibility = _isFullscreen ? Visibility.Visible : Visibility.Collapsed;
             FullscreenPointerSurface.Visibility = _isFullscreen ? Visibility.Visible : Visibility.Collapsed;
             StreamInformationButton.Visibility = _isFullscreen ? Visibility.Collapsed : Visibility.Visible;
             MediaOverlayBadge.Visibility = Visibility.Collapsed;

@@ -372,6 +372,7 @@
                                         VerticalAlignment="Stretch"
                                         Background="Transparent"
                                         Visibility="Collapsed"
+                                        IsHitTestVisible="False"
                                         Canvas.ZIndex="150"/>
 
                                 <Button x:Name="FullscreenButton"
@@ -404,12 +405,12 @@
                                     Height="52"
                                     Padding="0"
                                     CornerRadius="26"
-                                    Click="FullscreenButton_Click"
+                                    Click="FullscreenExitButton_Click"
                                     Visibility="Collapsed"
                                     Background="#D4111318"
                                     BorderBrush="#66FFFFFF"
                                     BorderThickness="1"
-                                    Canvas.ZIndex="5000"
+                                    Canvas.ZIndex="7000"
                                     IsHitTestVisible="True"
                                     ToolTipService.ToolTip="Exit fullscreen">
                                 <FontIcon Glyph="&#xE73F;"
