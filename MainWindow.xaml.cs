@@ -693,12 +693,6 @@ namespace Zink
 
         public void ExitFullscreenMode()
         {
-            if (!_weAreInFullscreenMode)
-            {
-                RestoreSavedSidebar();
-                return;
-            }
-
             DispatcherQueue.TryEnqueue(() =>
             {
                 try
@@ -708,7 +702,6 @@ namespace Zink
                     var appWindow = AppWindow.GetFromWindowId(windowId);
                     appWindow.SetPresenter(AppWindowPresenterKind.Overlapped);
                     _weAreInFullscreenMode = false;
-
                     StopFullscreenMonitor();
                 }
                 catch { }
