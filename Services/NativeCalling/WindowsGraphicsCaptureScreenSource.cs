@@ -413,7 +413,7 @@ namespace Zink.Services.NativeCalling
             });
         }
 
-        private static Bitmap CreateScaledBitmapFromBgra(
+        private static unsafe Bitmap CreateScaledBitmapFromBgra(
             IntPtr sourcePtr,
             int sourceStride,
             int sourceWidth,
@@ -421,30 +421,98 @@ namespace Zink.Services.NativeCalling
             int targetWidth,
             int targetHeight)
         {
-            using var source = new Bitmap(
-                sourceWidth,
-                sourceHeight,
-                sourceStride,
-                PixelFormat.Format32bppArgb,
-                sourcePtr);
-
             var target = new Bitmap(targetWidth, targetHeight, PixelFormat.Format32bppArgb);
-            using var graphics = Graphics.FromImage(target);
-            graphics.Clear(Color.Black);
-            graphics.CompositingMode = CompositingMode.SourceCopy;
-            graphics.CompositingQuality = CompositingQuality.AssumeLinear;
-            graphics.InterpolationMode = InterpolationMode.Bilinear;
-            graphics.PixelOffsetMode = PixelOffsetMode.Half;
-            graphics.SmoothingMode = SmoothingMode.None;
             var destination = GetAspectFitRectangle(sourceWidth, sourceHeight, targetWidth, targetHeight);
-            graphics.DrawImage(
-                source,
-                destination,
-                0,
-                0,
-                sourceWidth,
-                sourceHeight,
-                GraphicsUnit.Pixel);
+            var targetData = target.LockBits(
+                new Rectangle(0, 0, targetWidth, targetHeight),
+                ImageLockMode.WriteOnly,
+                PixelFormat.Format32bppArgb);
+
+            try
+            {
+                var targetBase = (byte*)targetData.Scan0;
+                for (var y = 0; y < targetHeight; y++)
+                {
+                    var targetRow = targetBase + y * targetData.Stride;
+                    for (var x = 0; x < targetWidth * 4; x++)
+                        targetRow[x] = 0;
+                }
+
+                var sourceBase = (byte*)sourcePtr;
+                const int weightScale = 256;
+                var x0Map = new int[destination.Width];
+                var x1Map = new int[destination.Width];
+                var xWeightMap = new int[destination.Width];
+                var scaleX = (double)sourceWidth / destination.Width;
+                var scaleY = (double)sourceHeight / destination.Height;
+
+                for (var x = 0; x < destination.Width; x++)
+                {
+                    var sourceX = ((x + 0.5) * scaleX) - 0.5;
+                    if (sourceX < 0)
+                        sourceX = 0;
+
+                    var x0 = (int)sourceX;
+                    var xWeight = (int)Math.Round((sourceX - x0) * weightScale);
+                    var x1 = x0 + 1;
+                    if (x1 >= sourceWidth)
+                    {
+                        x1 = x0;
+                        xWeight = 0;
+                    }
+
+                    x0Map[x] = x0;
+                    x1Map[x] = x1;
+                    xWeightMap[x] = Math.Clamp(xWeight, 0, weightScale);
+                }
+
+                for (var y = 0; y < destination.Height; y++)
+                {
+                    var sourceY = ((y + 0.5) * scaleY) - 0.5;
+                    if (sourceY < 0)
+                        sourceY = 0;
+
+                    var y0 = (int)sourceY;
+                    var yWeight = (int)Math.Round((sourceY - y0) * weightScale);
+                    var y1 = y0 + 1;
+                    if (y1 >= sourceHeight)
+                    {
+                        y1 = y0;
+                        yWeight = 0;
+                    }
+                    yWeight = Math.Clamp(yWeight, 0, weightScale);
+
+                    var sourceRow0 = sourceBase + y0 * sourceStride;
+                    var sourceRow1 = sourceBase + y1 * sourceStride;
+                    var targetRow = targetBase + (destination.Y + y) * targetData.Stride + destination.X * 4;
+
+                    for (var x = 0; x < destination.Width; x++)
+                    {
+                        var x0 = x0Map[x];
+                        var x1 = x1Map[x];
+                        var xWeight = xWeightMap[x];
+                        var inverseXWeight = weightScale - xWeight;
+                        var inverseYWeight = weightScale - yWeight;
+
+                        var pixel00 = sourceRow0 + x0 * 4;
+                        var pixel10 = sourceRow0 + x1 * 4;
+                        var pixel01 = sourceRow1 + x0 * 4;
+                        var pixel11 = sourceRow1 + x1 * 4;
+                        var targetPixel = targetRow + x * 4;
+
+                        for (var channel = 0; channel < 4; channel++)
+                        {
+                            var top = (pixel00[channel] * inverseXWeight) + (pixel10[channel] * xWeight);
+                            var bottom = (pixel01[channel] * inverseXWeight) + (pixel11[channel] * xWeight);
+                            targetPixel[channel] = (byte)(((top * inverseYWeight) + (bottom * yWeight) + 32768) >> 16);
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                target.UnlockBits(targetData);
+            }
 
             return target;
         }
