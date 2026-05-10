@@ -901,7 +901,13 @@ namespace Zink
                 wParam == (IntPtr)WM_LBUTTONDOWN &&
                 IsCursorInFullscreenExitZone())
             {
-                DispatcherQueue.TryEnqueue(ExitFullscreenMode);
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    if (ContentFrame.Content is CallPage callPage)
+                        callPage.ExitScreenShareFullscreenFromWindowHook();
+
+                    ExitFullscreenMode();
+                });
                 return (IntPtr)1;
             }
 

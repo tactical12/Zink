@@ -8,8 +8,7 @@
     mc:Ignorable="d"
     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
 
-    <Grid x:Name="CallPageRoot"
-          PointerPressed="CallPageRoot_PointerPressed">
+    <Grid x:Name="CallPageRoot">
         <Grid.Background>
             <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                 <GradientStop Color="#0E1014" Offset="0"/>
@@ -839,8 +838,6 @@
                 Width="56"
                 Height="56"
                 CornerRadius="28"
-                PointerPressed="FullscreenExitHotspot_PointerPressed"
-                Tapped="FullscreenExitHotspot_Tapped"
                 Visibility="Collapsed"
                 Background="#E8111318"
                 BorderBrush="#80FFFFFF"

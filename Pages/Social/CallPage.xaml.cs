@@ -4316,34 +4316,6 @@ namespace Zink.Pages.Social
             SetScreenShareFullscreen(!_isFullscreen);
         }
 
-        private void FullscreenExitHotspot_PointerPressed(object sender, PointerRoutedEventArgs e)
-        {
-            e.Handled = true;
-            ExitScreenShareFullscreenNow("hotspot-pointer-press");
-        }
-
-        private void FullscreenExitHotspot_Tapped(object sender, TappedRoutedEventArgs e)
-        {
-            e.Handled = true;
-            ExitScreenShareFullscreenNow("hotspot-tap");
-        }
-
-        private void CallPageRoot_PointerPressed(object sender, PointerRoutedEventArgs e)
-        {
-            if (!_isFullscreen)
-                return;
-
-            var point = e.GetCurrentPoint(CallPageRoot).Position;
-            var inExitZone =
-                point.X >= CallPageRoot.ActualWidth - 120 &&
-                point.Y >= CallPageRoot.ActualHeight - 120;
-            if (!inExitZone)
-                return;
-
-            e.Handled = true;
-            ExitScreenShareFullscreenNow("root-bottom-right-zone");
-        }
-
         private void CallPage_KeyDown(object sender, KeyRoutedEventArgs e)
         {
             if (_isFullscreen && e.Key == VirtualKey.Escape)
@@ -4361,13 +4333,28 @@ namespace Zink.Pages.Social
             App.MainWindow?.ExitFullscreenMode();
         }
 
+        public void ExitScreenShareFullscreenFromWindowHook()
+        {
+            if (!_isFullscreen)
+                return;
+
+            Debug.WriteLine("[ScreenShare:UI] Exiting fullscreen via window mouse hook.");
+            DiagnosticLogService.WriteLine("[ScreenShare:UI] Exiting fullscreen via window mouse hook.");
+            SetScreenShareFullscreen(false, updateWindow: false);
+        }
+
         private void SetScreenShareFullscreen(bool fullscreen)
+        {
+            SetScreenShareFullscreen(fullscreen, updateWindow: true);
+        }
+
+        private void SetScreenShareFullscreen(bool fullscreen, bool updateWindow)
         {
             _fullscreenChromeTimer?.Stop();
             _isFullscreen = fullscreen;
             if (fullscreen)
                 SwitchRemoteScreenShareToXamlFullscreenSurface();
-            ApplyScreenShareFocusMode();
+            ApplyScreenShareFocusMode(updateWindow);
             UpdateDockVisualStates();
         }
 
@@ -5699,6 +5686,11 @@ namespace Zink.Pages.Social
 
         private void ApplyScreenShareFocusMode()
         {
+            ApplyScreenShareFocusMode(updateWindow: true);
+        }
+
+        private void ApplyScreenShareFocusMode(bool updateWindow)
+        {
             CallHeaderPanel.Visibility = Visibility.Collapsed;
             CallSidePanel.Visibility = _isFullscreen ? Visibility.Collapsed : Visibility.Visible;
             CallStatusPanel.Visibility = Visibility.Collapsed;
@@ -5709,10 +5701,13 @@ namespace Zink.Pages.Social
             StreamInformationButton.Visibility = _isFullscreen ? Visibility.Collapsed : Visibility.Visible;
             MediaOverlayBadge.Visibility = Visibility.Collapsed;
 
-            if (_isFullscreen)
-                App.MainWindow?.EnterFullscreenMode();
-            else
-                App.MainWindow?.ExitFullscreenMode();
+            if (updateWindow)
+            {
+                if (_isFullscreen)
+                    App.MainWindow?.EnterFullscreenMode();
+                else
+                    App.MainWindow?.ExitFullscreenMode();
+            }
 
             CallSideColumn.Width = _isFullscreen ? new GridLength(0) : new GridLength(330);
             CallLayoutRoot.Padding = _isFullscreen ? new Thickness(0) : new Thickness(24);
