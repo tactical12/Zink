@@ -273,12 +273,14 @@
                                     </StackPanel>
                                 </Border>
 
-                                <Border HorizontalAlignment="Left"
+                                <Border x:Name="MediaOverlayBadge"
+                        HorizontalAlignment="Left"
                         VerticalAlignment="Top"
                         Margin="16"
                         Padding="12,6"
                         CornerRadius="999"
-                        Background="#8C000000">
+                        Background="#8C000000"
+                        Visibility="Collapsed">
                                     <TextBlock x:Name="MediaOverlayText"
                              Text="Ready"
                              Foreground="White"
@@ -384,7 +386,8 @@
                         Background="#D4111318"
                         BorderBrush="#66FFFFFF"
                         BorderThickness="1"
-                        Canvas.ZIndex="100"
+                        Canvas.ZIndex="5000"
+                        IsHitTestVisible="True"
                         ToolTipService.ToolTip="Fullscreen screen share">
                                     <FontIcon x:Name="FullscreenIcon"
                                 Glyph="&#xE740;"
@@ -592,6 +595,28 @@
                                 Foreground="White"/>
                                         </Button>
                                         <TextBlock Text="Preview"
+                               Foreground="White"
+                               FontSize="11"
+                               TextTrimming="CharacterEllipsis"
+                               HorizontalAlignment="Center"/>
+                                    </StackPanel>
+
+                                    <StackPanel Width="80" Spacing="6" HorizontalAlignment="Center">
+                                        <Button x:Name="FullscreenDockButton"
+                            Width="56"
+                            Height="56"
+                            CornerRadius="28"
+                            Click="FullscreenButton_Click"
+                            Background="#171A20"
+                            BorderBrush="#2FFFFFFF"
+                            BorderThickness="1"
+                            ToolTipService.ToolTip="Fullscreen screen share">
+                                            <FontIcon x:Name="FullscreenDockIcon"
+                                Glyph="&#xE740;"
+                                FontSize="24"
+                                Foreground="White"/>
+                                        </Button>
+                                        <TextBlock Text="Fullscreen"
                                Foreground="White"
                                FontSize="11"
                                TextTrimming="CharacterEllipsis"

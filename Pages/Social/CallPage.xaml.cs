@@ -272,6 +272,7 @@ namespace Zink.Pages.Social
             RemoteScreenPlayer.PointerMoved += CallMediaStage_PointerMoved;
             FullscreenPointerSurface.PointerMoved += CallMediaStage_PointerMoved;
             FullscreenButton.PointerMoved += CallMediaStage_PointerMoved;
+            FullscreenDockButton.PointerMoved += CallMediaStage_PointerMoved;
             FullscreenExitButton.PointerMoved += CallMediaStage_PointerMoved;
             HookScreenShare();
 
@@ -307,6 +308,7 @@ namespace Zink.Pages.Social
             RemoteScreenPlayer.PointerMoved -= CallMediaStage_PointerMoved;
             FullscreenPointerSurface.PointerMoved -= CallMediaStage_PointerMoved;
             FullscreenButton.PointerMoved -= CallMediaStage_PointerMoved;
+            FullscreenDockButton.PointerMoved -= CallMediaStage_PointerMoved;
             FullscreenExitButton.PointerMoved -= CallMediaStage_PointerMoved;
             UnhookScreenShare();
             _ = StopLocalScreenShareAsync(true);
@@ -4307,7 +4309,7 @@ namespace Zink.Pages.Social
         {
             _fullscreenChromeTimer?.Stop();
             FullscreenButton.Visibility = Visibility.Visible;
-            FullscreenExitButton.Visibility = Visibility.Visible;
+            FullscreenExitButton.Visibility = Visibility.Collapsed;
             _isFullscreen = !_isFullscreen;
             ApplyScreenShareFocusMode();
             UpdateDockVisualStates();
@@ -4337,7 +4339,7 @@ namespace Zink.Pages.Social
             _fullscreenChromeTimer?.Stop();
 
             if (_isFullscreen)
-                FullscreenExitButton.Visibility = Visibility.Collapsed;
+                FullscreenButton.Visibility = Visibility.Collapsed;
         }
 
         private void ShowFullscreenChrome()
@@ -4345,9 +4347,9 @@ namespace Zink.Pages.Social
             if (_isFullscreen)
             {
                 FullscreenPointerSurface.Visibility = Visibility.Visible;
-                FullscreenButton.Visibility = Visibility.Collapsed;
-                FullscreenExitButton.Visibility = Visibility.Visible;
-                FullscreenExitButton.Opacity = 1;
+                FullscreenButton.Visibility = Visibility.Visible;
+                FullscreenButton.Opacity = 1;
+                FullscreenExitButton.Visibility = Visibility.Collapsed;
             }
             else
             {
@@ -5627,11 +5629,11 @@ namespace Zink.Pages.Social
             CallSidePanel.Visibility = _isFullscreen ? Visibility.Collapsed : Visibility.Visible;
             CallStatusPanel.Visibility = Visibility.Collapsed;
             CallControlDock.Visibility = _isFullscreen ? Visibility.Collapsed : Visibility.Visible;
-            FullscreenButton.Visibility = _isFullscreen ? Visibility.Collapsed : Visibility.Visible;
-            FullscreenExitButton.Visibility = _isFullscreen ? Visibility.Visible : Visibility.Collapsed;
+            FullscreenButton.Visibility = Visibility.Visible;
+            FullscreenExitButton.Visibility = Visibility.Collapsed;
             FullscreenPointerSurface.Visibility = _isFullscreen ? Visibility.Visible : Visibility.Collapsed;
             StreamInformationButton.Visibility = _isFullscreen ? Visibility.Collapsed : Visibility.Visible;
-            MediaOverlayText.Visibility = _isFullscreen ? Visibility.Collapsed : Visibility.Visible;
+            MediaOverlayBadge.Visibility = Visibility.Collapsed;
 
             if (_isFullscreen)
                 App.MainWindow?.EnterFullscreenMode();
@@ -5643,10 +5645,13 @@ namespace Zink.Pages.Social
             CallMainContentGrid.ColumnSpacing = _isFullscreen ? 0 : 18;
             CallMediaStage.Margin = _isFullscreen ? new Thickness(0) : new Thickness(18, 18, 18, 120);
             RemoteScreenImage.Margin = _isFullscreen ? new Thickness(0) : new Thickness(12);
+            RemoteScreenPlayer.Margin = _isFullscreen ? new Thickness(0) : new Thickness(12);
             CallStageBorder.CornerRadius = _isFullscreen ? new CornerRadius(0) : new CornerRadius(30);
             CallStageBorder.BorderThickness = _isFullscreen ? new Thickness(0) : new Thickness(1);
             FullscreenIcon.Glyph = _isFullscreen ? "\uE73F" : "\uE740";
+            FullscreenDockIcon.Glyph = _isFullscreen ? "\uE73F" : "\uE740";
             ToolTipService.SetToolTip(FullscreenButton, _isFullscreen ? "Exit fullscreen" : "Fullscreen screen share");
+            ToolTipService.SetToolTip(FullscreenDockButton, _isFullscreen ? "Exit fullscreen" : "Fullscreen screen share");
 
             if (_isFullscreen)
             {
@@ -5819,6 +5824,9 @@ namespace Zink.Pages.Social
             FullscreenButton.Background = _isFullscreen
                 ? new SolidColorBrush(ColorHelper.FromArgb(220, 36, 64, 96))
                 : new SolidColorBrush(ColorHelper.FromArgb(196, 17, 19, 24));
+            FullscreenDockButton.Background = _isFullscreen
+                ? new SolidColorBrush(ColorHelper.FromArgb(255, 36, 64, 96))
+                : new SolidColorBrush(ColorHelper.FromArgb(255, 23, 26, 32));
 
             MuteIcon.Glyph = _isMuted ? "\uE74F" : "\uE720";
         }
