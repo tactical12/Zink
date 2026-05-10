@@ -2460,6 +2460,9 @@ namespace Zink.Pages.Social
 
         private bool QueueRemoteGpuPlaybackFrame(byte[] frameData, int width, int height, bool isKeyFrame, string backlogReason)
         {
+            if (_isFullscreen)
+                return false;
+
             if (width <= 0 || height <= 0 || frameData.Length == 0)
                 return false;
 
@@ -4351,8 +4354,28 @@ namespace Zink.Pages.Social
         {
             _fullscreenChromeTimer?.Stop();
             _isFullscreen = fullscreen;
+            if (fullscreen)
+                SwitchRemoteScreenShareToXamlFullscreenSurface();
             ApplyScreenShareFocusMode();
             UpdateDockVisualStates();
+        }
+
+        private void SwitchRemoteScreenShareToXamlFullscreenSurface()
+        {
+            if (!_remoteGpuPlaybackEnabled && !_remoteGpuPlaybackStarting)
+                return;
+
+            StopRemoteGpuPlayback(clearSurface: false);
+            lock (_rtpFrameSync)
+            {
+                _pendingRemoteH264Frames.Clear();
+                _remoteH264WaitingForKeyFrame = true;
+                _remoteH264FramesDroppedWaitingForKeyFrame = 0;
+                _remoteDecodeGeneration++;
+            }
+
+            RequestRemoteVideoKeyFrame("fullscreen switched receiver from MediaPlayerElement to clickable XAML surface");
+            DiagnosticLogService.WriteLine("[ScreenShare:UI] Fullscreen switched receiver to XAML bitmap surface so exit controls can receive clicks.");
         }
 
         private void CallMediaStage_PointerMoved(object sender, PointerRoutedEventArgs e)
