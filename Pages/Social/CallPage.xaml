@@ -406,6 +406,8 @@
                                     Padding="0"
                                     CornerRadius="26"
                                     Click="FullscreenExitButton_Click"
+                                    PointerPressed="FullscreenExitButton_PointerPressed"
+                                    Tapped="FullscreenExitButton_Tapped"
                                     Visibility="Collapsed"
                                     Background="#D4111318"
                                     BorderBrush="#66FFFFFF"

@@ -18,6 +18,7 @@ using Windows.Media.Core;
 using Windows.Media.MediaProperties;
 using Windows.Media.Playback;
 using Windows.Storage.Streams;
+using Windows.System;
 using Zink.Services;
 using Zink.Services.NativeCalling;
 using Zink.Services.NativeCalling.Models;
@@ -274,6 +275,7 @@ namespace Zink.Pages.Social
             FullscreenButton.PointerMoved += CallMediaStage_PointerMoved;
             FullscreenDockButton.PointerMoved += CallMediaStage_PointerMoved;
             FullscreenExitButton.PointerMoved += CallMediaStage_PointerMoved;
+            KeyDown += CallPage_KeyDown;
             HookScreenShare();
 
             if (string.IsNullOrWhiteSpace(TokenStateText.Text) || TokenStateText.Text == "Token: not loaded")
@@ -310,6 +312,7 @@ namespace Zink.Pages.Social
             FullscreenButton.PointerMoved -= CallMediaStage_PointerMoved;
             FullscreenDockButton.PointerMoved -= CallMediaStage_PointerMoved;
             FullscreenExitButton.PointerMoved -= CallMediaStage_PointerMoved;
+            KeyDown -= CallPage_KeyDown;
             UnhookScreenShare();
             _ = StopLocalScreenShareAsync(true);
             if (_isFullscreen)
@@ -4312,7 +4315,36 @@ namespace Zink.Pages.Social
 
         private void FullscreenExitButton_Click(object sender, RoutedEventArgs e)
         {
+            ExitScreenShareFullscreenNow("click");
+        }
+
+        private void FullscreenExitButton_PointerPressed(object sender, PointerRoutedEventArgs e)
+        {
+            e.Handled = true;
+            ExitScreenShareFullscreenNow("pointer-press");
+        }
+
+        private void FullscreenExitButton_Tapped(object sender, TappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            ExitScreenShareFullscreenNow("tap");
+        }
+
+        private void CallPage_KeyDown(object sender, KeyRoutedEventArgs e)
+        {
+            if (_isFullscreen && e.Key == VirtualKey.Escape)
+            {
+                e.Handled = true;
+                ExitScreenShareFullscreenNow("escape");
+            }
+        }
+
+        private void ExitScreenShareFullscreenNow(string reason)
+        {
+            Debug.WriteLine($"[ScreenShare:UI] Exiting fullscreen via {reason}.");
+            DiagnosticLogService.WriteLine($"[ScreenShare:UI] Exiting fullscreen via {reason}.");
             SetScreenShareFullscreen(false);
+            App.MainWindow?.ExitFullscreenMode();
         }
 
         private void SetScreenShareFullscreen(bool fullscreen)
