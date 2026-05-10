@@ -16,7 +16,7 @@ namespace Zink.Services.NativeCalling
     {
         public static NativeScreenShareStreamingService Instance { get; } = new NativeScreenShareStreamingService();
 
-        public const int TargetFps = 30;
+        public const int TargetFps = 60;
         public const long JpegQuality = 62L;
         private const int ReceiverSafe1080pFps = 24;
         internal const bool EnableDirectGpuTexturePath = false;
@@ -1187,8 +1187,8 @@ namespace Zink.Services.NativeCalling
                     "540p realtime",
                     960,
                     540,
-                    bitrate: 2_200_000,
-                    minimumBitrate: 1_600_000,
+                    bitrate: 3_500_000,
+                    minimumBitrate: 2_500_000,
                     previewFrameInterval: NativeScreenShareStreamingService.TargetFps,
                     previewMaxWidth: 960,
                     previewJpegQuality: NativeScreenShareStreamingService.JpegQuality),
@@ -1197,8 +1197,8 @@ namespace Zink.Services.NativeCalling
                     "720p",
                     1280,
                     720,
-                    bitrate: 3_500_000,
-                    minimumBitrate: 2_500_000,
+                    bitrate: 6_000_000,
+                    minimumBitrate: 4_500_000,
                     previewFrameInterval: NativeScreenShareStreamingService.TargetFps,
                     previewMaxWidth: 1280,
                     previewJpegQuality: 66L),
@@ -1207,8 +1207,8 @@ namespace Zink.Services.NativeCalling
                     "1440p",
                     2560,
                     1440,
-                    bitrate: 12_000_000,
-                    minimumBitrate: 8_000_000,
+                    bitrate: 22_000_000,
+                    minimumBitrate: 14_000_000,
                     previewFrameInterval: NativeScreenShareStreamingService.TargetFps * 6,
                     previewMaxWidth: 1280,
                     previewJpegQuality: 68L),
@@ -1217,8 +1217,8 @@ namespace Zink.Services.NativeCalling
                     "4K",
                     3840,
                     2160,
-                    bitrate: 20_000_000,
-                    minimumBitrate: 14_000_000,
+                    bitrate: 36_000_000,
+                    minimumBitrate: 24_000_000,
                     previewFrameInterval: NativeScreenShareStreamingService.TargetFps * 10,
                     previewMaxWidth: 1280,
                     previewJpegQuality: 68L),
@@ -1227,8 +1227,8 @@ namespace Zink.Services.NativeCalling
                     "1080p",
                     1920,
                     1080,
-                    bitrate: 8_000_000,
-                    minimumBitrate: 5_500_000,
+                    bitrate: 14_000_000,
+                    minimumBitrate: 9_000_000,
                     previewFrameInterval: NativeScreenShareStreamingService.TargetFps,
                     previewMaxWidth: 1920,
                     previewJpegQuality: 70L)

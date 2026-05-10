@@ -144,10 +144,10 @@ namespace Zink.Pages.Social
         private int _remoteRenderedFingerprintRepeat;
         private uint _lastRemotePreviewFingerprint;
         private int _remotePreviewFingerprintRepeat;
-        private const int FallbackMaxFps = 6;
-        private const int PreviewFallbackMaxFps = 2;
-        private const int WebSocketFallbackMaxDeltaBytes = 48 * 1024;
-        private static readonly TimeSpan WebSocketFallbackWarmupDuration = TimeSpan.FromSeconds(2);
+        private const int FallbackMaxFps = 3;
+        private const int PreviewFallbackMaxFps = 8;
+        private const int WebSocketFallbackMaxDeltaBytes = 24 * 1024;
+        private static readonly TimeSpan WebSocketFallbackWarmupDuration = TimeSpan.FromSeconds(1);
         private static readonly TimeSpan WebSocketFallbackGpuStartDelay = TimeSpan.FromMilliseconds(1600);
         private const int MaxRemoteH264DecodeQueue = 12;
         private const int RemoteGpuBacklogKeyFrameRequestQueue = 18;
@@ -163,6 +163,7 @@ namespace Zink.Pages.Social
         private static readonly TimeSpan RemoteRenderStallThreshold = TimeSpan.FromSeconds(2);
         private static readonly TimeSpan RemoteDecoderResetCooldown = TimeSpan.FromSeconds(1);
         private static readonly TimeSpan RemoteFallbackRtpSuppressWindow = TimeSpan.FromSeconds(1);
+        private static readonly TimeSpan ScreenShareSendTimeout = TimeSpan.FromMilliseconds(120);
         private static readonly TimeSpan FullscreenChromeHideDelay = TimeSpan.FromSeconds(4);
         private readonly SemaphoreSlim _screenShareSendLock = new(1, 1);
         private readonly SemaphoreSlim _screenShareDecodeLock = new(1, 1);
@@ -1031,7 +1032,7 @@ namespace Zink.Pages.Social
             }
         }
 
-        private async void NativeScreenShare_FrameReady(object? sender, NativeScreenFrameEventArgs e)
+        private void NativeScreenShare_FrameReady(object? sender, NativeScreenFrameEventArgs e)
         {
             var session = NativeCallCoordinator.Instance.CurrentSession;
             if (session.State != NativeCallState.Connected ||
@@ -1044,25 +1045,7 @@ namespace Zink.Pages.Social
             if (participants.Count == 0)
                 return;
 
-            if (e.Codec.Equals("h264", StringComparison.OrdinalIgnoreCase))
-            {
-                var sent = await TrySendScreenFrameBestAvailableAsync(participants, session.CallId, e);
-                LogLocalScreenShareFlow(e, participants.Count, sent);
-                if (!sent)
-                    return;
-            }
-            else
-            {
-                await SocialManager.Instance.Realtime.SendScreenFrameAsync(
-                    0,
-                    session.CallId,
-                    e.FrameData,
-                    e.Width,
-                    e.Height,
-                    e.Timestamp);
-            }
-
-            UpdateScreenShareStats(e);
+            _ = SendLocalScreenFrameAndTrackAsync(participants, session.CallId, e);
 
             TryEnqueueOnUi(async () =>
             {
@@ -1093,6 +1076,39 @@ namespace Zink.Pages.Social
             });
         }
 
+        private async Task SendLocalScreenFrameAndTrackAsync(IReadOnlyList<long> participantIds, string callId, NativeScreenFrameEventArgs e)
+        {
+            try
+            {
+                if (e.Codec.Equals("h264", StringComparison.OrdinalIgnoreCase))
+                {
+                    var sent = await TrySendScreenFrameBestAvailableAsync(participantIds, callId, e);
+                    LogLocalScreenShareFlow(e, participantIds.Count, sent);
+                    if (!sent)
+                        return;
+                }
+                else
+                {
+                    await SendWithTimeoutAsync(
+                        SocialManager.Instance.Realtime.SendScreenFrameAsync(
+                            0,
+                            callId,
+                            e.FrameData,
+                            e.Width,
+                            e.Height,
+                            e.Timestamp),
+                        "legacy screen frame");
+                }
+
+                UpdateScreenShareStats(e);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ScreenShare:SEND] Failed to send local frame: {ex.Message}");
+                DiagnosticLogService.WriteLine($"[ScreenShare:SEND] Failed to send local frame: {ex.Message}");
+            }
+        }
+
         private async Task<bool> TrySendScreenFrameBestAvailableAsync(IReadOnlyList<long> participantIds, string callId, NativeScreenFrameEventArgs e)
         {
             if (!_screenShareSendLock.Wait(0))
@@ -1114,7 +1130,9 @@ namespace Zink.Pages.Social
                 foreach (var participantId in participantIds)
                 {
                     if (_screenSharePeers.TryGetValue(participantId, out var peer) &&
-                        await peer.SendEncodedVideoFrameAsync(e.FrameData))
+                        await TrySendWithTimeoutAsync(
+                            peer.SendEncodedVideoFrameAsync(e.FrameData),
+                            $"RTP frame to participant {participantId}"))
                     {
                         sentToAnyPeer = true;
                         _screenShareRtpFrames++;
@@ -1165,26 +1183,30 @@ namespace Zink.Pages.Social
                         {
                             if (e.Codec.Equals("h264", StringComparison.OrdinalIgnoreCase))
                             {
-                                await SocialManager.Instance.Realtime.SendEncodedScreenFrameBinaryAsync(
-                                    participantId,
-                                    callId,
-                                    e.FrameData,
-                                    e.Width,
-                                    e.Height,
-                                    e.Timestamp,
-                                    e.IsKeyFrame);
+                                await SendWithTimeoutAsync(
+                                    SocialManager.Instance.Realtime.SendEncodedScreenFrameBinaryAsync(
+                                        participantId,
+                                        callId,
+                                        e.FrameData,
+                                        e.Width,
+                                        e.Height,
+                                        e.Timestamp,
+                                        e.IsKeyFrame),
+                                    $"binary H.264 fallback to participant {participantId}");
                             }
                             else
                             {
-                                await SocialManager.Instance.Realtime.SendEncodedScreenFrameAsync(
-                                    participantId,
-                                    callId,
-                                    e.FrameData,
-                                    e.Width,
-                                    e.Height,
-                                    e.Timestamp,
-                                    e.Codec,
-                                    e.IsKeyFrame);
+                                await SendWithTimeoutAsync(
+                                    SocialManager.Instance.Realtime.SendEncodedScreenFrameAsync(
+                                        participantId,
+                                        callId,
+                                        e.FrameData,
+                                        e.Width,
+                                        e.Height,
+                                        e.Timestamp,
+                                        e.Codec,
+                                        e.IsKeyFrame),
+                                    $"encoded fallback to participant {participantId}");
                             }
 
                             sentFallback = true;
@@ -1203,21 +1225,26 @@ namespace Zink.Pages.Social
                     NativeScreenShareStreamingService.Instance.ReportSendCongestion("fallback transport backlog");
                 }
 
-                if (!sentToAnyPeer &&
-                    !sentFallback &&
+                if ((!sentToAnyPeer || !sentFallback) &&
                     ShouldSendPreviewFallbackFrame(e))
                 {
-                    foreach (var participantId in rtpFailedTargets)
+                    var previewTargets = (!sentToAnyPeer && !sentFallback)
+                        ? rtpFailedTargets
+                        : participantIds.Distinct().ToList();
+
+                    foreach (var participantId in previewTargets)
                     {
                         try
                         {
-                            await SocialManager.Instance.Realtime.SendScreenFrameAsync(
-                                participantId,
-                                callId,
-                                e.PreviewFrameData,
-                                e.Width,
-                                e.Height,
-                                e.Timestamp);
+                            await SendWithTimeoutAsync(
+                                SocialManager.Instance.Realtime.SendScreenFrameAsync(
+                                    participantId,
+                                    callId,
+                                    e.PreviewFrameData,
+                                    e.Width,
+                                    e.Height,
+                                    e.Timestamp),
+                                $"JPEG preview fallback to participant {participantId}");
 
                             _screenSharePreviewFallbackFrames++;
                             sentPreview = true;
@@ -1244,8 +1271,9 @@ namespace Zink.Pages.Social
 
                 if (sendStartedAt.Elapsed > TimeSpan.FromMilliseconds(20))
                 {
-                    Debug.WriteLine(
-                        $"[ScreenShare:SEND:SLOW] sendMs={sendStartedAt.Elapsed.TotalMilliseconds:0.0}; rtp={sentToAnyPeer}; ws={sentFallback}; preview={sentPreview}; frameBytes={e.FrameData.Length}; previewBytes={e.PreviewFrameData.Length}; participants={participantIds.Count}.");
+                    var slowMessage = $"[ScreenShare:SEND:SLOW] sendMs={sendStartedAt.Elapsed.TotalMilliseconds:0.0}; rtp={sentToAnyPeer}; ws={sentFallback}; preview={sentPreview}; frameBytes={e.FrameData.Length}; previewBytes={e.PreviewFrameData.Length}; participants={participantIds.Count}.";
+                    Debug.WriteLine(slowMessage);
+                    DiagnosticLogService.WriteLine(slowMessage);
                 }
 
                 return sentToAnyPeer || sentFallback || sentPreview;
@@ -1274,6 +1302,39 @@ namespace Zink.Pages.Social
 
             _fallbackFrameLastSentUtc = now;
             return true;
+        }
+
+        private async Task SendWithTimeoutAsync(Task sendTask, string description)
+        {
+            if (await Task.WhenAny(sendTask, Task.Delay(ScreenShareSendTimeout)) == sendTask)
+            {
+                await sendTask;
+                return;
+            }
+
+            _ = sendTask.ContinueWith(
+                task =>
+                {
+                    _ = task.Exception;
+                },
+                TaskContinuationOptions.OnlyOnFaulted);
+            DiagnosticLogService.WriteLine($"[ScreenShare:SEND] Timed out sending {description} after {ScreenShareSendTimeout.TotalMilliseconds:0}ms.");
+            throw new TimeoutException($"Timed out sending {description}.");
+        }
+
+        private async Task<bool> TrySendWithTimeoutAsync(Task<bool> sendTask, string description)
+        {
+            if (await Task.WhenAny(sendTask, Task.Delay(ScreenShareSendTimeout)) == sendTask)
+                return await sendTask;
+
+            _ = sendTask.ContinueWith(
+                task =>
+                {
+                    _ = task.Exception;
+                },
+                TaskContinuationOptions.OnlyOnFaulted);
+            DiagnosticLogService.WriteLine($"[ScreenShare:SEND] Timed out sending {description} after {ScreenShareSendTimeout.TotalMilliseconds:0}ms.");
+            return false;
         }
 
         private bool IsWebSocketFallbackWarmupActive()
@@ -2211,8 +2272,9 @@ namespace Zink.Pages.Social
                 ? "no peers"
                 : string.Join(", ", _screenSharePeers.Select(pair => $"{pair.Key}:{pair.Value.ConnectionState}/sent={pair.Value.SentVideoFrames}/recv={pair.Value.ReceivedVideoFrames}"));
 
-            Debug.WriteLine(
-                $"[ScreenShare:RTP] Send summary: participants={participantCount}; rtpSent={_screenShareRtpFrames}; fallbackSent={_screenShareFallbackFrames}; fallbackTargets={fallbackCount}; sentToAnyPeer={sentToAnyPeer}; sendMs={sendElapsed.TotalMilliseconds:0.0}; frameBytes={e.FrameData.Length}; previewBytes={e.PreviewFrameData.Length}; previewSent={_screenSharePreviewFallbackFrames}; key={e.IsKeyFrame}; peers=[{peerSummary}].");
+            var message = $"[ScreenShare:RTP] Send summary: participants={participantCount}; rtpSent={_screenShareRtpFrames}; fallbackSent={_screenShareFallbackFrames}; fallbackTargets={fallbackCount}; sentToAnyPeer={sentToAnyPeer}; sendMs={sendElapsed.TotalMilliseconds:0.0}; frameBytes={e.FrameData.Length}; previewBytes={e.PreviewFrameData.Length}; previewSent={_screenSharePreviewFallbackFrames}; key={e.IsKeyFrame}; peers=[{peerSummary}].";
+            Debug.WriteLine(message);
+            DiagnosticLogService.WriteLine(message);
         }
 
         private void QueueRemoteH264Frame(byte[] frameData, int width, int height, bool isKeyFrame, string backlogReason)
@@ -3180,8 +3242,9 @@ namespace Zink.Pages.Social
             }
 
             var hasIdr = ContainsH264IdrFrame(e.FrameData);
-            Debug.WriteLine(
-                $"[ScreenShare:FLOW:SEND] participants={participantCount}; sent={sent}; {e.Width}x{e.Height}; codec={e.Codec}; bytes={e.FrameData.Length}; keyFlag={e.IsKeyFrame}; idr={hasIdr}; encodedHash=0x{encodedFingerprint:X8}; sameEncoded={encodedRepeat}; previewBytes={e.PreviewFrameData.Length}; previewHash=0x{previewFingerprint:X8}; samePreview={previewRepeat}; rtpSent={_screenShareRtpFrames}; wsSent={_screenShareFallbackFrames}; previewSent={_screenSharePreviewFallbackFrames}; droppedSend={_screenShareDroppedFrames}.");
+            var message = $"[ScreenShare:FLOW:SEND] participants={participantCount}; sent={sent}; {e.Width}x{e.Height}; codec={e.Codec}; bytes={e.FrameData.Length}; keyFlag={e.IsKeyFrame}; idr={hasIdr}; encodedHash=0x{encodedFingerprint:X8}; sameEncoded={encodedRepeat}; previewBytes={e.PreviewFrameData.Length}; previewHash=0x{previewFingerprint:X8}; samePreview={previewRepeat}; rtpSent={_screenShareRtpFrames}; wsSent={_screenShareFallbackFrames}; previewSent={_screenSharePreviewFallbackFrames}; droppedSend={_screenShareDroppedFrames}.";
+            Debug.WriteLine(message);
+            DiagnosticLogService.WriteLine(message);
         }
 
         private void LogRemoteEncodedReceiveFlow(string transport, long fromUserId, byte[] frameData, int width, int height, bool keyFlag, bool hasIdr, long receivedFrames)
