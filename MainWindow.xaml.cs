@@ -45,6 +45,8 @@ namespace Zink
 
         private Timer? _fullscreenMonitorTimer;
         private readonly object _fullscreenMonitorLock = new();
+        private IntPtr _fullscreenMouseHook;
+        private LowLevelMouseProc? _fullscreenMouseProc;
 
         private DesktopAcrylicController? _acrylicController;
         private SystemBackdropConfiguration? _backdropConfig;
@@ -597,10 +599,45 @@ namespace Zink
         [DllImport("user32.dll")]
         private static extern bool SetForegroundWindow(nint hWnd);
 
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelMouseProc lpfn, IntPtr hMod, uint dwThreadId);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool UnhookWindowsHookEx(IntPtr hhk);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        private static extern bool GetCursorPos(out Win32Point point);
+
+        [DllImport("user32.dll")]
+        private static extern bool GetWindowRect(IntPtr hWnd, out Win32Rect rect);
+
         private const int SW_HIDE = 0;
         private const int SW_SHOW = 5;
         private const int SW_RESTORE = 9;
         private const int SW_MAXIMIZE = 3;
+        private const int WH_MOUSE_LL = 14;
+        private const int WM_LBUTTONDOWN = 0x0201;
+
+        private delegate IntPtr LowLevelMouseProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct Win32Point
+        {
+            public int X;
+            public int Y;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct Win32Rect
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
 
         private void MaximizeWindow()
         {
@@ -685,6 +722,7 @@ namespace Zink
                     appWindow.SetPresenter(AppWindowPresenterKind.FullScreen);
                     _weAreInFullscreenMode = true;
 
+                    StartFullscreenMouseExitHook();
                     StartFullscreenMonitor(appWindow);
                 }
                 catch { }
@@ -702,6 +740,7 @@ namespace Zink
                     var appWindow = AppWindow.GetFromWindowId(windowId);
                     appWindow.SetPresenter(AppWindowPresenterKind.Overlapped);
                     _weAreInFullscreenMode = false;
+                    StopFullscreenMouseExitHook();
                     StopFullscreenMonitor();
                 }
                 catch { }
@@ -722,6 +761,7 @@ namespace Zink
             SetSidebarColumnForPaneState(true);
             _savedSidebarStateExists = false;
             _weAreInFullscreenMode = false;
+            StopFullscreenMouseExitHook();
             StopFullscreenMonitor();
         }
 
@@ -831,6 +871,60 @@ namespace Zink
                 {
                     _fullscreenMonitorTimer = null;
                 }
+            }
+        }
+
+        private void StartFullscreenMouseExitHook()
+        {
+            if (_fullscreenMouseHook != IntPtr.Zero)
+                return;
+
+            _fullscreenMouseProc = FullscreenMouseHookProc;
+            _fullscreenMouseHook = SetWindowsHookEx(WH_MOUSE_LL, _fullscreenMouseProc, IntPtr.Zero, 0);
+        }
+
+        private void StopFullscreenMouseExitHook()
+        {
+            if (_fullscreenMouseHook != IntPtr.Zero)
+            {
+                UnhookWindowsHookEx(_fullscreenMouseHook);
+                _fullscreenMouseHook = IntPtr.Zero;
+            }
+
+            _fullscreenMouseProc = null;
+        }
+
+        private IntPtr FullscreenMouseHookProc(int nCode, IntPtr wParam, IntPtr lParam)
+        {
+            if (nCode >= 0 &&
+                _weAreInFullscreenMode &&
+                wParam == (IntPtr)WM_LBUTTONDOWN &&
+                IsCursorInFullscreenExitZone())
+            {
+                DispatcherQueue.TryEnqueue(ExitFullscreenMode);
+                return (IntPtr)1;
+            }
+
+            return CallNextHookEx(_fullscreenMouseHook, nCode, wParam, lParam);
+        }
+
+        private bool IsCursorInFullscreenExitZone()
+        {
+            try
+            {
+                var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+                if (!GetWindowRect(hwnd, out var rect) || !GetCursorPos(out var point))
+                    return false;
+
+                const int exitZoneSize = 180;
+                return point.X >= rect.Right - exitZoneSize &&
+                    point.X <= rect.Right &&
+                    point.Y >= rect.Bottom - exitZoneSize &&
+                    point.Y <= rect.Bottom;
+            }
+            catch
+            {
+                return false;
             }
         }
 
