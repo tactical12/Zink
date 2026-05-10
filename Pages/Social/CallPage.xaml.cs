@@ -1225,14 +1225,11 @@ namespace Zink.Pages.Social
                     NativeScreenShareStreamingService.Instance.ReportSendCongestion("fallback transport backlog");
                 }
 
-                if ((!sentToAnyPeer || !sentFallback) &&
+                if (!sentToAnyPeer &&
+                    !sentFallback &&
                     ShouldSendPreviewFallbackFrame(e))
                 {
-                    var previewTargets = (!sentToAnyPeer && !sentFallback)
-                        ? rtpFailedTargets
-                        : participantIds.Distinct().ToList();
-
-                    foreach (var participantId in previewTargets)
+                    foreach (var participantId in rtpFailedTargets)
                     {
                         try
                         {
