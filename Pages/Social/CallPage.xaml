@@ -8,7 +8,8 @@
     mc:Ignorable="d"
     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
 
-    <Grid>
+    <Grid x:Name="CallPageRoot"
+          PointerPressed="CallPageRoot_PointerPressed">
         <Grid.Background>
             <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                 <GradientStop Color="#0E1014" Offset="0"/>
@@ -831,17 +832,15 @@
             </Border>
         </Grid>
 
-        <Button x:Name="FullscreenExitButton"
+        <Border x:Name="FullscreenExitHotspot"
                 HorizontalAlignment="Right"
                 VerticalAlignment="Bottom"
                 Margin="18"
                 Width="56"
                 Height="56"
-                Padding="0"
                 CornerRadius="28"
-                Click="FullscreenExitButton_Click"
-                PointerPressed="FullscreenExitButton_PointerPressed"
-                Tapped="FullscreenExitButton_Tapped"
+                PointerPressed="FullscreenExitHotspot_PointerPressed"
+                Tapped="FullscreenExitHotspot_Tapped"
                 Visibility="Collapsed"
                 Background="#E8111318"
                 BorderBrush="#80FFFFFF"
@@ -850,8 +849,10 @@
                 ToolTipService.ToolTip="Exit fullscreen">
             <FontIcon Glyph="&#xE73F;"
                       FontSize="22"
-                      Foreground="White"/>
-        </Button>
+                      Foreground="White"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center"/>
+        </Border>
 
         <FlyoutBase.AttachedFlyout>
             <MenuFlyout x:Name="MoreFlyout">

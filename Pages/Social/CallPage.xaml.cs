@@ -274,7 +274,7 @@ namespace Zink.Pages.Social
             FullscreenPointerSurface.PointerMoved += CallMediaStage_PointerMoved;
             FullscreenButton.PointerMoved += CallMediaStage_PointerMoved;
             FullscreenDockButton.PointerMoved += CallMediaStage_PointerMoved;
-            FullscreenExitButton.PointerMoved += CallMediaStage_PointerMoved;
+            FullscreenExitHotspot.PointerMoved += CallMediaStage_PointerMoved;
             KeyDown += CallPage_KeyDown;
             HookScreenShare();
 
@@ -311,7 +311,7 @@ namespace Zink.Pages.Social
             FullscreenPointerSurface.PointerMoved -= CallMediaStage_PointerMoved;
             FullscreenButton.PointerMoved -= CallMediaStage_PointerMoved;
             FullscreenDockButton.PointerMoved -= CallMediaStage_PointerMoved;
-            FullscreenExitButton.PointerMoved -= CallMediaStage_PointerMoved;
+            FullscreenExitHotspot.PointerMoved -= CallMediaStage_PointerMoved;
             KeyDown -= CallPage_KeyDown;
             UnhookScreenShare();
             _ = StopLocalScreenShareAsync(true);
@@ -4316,21 +4316,32 @@ namespace Zink.Pages.Social
             SetScreenShareFullscreen(!_isFullscreen);
         }
 
-        private void FullscreenExitButton_Click(object sender, RoutedEventArgs e)
-        {
-            ExitScreenShareFullscreenNow("click");
-        }
-
-        private void FullscreenExitButton_PointerPressed(object sender, PointerRoutedEventArgs e)
+        private void FullscreenExitHotspot_PointerPressed(object sender, PointerRoutedEventArgs e)
         {
             e.Handled = true;
-            ExitScreenShareFullscreenNow("pointer-press");
+            ExitScreenShareFullscreenNow("hotspot-pointer-press");
         }
 
-        private void FullscreenExitButton_Tapped(object sender, TappedRoutedEventArgs e)
+        private void FullscreenExitHotspot_Tapped(object sender, TappedRoutedEventArgs e)
         {
             e.Handled = true;
-            ExitScreenShareFullscreenNow("tap");
+            ExitScreenShareFullscreenNow("hotspot-tap");
+        }
+
+        private void CallPageRoot_PointerPressed(object sender, PointerRoutedEventArgs e)
+        {
+            if (!_isFullscreen)
+                return;
+
+            var point = e.GetCurrentPoint(CallPageRoot).Position;
+            var inExitZone =
+                point.X >= CallPageRoot.ActualWidth - 120 &&
+                point.Y >= CallPageRoot.ActualHeight - 120;
+            if (!inExitZone)
+                return;
+
+            e.Handled = true;
+            ExitScreenShareFullscreenNow("root-bottom-right-zone");
         }
 
         private void CallPage_KeyDown(object sender, KeyRoutedEventArgs e)
@@ -4402,7 +4413,7 @@ namespace Zink.Pages.Social
             _fullscreenChromeTimer?.Stop();
 
             if (_isFullscreen)
-                FullscreenExitButton.Visibility = Visibility.Collapsed;
+                FullscreenExitHotspot.Visibility = Visibility.Collapsed;
         }
 
         private void ShowFullscreenChrome()
@@ -4411,13 +4422,13 @@ namespace Zink.Pages.Social
             {
                 FullscreenPointerSurface.Visibility = Visibility.Visible;
                 FullscreenButton.Visibility = Visibility.Collapsed;
-                FullscreenExitButton.Visibility = Visibility.Visible;
-                FullscreenExitButton.Opacity = 1;
+                FullscreenExitHotspot.Visibility = Visibility.Visible;
+                FullscreenExitHotspot.Opacity = 1;
             }
             else
             {
                 FullscreenButton.Visibility = Visibility.Visible;
-                FullscreenExitButton.Visibility = Visibility.Collapsed;
+                FullscreenExitHotspot.Visibility = Visibility.Collapsed;
                 FullscreenButton.Opacity = 1;
             }
 
@@ -5693,7 +5704,7 @@ namespace Zink.Pages.Social
             CallStatusPanel.Visibility = Visibility.Collapsed;
             CallControlDock.Visibility = _isFullscreen ? Visibility.Collapsed : Visibility.Visible;
             FullscreenButton.Visibility = _isFullscreen ? Visibility.Collapsed : Visibility.Visible;
-            FullscreenExitButton.Visibility = _isFullscreen ? Visibility.Visible : Visibility.Collapsed;
+            FullscreenExitHotspot.Visibility = _isFullscreen ? Visibility.Visible : Visibility.Collapsed;
             FullscreenPointerSurface.Visibility = _isFullscreen ? Visibility.Visible : Visibility.Collapsed;
             StreamInformationButton.Visibility = _isFullscreen ? Visibility.Collapsed : Visibility.Visible;
             MediaOverlayBadge.Visibility = Visibility.Collapsed;
@@ -5725,7 +5736,7 @@ namespace Zink.Pages.Social
                 _fullscreenChromeTimer?.Stop();
                 FullscreenPointerSurface.Visibility = Visibility.Collapsed;
                 FullscreenButton.Visibility = Visibility.Visible;
-                FullscreenExitButton.Visibility = Visibility.Collapsed;
+                FullscreenExitHotspot.Visibility = Visibility.Collapsed;
             }
 
             ApplyLocalPreviewVisibility();
