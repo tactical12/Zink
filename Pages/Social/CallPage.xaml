@@ -118,14 +118,16 @@
 
                                 <Image x:Name="RemoteScreenImage"
                        Margin="12"
-                       Stretch="Uniform"/>
+                       Stretch="Uniform"
+                       IsHitTestVisible="False"/>
 
                                 <MediaPlayerElement x:Name="RemoteScreenPlayer"
                        Margin="12"
                        Stretch="Uniform"
                        AreTransportControlsEnabled="False"
                        AutoPlay="True"
-                       Visibility="Collapsed"/>
+                       Visibility="Collapsed"
+                       IsHitTestVisible="False"/>
 
                                 <StackPanel x:Name="RemotePlaceholderPanel"
                             VerticalAlignment="Center"
