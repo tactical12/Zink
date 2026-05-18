@@ -74,7 +74,7 @@ namespace Zink
 
         private static readonly HashSet<string> _leftColumnAnchors = new(StringComparer.OrdinalIgnoreCase)
         {
-            "Capital FM","Heart","Kiss FM","Smooth Radio","Magic Radio",
+            "Capital FM","Heart","Heart Milton Keynes","Kiss FM","Smooth Radio","Magic Radio",
             "BBC Radio 1","BBC Radio 2","BBC Radio 3","BBC Radio 5 Live","BBC Radio 1Xtra"
         };
 
@@ -148,6 +148,7 @@ namespace Zink
             {
                 new RadioStation { Title = "Capital FM", Image = "ms-appx:///Assets/Radio/capitalfm.png", StreamUrl = "https://media-ssl.musicradio.com/CapitalUK" },
                 new RadioStation { Title = "Heart", Image = "ms-appx:///Assets/Radio/heartfm.png",   StreamUrl = "https://media-ssl.musicradio.com/HeartUK" },
+                new RadioStation { Title = "Heart Milton Keynes", Image = "ms-appx:///Assets/Radio/heartfm.png", StreamUrl = "https://media-ssl.musicradio.com/HeartMiltonKeynesMP3" },
                 new RadioStation { Title = "Kiss FM", Image = "ms-appx:///Assets/Radio/kissfm.png",  StreamUrl = "https://media-ssl.musicradio.com/Kiss" },
                 new RadioStation { Title = "Smooth Radio", Image = "ms-appx:///Assets/Radio/smoothradio.png", StreamUrl = "https://media-ssl.musicradio.com/SmoothUK" },
 

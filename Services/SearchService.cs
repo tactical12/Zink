@@ -312,6 +312,7 @@ namespace Zink.Services
             {
                 new StationResult { Title = "Capital FM", Image = "ms-appx:///Assets/Radio/capitalfm.png", StreamUrl = "https://media-ssl.musicradio.com/CapitalUK" },
                 new StationResult { Title = "Heart", Image = "ms-appx:///Assets/Radio/heartfm.png", StreamUrl = "https://media-ssl.musicradio.com/HeartUK" },
+                new StationResult { Title = "Heart Milton Keynes", Image = "ms-appx:///Assets/Radio/heartfm.png", StreamUrl = "https://media-ssl.musicradio.com/HeartMiltonKeynesMP3" },
                 new StationResult { Title = "Kiss FM", Image = "ms-appx:///Assets/Radio/kissfm.png", StreamUrl = "https://media-ssl.musicradio.com/Kiss" },
                 new StationResult { Title = "Smooth Radio", Image = "ms-appx:///Assets/Radio/smoothradio.png", StreamUrl = "https://media-ssl.musicradio.com/SmoothUK" },
                 new StationResult { Title = "Magic Radio", Image = "ms-appx:///Assets/Radio/magicradio.png", StreamUrl = "https://planetradio.co.uk/magic/player/" },
