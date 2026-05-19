@@ -21,6 +21,7 @@ namespace Zink
         private const string HomeUrl = "https://www.bing.com/";
         public const string LaunchBrowserOnlySettingKey = "ZinkConnect.LaunchBrowserOnly";
         private const string BrowsingHistoryEnabledSettingKey = "ZinkConnect.BrowsingHistoryEnabled";
+        private const string DeleteBrowsingDataOnCloseSettingKey = "ZinkConnect.DeleteBrowsingDataOnClose";
         private const int MaxHistoryEntries = 500;
         private static ZinkConnectBrowserWindow? _current;
 
@@ -33,13 +34,15 @@ namespace Zink
         private bool _browserFullscreen;
         private bool _ublockLoadAttempted;
         private bool _browsingHistoryEnabled = true;
+        private bool _deleteBrowsingDataOnClose;
+        private bool _clearingBrowsingDataOnClose;
 
         private ZinkConnectBrowserWindow()
         {
             InitializeComponent();
             Title = "Zink Connect";
             Root.Loaded += ZinkConnectBrowserWindow_Loaded;
-            Closed += (_, __) => _current = null;
+            Closed += ZinkConnectBrowserWindow_Closed;
             ConfigureWindow();
             HistoryList.ItemsSource = _historyEntries;
             LoadBrowsingHistory();
@@ -88,6 +91,21 @@ namespace Zink
                 catch
                 {
                     return true;
+                }
+            }
+        }
+
+        private static bool DeleteBrowsingDataOnCloseEnabled
+        {
+            get
+            {
+                try
+                {
+                    return ApplicationData.Current.LocalSettings.Values[DeleteBrowsingDataOnCloseSettingKey] is bool enabled && enabled;
+                }
+                catch
+                {
+                    return false;
                 }
             }
         }
@@ -600,6 +618,8 @@ namespace Zink
             LaunchBrowserOnlyToggle.IsOn = LaunchBrowserOnlyEnabled;
             _browsingHistoryEnabled = BrowsingHistoryEnabled;
             BrowsingHistoryToggle.IsOn = _browsingHistoryEnabled;
+            _deleteBrowsingDataOnClose = DeleteBrowsingDataOnCloseEnabled;
+            DeleteBrowsingDataOnCloseToggle.IsOn = _deleteBrowsingDataOnClose;
         }
 
         private WebView2? CurrentBrowser()
@@ -887,6 +907,22 @@ namespace Zink
             }
         }
 
+        private void DeleteBrowsingDataOnCloseToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                _deleteBrowsingDataOnClose = DeleteBrowsingDataOnCloseToggle.IsOn;
+                ApplicationData.Current.LocalSettings.Values[DeleteBrowsingDataOnCloseSettingKey] = _deleteBrowsingDataOnClose;
+                StatusText.Text = _deleteBrowsingDataOnClose
+                    ? "Zink Connect browsing data will be deleted when the browser closes."
+                    : "Zink Connect browsing data will stay available after the browser closes.";
+            }
+            catch
+            {
+                StatusText.Text = "Settings could not be saved.";
+            }
+        }
+
         private async void ClearBrowsingDataButton_Click(object sender, RoutedEventArgs e)
         {
             var dialog = new ContentDialog
@@ -934,10 +970,14 @@ namespace Zink
             UpdateControls();
         }
 
-        private void BrowserTabs_TabCloseRequested(TabView sender, TabViewTabCloseRequestedEventArgs args)
+        private async void BrowserTabs_TabCloseRequested(TabView sender, TabViewTabCloseRequestedEventArgs args)
         {
             if (args.Tab is not TabViewItem tab)
                 return;
+
+            bool closesBrowser = BrowserTabs.TabItems.Count == 1;
+            if (closesBrowser)
+                await ClearBrowsingDataOnCloseAsync();
 
             if (_tabBrowsers.TryGetValue(tab, out var browser))
             {
@@ -1016,10 +1056,10 @@ namespace Zink
 
         private async Task ClearAllBrowsingDataAsync()
         {
-            var core = CurrentBrowser()?.CoreWebView2;
-            if (core != null)
+            var profile = GetAvailableBrowserProfile();
+            if (profile != null)
             {
-                await core.Profile.ClearBrowsingDataAsync(
+                await profile.ClearBrowsingDataAsync(
                     CoreWebView2BrowsingDataKinds.BrowsingHistory |
                     CoreWebView2BrowsingDataKinds.DownloadHistory |
                     CoreWebView2BrowsingDataKinds.Cookies |
@@ -1033,6 +1073,41 @@ namespace Zink
             _historyEntries.Clear();
             SaveBrowsingHistory();
             UpdateHistoryView();
+        }
+
+        private async Task ClearBrowsingDataOnCloseAsync()
+        {
+            if (!_deleteBrowsingDataOnClose || _clearingBrowsingDataOnClose)
+                return;
+
+            _clearingBrowsingDataOnClose = true;
+            try
+            {
+                await ClearAllBrowsingDataAsync();
+            }
+            catch { }
+        }
+
+        private CoreWebView2Profile? GetAvailableBrowserProfile()
+        {
+            var profile = CurrentBrowser()?.CoreWebView2?.Profile;
+            if (profile != null)
+                return profile;
+
+            foreach (var browser in _tabBrowsers.Values)
+            {
+                profile = browser.CoreWebView2?.Profile;
+                if (profile != null)
+                    return profile;
+            }
+
+            return null;
+        }
+
+        private async void ZinkConnectBrowserWindow_Closed(object sender, WindowEventArgs e)
+        {
+            await ClearBrowsingDataOnCloseAsync();
+            _current = null;
         }
 
         private void UpdateBrowsingHistoryTitle(string? url, string? title)

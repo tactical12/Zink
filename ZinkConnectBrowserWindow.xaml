@@ -208,6 +208,29 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel Spacing="6">
+                                <TextBlock Text="Delete all browsing data on each app close"
+                                           Foreground="White"
+                                           FontSize="16"
+                                           FontWeight="SemiBold"/>
+                                <TextBlock Text="Automatically wipe Zink Connect history, cookies, cache, site storage, saved passwords, autofill, downloads history, and service worker data when the browser closes."
+                                           Foreground="#B8D8E7F2"
+                                           TextWrapping="WrapWholeWords"
+                                           FontSize="13"/>
+                            </StackPanel>
+                            <ToggleSwitch x:Name="DeleteBrowsingDataOnCloseToggle"
+                                          Grid.Column="1"
+                                          MinWidth="100"
+                                          Toggled="DeleteBrowsingDataOnCloseToggle_Toggled"/>
+                        </Grid>
+                    </Border>
+
+                    <Border Background="#182633" BorderBrush="#35FFFFFF" BorderThickness="1" CornerRadius="8" Padding="20">
+                        <Grid ColumnSpacing="20">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Spacing="6">
                                 <TextBlock Text="Clear all browsing data"
                                            Foreground="White"
                                            FontSize="16"
