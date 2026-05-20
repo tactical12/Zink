@@ -53,6 +53,7 @@ namespace Zink
         private bool _windowIsActivated = false;
 
         private bool _incomingCallDialogShowing = false;
+        private bool _zinkSocialLockedDialogShowing = false;
         private bool _realtimeConnectAttempted = false;
 
         public bool AllowClose { get; set; }
@@ -846,6 +847,13 @@ namespace Zink
             if (args.SelectedItem is not NavigationViewItem item)
                 return;
 
+            if (item.Tag is string selectedTag && IsZinkSocialLockedTag(selectedTag))
+            {
+                SidebarNav.SelectedItem = null;
+                _ = ShowZinkSocialLockedDialogAsync();
+                return;
+            }
+
             var targetPage = item.Tag switch
             {
                 "Search" => typeof(SearchResultsPage),
@@ -916,6 +924,41 @@ namespace Zink
             {
                 ContentFrame.Navigate(targetPage);
             }
+        }
+
+        private void ZinkSocialLocked_Tapped(object sender, TappedRoutedEventArgs e)
+        {
+            _ = ShowZinkSocialLockedDialogAsync();
+        }
+
+        private async Task ShowZinkSocialLockedDialogAsync()
+        {
+            if (_zinkSocialLockedDialogShowing)
+                return;
+
+            _zinkSocialLockedDialogShowing = true;
+
+            try
+            {
+                var dialog = new ContentDialog
+                {
+                    Title = "Zink Social is coming soon",
+                    Content = "This feature is still in development, keep updating the app and check out the about section for when the feature goes live.",
+                    CloseButtonText = "OK",
+                    XamlRoot = RootGrid.XamlRoot
+                };
+
+                await dialog.ShowAsync();
+            }
+            finally
+            {
+                _zinkSocialLockedDialogShowing = false;
+            }
+        }
+
+        private static bool IsZinkSocialLockedTag(string tag)
+        {
+            return tag is "ZinkSocialLocked" or "SocialLogin" or "SocialRegister" or "SocialDeveloperSettings" or "SocialFriends" or "SocialMessages" or "SocialFriendRequests" or "SocialProfile" or "SocialCall";
         }
 
         private bool TrySetDesktopAcrylicBackdrop()

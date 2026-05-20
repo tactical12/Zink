@@ -334,7 +334,7 @@
                     </NavigationViewItem.MenuItems>
                 </NavigationViewItem>
 
-                <NavigationViewItem Content="Zink Social" SelectsOnInvoked="False">
+                <NavigationViewItem Content="Zink Social" Tag="ZinkSocialLocked" SelectsOnInvoked="True" Tapped="ZinkSocialLocked_Tapped">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE125;" FontFamily="Segoe Fluent Icons"/>
                     </NavigationViewItem.Icon>
