@@ -616,6 +616,7 @@ namespace Zink
             var iconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Zink.ico");
             if (File.Exists(iconPath))
                 appWindow.SetIcon(iconPath);
+            appWindow.TitleBar.IconShowOptions = IconShowOptions.HideIconAndSystemMenu;
         }
 
         public NavigationView SidebarNavReference => SidebarNav;
@@ -1026,6 +1027,7 @@ namespace Zink
             SetBrushColor("NavigationViewItemIconForegroundSelected", sidebarSelectedText);
             SetBrushColor("NavigationViewItemHeaderForeground", sidebarText);
             SetBrushColor("NavigationViewItemSeparatorForeground", sidebarText);
+            ApplyTitleBarGlass(useLightTheme);
 
             SidebarNav.Foreground = new SolidColorBrush(sidebarText);
             ApplySidebarItemTextColor(sidebarText);
@@ -1042,6 +1044,49 @@ namespace Zink
                 ShellGradientMiddle.Color = global::Windows.UI.Color.FromArgb(255, 20, 37, 53);
                 ShellGradientEnd.Color = global::Windows.UI.Color.FromArgb(255, 7, 10, 15);
             }
+        }
+
+        private void ApplyTitleBarGlass(bool useLightTheme)
+        {
+            try
+            {
+                var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+                var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
+                var titleBar = AppWindow.GetFromWindowId(windowId).TitleBar;
+
+                var titleBarColor = useLightTheme
+                    ? global::Windows.UI.Color.FromArgb(255, 238, 246, 249)
+                    : global::Windows.UI.Color.FromArgb(255, 8, 31, 38);
+                var inactiveTitleBarColor = useLightTheme
+                    ? global::Windows.UI.Color.FromArgb(255, 246, 250, 252)
+                    : global::Windows.UI.Color.FromArgb(255, 5, 20, 25);
+                var hoverColor = useLightTheme
+                    ? global::Windows.UI.Color.FromArgb(255, 226, 239, 244)
+                    : global::Windows.UI.Color.FromArgb(255, 15, 53, 62);
+                var pressedColor = useLightTheme
+                    ? global::Windows.UI.Color.FromArgb(255, 212, 231, 237)
+                    : global::Windows.UI.Color.FromArgb(255, 20, 66, 76);
+                var foregroundColor = useLightTheme
+                    ? global::Windows.UI.Color.FromArgb(255, 20, 28, 31)
+                    : global::Windows.UI.Color.FromArgb(255, 238, 250, 255);
+                var inactiveForegroundColor = useLightTheme
+                    ? global::Windows.UI.Color.FromArgb(255, 92, 104, 108)
+                    : global::Windows.UI.Color.FromArgb(255, 157, 185, 191);
+
+                titleBar.BackgroundColor = titleBarColor;
+                titleBar.ForegroundColor = foregroundColor;
+                titleBar.InactiveBackgroundColor = inactiveTitleBarColor;
+                titleBar.InactiveForegroundColor = inactiveForegroundColor;
+                titleBar.ButtonBackgroundColor = titleBarColor;
+                titleBar.ButtonForegroundColor = foregroundColor;
+                titleBar.ButtonHoverBackgroundColor = hoverColor;
+                titleBar.ButtonHoverForegroundColor = foregroundColor;
+                titleBar.ButtonPressedBackgroundColor = pressedColor;
+                titleBar.ButtonPressedForegroundColor = foregroundColor;
+                titleBar.ButtonInactiveBackgroundColor = inactiveTitleBarColor;
+                titleBar.ButtonInactiveForegroundColor = inactiveForegroundColor;
+            }
+            catch { }
         }
 
         private void ApplySidebarItemTextColor(global::Windows.UI.Color color)
