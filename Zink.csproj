@@ -2,21 +2,19 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows10.0.22621.0</TargetFramework>
-    <TargetPlatformIdentifier>Windows</TargetPlatformIdentifier>
-    <TargetPlatformVersion>10.0.22621.0</TargetPlatformVersion>
+    <TargetFramework>net8.0-windows10.0.26100.0</TargetFramework>
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
     <RootNamespace>Zink</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\Zink.ico</ApplicationIcon>
 
     <!-- Store upload fix: increment package/app version to avoid duplicate identity in Partner Center -->
-    <Version>3.0.14.0</Version>
-    <AssemblyVersion>3.0.14.0</AssemblyVersion>
-    <FileVersion>3.0.14.0</FileVersion>
+    <Version>3.0.0.0</Version>
+    <AssemblyVersion>3.0.0.0</AssemblyVersion>
+    <FileVersion>3.0.0.0</FileVersion>
 
-    <!-- x86 + x64 + ARM64 support (Store-complete) -->
-    <Platforms>x86;x64;ARM64</Platforms>
+    <!-- x86 + x64 + arm64 support (Store-complete) -->
+    <Platforms>x86;x64;arm64</Platforms>
 
     <!-- Ensure restore generates assets for all targets -->
     <RuntimeIdentifiers>win-x86;win-x64;win-arm64</RuntimeIdentifiers>
@@ -32,6 +30,8 @@
 
     <UseWinUI>true</UseWinUI>
     <EnableMsixTooling>true</EnableMsixTooling>
+    <DefaultLanguage>en</DefaultLanguage>
+    <AppxDefaultResourceQualifiers>Language=en</AppxDefaultResourceQualifiers>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <NoWarn>$(NoWarn);CA1416;CS0108;CS0162;CS0169;CS0414;CS0618;CS0067;CS4014;CS8600;CS8601;CS8602;CS8603;CS8604;CS8612;CS8618;CS8622;CS8625;CS8767</NoWarn>
@@ -48,7 +48,7 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Platform)'=='arm64' Or '$(Platform)'=='ARM64'">
+  <PropertyGroup Condition="'$(Platform)'=='arm64'">
     <PlatformTarget>arm64</PlatformTarget>
     <RuntimeIdentifier>win-arm64</RuntimeIdentifier>
   </PropertyGroup>
@@ -85,13 +85,14 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="Concentus" Version="2.2.2" />
     <PackageReference Include="DiscordRichPresence" Version="1.6.1.70" />
+    <PackageReference Include="fdk-aac" Version="2.0.3" />
     <PackageReference Include="Microsoft.AspNetCore.WebSockets" Version="2.3.9" />
     <PackageReference Include="Microsoft.Graphics.Win2D" Version="1.4.0" />
-    <PackageReference Include="Microsoft.Identity.Client" Version="4.81.0" />
-    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3912.50" />
+    <PackageReference Include="Microsoft.Identity.Client" Version="4.84.0" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3967.48" />
     <PackageReference Include="Microsoft.Windows.CsWinRT" Version="2.2.0" />
-    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260416003" />
-    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.7705" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.0.1" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.1839" />
     <PackageReference Include="NAudio" Version="2.3.0" />
     <PackageReference Include="NAudio.Core" Version="2.3.0" />
     <PackageReference Include="NAudio.WinMM" Version="2.3.0" />
@@ -99,21 +100,17 @@
     <PackageReference Include="SharpDX.Direct3D11" Version="4.2.0" />
     <PackageReference Include="SharpDX.DXGI" Version="4.2.0" />
     <PackageReference Include="SharpDX.MediaFoundation" Version="4.2.0" />
-    <PackageReference Include="SIPSorcery" Version="10.0.3" />
+    <PackageReference Include="SIPSorcery" Version="10.0.6" />
     <PackageReference Include="SIPSorceryMedia.Encoders" Version="10.0.4" />
     <PackageReference Include="SIPSorceryMedia.Windows" Version="8.0.14" />
-    <PackageReference Include="System.Drawing.Common" Version="8.0.10" />
+    <PackageReference Include="System.Drawing.Common" Version="10.0.7" />
     <PackageReference Include="TagLibSharp" Version="2.3.0" />
     <PackageReference Include="Vortice.Direct3D12" Version="3.8.3" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(Platform)'=='x64'">
-    <Content Include="$(SolutionDir)x64\Debug\ZinkRecorderMux.dll">
+    <Content Include="$(SolutionDir)x64\$(Configuration)\ZinkRecorderMux.dll" Condition="Exists('$(SolutionDir)x64\$(Configuration)\ZinkRecorderMux.dll')">
       <Link>ZinkRecorderMux.dll</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="$(MSBuildThisFileDirectory)..\Zink.NativeRecorder\x64\Release\Zink.NativeRecorder.dll">
-      <Link>Zink.NativeRecorder.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
@@ -149,7 +146,6 @@
     <None Remove="Pages\FeedbackPage.xaml" />
     <None Remove="Pages\GeForceNowPage.xaml" />
     <None Remove="Pages\HomeDashboardPage.xaml" />
-    <None Remove="Pages\ZinkConnectPage.xaml" />
     <None Remove="Pages\InstagramPage.xaml" />
     <None Remove="Pages\LikedRadioSongsPage.xaml" />
     <None Remove="Pages\LinkedInPage.xaml" />
@@ -169,6 +165,7 @@
     <None Remove="Pages\RedditPage.xaml" />
     <None Remove="Pages\ReviewPage.xaml" />
     <None Remove="Pages\ScreenRecorderPage.xaml" />
+    <None Remove="Pages\StreamingPage.xaml" />
     <None Remove="Pages\SearchResultsPage.xaml" />
     <None Remove="Pages\SettingsPage.xaml" />
     <None Remove="Pages\ShadowPCPage.xaml" />
@@ -180,6 +177,7 @@
     <None Remove="Pages\Social\MessagesPage.xaml" />
     <None Remove="Pages\Social\ProfilePage.xaml" />
     <None Remove="Pages\Social\RegisterPage.xaml" />
+    <None Remove="Pages\SpotifyBetaPage.xaml" />
     <None Remove="Pages\SpotifyHomePage.xaml" />
     <None Remove="Pages\SpotifyLoginPage.xaml" />
     <None Remove="Pages\SpotifyWidgetPage.xaml" />
@@ -199,7 +197,6 @@
     <None Remove="smoothradio.png" />
     <None Remove="SplashPage.xaml" />
     <None Remove="SpotifyWidgetWindow.xaml" />
-    <None Remove="ZinkConnectWindow.xaml" />
     <None Remove="VideoPlayerPage.xaml" />
     <None Remove="WebRTC\app.js" />
     <None Remove="WebRTC\index.html" />
@@ -225,6 +222,17 @@
       <Link>RTSSSetup.exe</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="Tools\ffprobe.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Tools\ffmpeg.exe" Condition="Exists('Tools\ffmpeg.exe')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Extensions\uBlockOrigin\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <ExcludeFromPRIResource>true</ExcludeFromPRIResource>
+    </Content>
+    <PRIResource Remove="Extensions\uBlockOrigin\**\*" />
   </ItemGroup>
 
   <ItemGroup>
@@ -285,7 +293,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Page Update="Pages\SpotifyBetaPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Page Update="Pages\ScreenRecorderPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Update="Pages\StreamingPage.xaml">
       <Generator>MSBuild:Compile</Generator>
     </Page>
   </ItemGroup>
@@ -336,7 +350,7 @@
     <HasPackageAndPublishMenu>true</HasPackageAndPublishMenu>
   </PropertyGroup>
 
-  <!-- UPDATED: Signing + bundling fixed to avoid CN=Franc / wrong PFN -->
+  <!-- Store signing: Debug uses a local test certificate; Release is prepared for Partner Center. -->
   <PropertyGroup>
     <PublishReadyToRun Condition="'$(Configuration)' == 'Debug'">False</PublishReadyToRun>
     <PublishReadyToRun Condition="'$(Configuration)' != 'Debug'">False</PublishReadyToRun>
@@ -345,51 +359,44 @@
 
     <GenerateAppInstallerFile>False</GenerateAppInstallerFile>
 
-    <!-- Let the Visual Studio Create App Packages wizard decide the checked architecture rows. -->
-    <AppxBundle Condition="'$(AppxBundle)'==''">Always</AppxBundle>
-    <AppxBundlePlatforms Condition="'$(AppxBundlePlatforms)'=='' And '$(AppxBuildConfigurationSelection)'!=''">$(AppxBuildConfigurationSelection)</AppxBundlePlatforms>
+    <!-- Store: ALWAYS create a bundle for upload -->
+    <AppxBundle>Always</AppxBundle>
+    <AppxBundlePlatforms>x64</AppxBundlePlatforms>
 
     <AppxPackageSigningTimestampDigestAlgorithm>SHA256</AppxPackageSigningTimestampDigestAlgorithm>
     <AppxAutoIncrementPackageRevision>True</AppxAutoIncrementPackageRevision>
     <AppxSymbolPackageEnabled>True</AppxSymbolPackageEnabled>
     <GenerateTestArtifacts>True</GenerateTestArtifacts>
 
-    <!-- IMPORTANT: Do NOT generate/use temporary store certs (causes CN=Franc identity outputs) -->
+    <!-- IMPORTANT: Do NOT generate/use temporary store certs for Release outputs. -->
     <GenerateTemporaryStoreCertificate>False</GenerateTemporaryStoreCertificate>
 
     <HoursBetweenUpdateChecks>0</HoursBetweenUpdateChecks>
 
-    <!-- Keep Visual Studio package output away from OneDrive sync locks. -->
-    <AppxPackageDir>C:\Users\Franc\Downloads\app packages\</AppxPackageDir>
+    <!-- Keep package outputs outside OneDrive so packaging does not sync generated installers. -->
+    <AppxPackageDir>$(LOCALAPPDATA)\Zink\PackageOutput\AppPackages\</AppxPackageDir>
     <ZinkPackageArtifactDir>$(LOCALAPPDATA)\Zink\PackageOutput\BundleArtifacts\</ZinkPackageArtifactDir>
 
     <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
 
-    <!-- Debug: signed (local install/testing) / Release: unsigned (Partner Center upload) -->
+    <!-- Debug: signed for local install/testing. Release: unsigned for Partner Center upload. -->
     <AppxPackageSigningEnabled Condition="'$(Configuration)'=='Debug'">True</AppxPackageSigningEnabled>
     <AppxPackageSigningEnabled Condition="'$(Configuration)'!='Debug'">False</AppxPackageSigningEnabled>
 
     <!-- Don't override x86/x64/arm64 PlatformTarget with AnyCPU -->
     <PlatformTarget Condition="'$(PlatformTarget)'==''">AnyCPU</PlatformTarget>
 
-    <!-- Keep final override as in your file -->
-    <AppxPackageSigningEnabled>True</AppxPackageSigningEnabled>
-    <PackageCertificateKeyFile>Zink_TemporaryKey.pfx</PackageCertificateKeyFile>
-    <AppxBundlePlatforms>x64</AppxBundlePlatforms>
-    <AppxBundle>Auto</AppxBundle>
+    <PackageCertificateKeyFile Condition="'$(Configuration)'=='Debug'">Zink_TemporaryKey.pfx</PackageCertificateKeyFile>
   </PropertyGroup>
 
   <Target Name="CopyZinkRecorderMuxToAppX" AfterTargets="Build" Condition="'$(Platform)'=='x64'">
     <PropertyGroup>
-      <_MuxSource>$(SolutionDir)x64\Debug\ZinkRecorderMux.dll</_MuxSource>
+      <_MuxSource>$(SolutionDir)x64\$(Configuration)\ZinkRecorderMux.dll</_MuxSource>
       <_AppXPath>$(OutDir)AppX\ZinkRecorderMux.dll</_AppXPath>
-      <_NativeRecorderSource>$(MSBuildThisFileDirectory)..\Zink.NativeRecorder\x64\Release\Zink.NativeRecorder.dll</_NativeRecorderSource>
-      <_NativeRecorderAppXPath>$(OutDir)AppX\Zink.NativeRecorder.dll</_NativeRecorderAppXPath>
     </PropertyGroup>
 
     <MakeDir Directories="$(OutDir)AppX" Condition="!Exists('$(OutDir)AppX')" />
     <Copy SourceFiles="$(_MuxSource)" DestinationFiles="$(_AppXPath)" SkipUnchangedFiles="true" Condition="Exists('$(_MuxSource)')" />
-    <Copy SourceFiles="$(_NativeRecorderSource)" DestinationFiles="$(_NativeRecorderAppXPath)" SkipUnchangedFiles="true" Condition="Exists('$(_NativeRecorderSource)')" />
   </Target>
 
   <Target Name="CopyBouncyCastleToAppXLayouts" AfterTargets="Build;_CreatePackageLayout">
@@ -416,6 +423,8 @@
 
     <Copy SourceFiles="@(ZinkInstallTrustFiles)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" Condition="'$(OutDir)'!='' And Exists('%(ZinkInstallTrustFiles.FullPath)')" />
     <Copy SourceFiles="@(ZinkInstallTrustFiles)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" Condition="'$(PublishDir)'!='' And Exists('$(PublishDir)') And Exists('%(ZinkInstallTrustFiles.FullPath)')" />
+    <MakeDir Directories="$(AppxPackageDir)" Condition="'$(AppxPackageDir)'!=''" />
+    <Copy SourceFiles="@(ZinkInstallTrustFiles)" DestinationFolder="$(AppxPackageDir)" SkipUnchangedFiles="true" Condition="'$(AppxPackageDir)'!='' And Exists('%(ZinkInstallTrustFiles.FullPath)')" />
     <Copy SourceFiles="@(ZinkInstallTrustFiles)" DestinationFolder="%(ZinkPackageTestDirectories.Identity)" SkipUnchangedFiles="true" Condition="Exists('%(ZinkPackageTestDirectories.Identity)') And Exists('%(ZinkInstallTrustFiles.FullPath)')" />
     <MakeDir Directories="$(ZinkPackageArtifactDir)" Condition="'$(ZinkPackageArtifactDir)'!=''" />
     <Copy SourceFiles="@(ZinkInstallTrustFiles)" DestinationFolder="$(ZinkPackageArtifactDir)" SkipUnchangedFiles="true" Condition="'$(ZinkPackageArtifactDir)'!='' And Exists('%(ZinkInstallTrustFiles.FullPath)')" />

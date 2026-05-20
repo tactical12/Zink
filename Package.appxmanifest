@@ -11,8 +11,8 @@
 
   <Identity
     Name="FrancisHayle.Zink-MusicVideoPlayer"
-    Publisher="CN=Franc"
-    Version="3.0.61.0" />
+    Publisher="CN=3FFFC630-A58A-41F5-B554-BA1A779ED16E"
+    Version="3.0.18.0" />
 
   <Properties>
     <DisplayName>Zink</DisplayName>
@@ -28,7 +28,7 @@
   </Dependencies>
 
   <Resources>
-    <Resource Language="x-generate" />
+    <Resource Language="en" />
   </Resources>
 
   <Applications>
@@ -62,6 +62,36 @@
             Enabled="false"
             DisplayName="Zink" />
         </uap5:Extension>
+        <uap:Extension Category="windows.fileTypeAssociation">
+          <uap:FileTypeAssociation Name="zink-video">
+            <uap:DisplayName>Zink Video</uap:DisplayName>
+            <uap:Logo>Assets\Square44x44Logo.png</uap:Logo>
+            <uap:SupportedFileTypes>
+              <uap:FileType>.mp4</uap:FileType>
+              <uap:FileType>.mkv</uap:FileType>
+              <uap:FileType>.avi</uap:FileType>
+              <uap:FileType>.mov</uap:FileType>
+              <uap:FileType>.wmv</uap:FileType>
+              <uap:FileType>.webm</uap:FileType>
+              <uap:FileType>.m4v</uap:FileType>
+            </uap:SupportedFileTypes>
+          </uap:FileTypeAssociation>
+        </uap:Extension>
+        <uap:Extension Category="windows.fileTypeAssociation">
+          <uap:FileTypeAssociation Name="zink-music">
+            <uap:DisplayName>Zink Music</uap:DisplayName>
+            <uap:Logo>Assets\Square44x44Logo.png</uap:Logo>
+            <uap:SupportedFileTypes>
+              <uap:FileType>.mp3</uap:FileType>
+              <uap:FileType>.m4a</uap:FileType>
+              <uap:FileType>.wav</uap:FileType>
+              <uap:FileType>.flac</uap:FileType>
+              <uap:FileType>.aac</uap:FileType>
+              <uap:FileType>.wma</uap:FileType>
+              <uap:FileType>.ogg</uap:FileType>
+            </uap:SupportedFileTypes>
+          </uap:FileTypeAssociation>
+        </uap:Extension>
       </Extensions>
 
     </Application>
