@@ -4,8 +4,8 @@ namespace Zink.Services.Calling
 {
     public static class CallServerConfig
     {
-        public const string BaseHttpUrl = "https://calls.zinkapp.net";
-        public const string BaseWsUrl = "wss://calls.zinkapp.net/ws";
+        public const string BaseHttpUrl = "https://34-73-152-179.nip.io";
+        public const string BaseWsUrl = "wss://34-73-152-179.nip.io/ws";
 
         public static string RegisterUrl => $"{BaseHttpUrl}/api/register";
         public static string LoginUrl => $"{BaseHttpUrl}/api/login";

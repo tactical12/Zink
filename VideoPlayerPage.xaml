@@ -221,6 +221,12 @@
                             x:Name="SoundButton"
                             Content="Sound"
                             Style="{StaticResource GlassControlButtonStyle}" />
+
+                        <Button
+                            x:Name="AudioInfoButton"
+                            Click="AudioInfoButton_Click"
+                            Content="Info"
+                            Style="{StaticResource GlassControlButtonStyle}" />
                     </StackPanel>
                 </Grid>
             </Grid>

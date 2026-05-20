@@ -8,8 +8,6 @@
     <Grid x:Name="RootGrid">
 
         <Grid.Resources>
-            <SolidColorBrush x:Key="ShellGlassBrush" Color="#AA111820"/>
-            <SolidColorBrush x:Key="ShellGlassBorderBrush" Color="#2FFFFFFF"/>
             <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="#00FFFFFF"/>
             <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="#00FFFFFF"/>
             <SolidColorBrush x:Key="NavigationViewPaneBackground" Color="#00FFFFFF"/>
@@ -48,9 +46,9 @@
 
         <Grid.Background>
             <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                <GradientStop x:Name="ShellGradientStart" Color="#0D171F" Offset="0"/>
-                <GradientStop x:Name="ShellGradientMiddle" Color="#142535" Offset="0.48"/>
-                <GradientStop x:Name="ShellGradientEnd" Color="#070A0F" Offset="1"/>
+                <GradientStop x:Name="ShellGradientStart" Color="#062D38" Offset="0"/>
+                <GradientStop x:Name="ShellGradientMiddle" Color="#0B4450" Offset="0.48"/>
+                <GradientStop x:Name="ShellGradientEnd" Color="#00080B" Offset="1"/>
             </LinearGradientBrush>
         </Grid.Background>
 
@@ -64,8 +62,8 @@
                 Margin="12"
                 Padding="6"
                 CornerRadius="28"
-                Background="{StaticResource ShellGlassBrush}"
-                BorderBrush="{StaticResource ShellGlassBorderBrush}"
+                Background="{StaticResource ZinkGlassPanelBrush}"
+                BorderBrush="{StaticResource ZinkGlassBorderBrush}"
                 BorderThickness="1">
         <NavigationView
             x:Name="SidebarNav"
@@ -227,6 +225,12 @@
                         <NavigationViewItem Content="Screen Recorder" Tag="ScreenRecorder">
                             <NavigationViewItem.Icon>
                                 <FontIcon Glyph="&#xE722;" FontFamily="Segoe Fluent Icons"/>
+                            </NavigationViewItem.Icon>
+                        </NavigationViewItem>
+
+                        <NavigationViewItem Content="Streaming" Tag="Streaming">
+                            <NavigationViewItem.Icon>
+                                <FontIcon Glyph="&#xE93E;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
                     </NavigationViewItem.MenuItems>
@@ -543,6 +547,49 @@
             x:FieldModifier="public"
             Grid.Column="1"
             Background="Transparent"/>
+
+        <Grid x:Name="StartupOverlay"
+              Grid.ColumnSpan="2"
+              Canvas.ZIndex="9999">
+            <Grid.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#062D38" Offset="0"/>
+                    <GradientStop Color="#0B4450" Offset="0.48"/>
+                    <GradientStop Color="#00080B" Offset="1"/>
+                </LinearGradientBrush>
+            </Grid.Background>
+
+            <StackPanel HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Spacing="22">
+                <Border Width="178"
+                        Height="178"
+                        CornerRadius="40"
+                        Background="#1EFFFFFF"
+                        BorderBrush="#32FFFFFF"
+                        BorderThickness="1">
+                    <Image Source="ms-appx:///Assets/ZinkLogo.png"
+                           Width="138"
+                           Height="138"
+                           Stretch="Uniform"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"/>
+                </Border>
+
+                <TextBlock Text="Zink"
+                           HorizontalAlignment="Center"
+                           FontSize="46"
+                           FontWeight="SemiBold"
+                           Foreground="White"/>
+
+                <ProgressRing IsActive="True"
+                              Width="42"
+                              Height="42"
+                              Foreground="#E8FFFFFF"
+                              HorizontalAlignment="Center"/>
+            </StackPanel>
+        </Grid>
     </Grid>
 </Window>
+
 

@@ -21,9 +21,9 @@
     <Grid RequestedTheme="Dark">
         <Grid.Background>
             <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                <GradientStop Color="#071019" Offset="0"/>
-                <GradientStop Color="#142B37" Offset="0.42"/>
-                <GradientStop Color="#07090D" Offset="1"/>
+                <GradientStop Color="#70062D38" Offset="0"/>
+                <GradientStop Color="#780B4450" Offset="0.42"/>
+                <GradientStop Color="#9000080B" Offset="1"/>
             </LinearGradientBrush>
         </Grid.Background>
 

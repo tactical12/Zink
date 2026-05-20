@@ -42,5 +42,25 @@ namespace Zink.Services.NativeCalling
 
         [System.Runtime.InteropServices.DllImport("winmm.dll")]
         public static extern uint timeEndPeriod(uint uPeriod);
+
+        [System.Runtime.InteropServices.DllImport("avrt.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
+        public static extern System.IntPtr AvSetMmThreadCharacteristics(string taskName, out int taskIndex);
+
+        [System.Runtime.InteropServices.DllImport("avrt.dll", SetLastError = true)]
+        [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+        public static extern bool AvSetMmThreadPriority(System.IntPtr avrtHandle, AvrtPriority priority);
+
+        [System.Runtime.InteropServices.DllImport("avrt.dll", SetLastError = true)]
+        [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+        public static extern bool AvRevertMmThreadCharacteristics(System.IntPtr avrtHandle);
+    }
+
+    internal enum AvrtPriority
+    {
+        VeryLow = -2,
+        Low = -1,
+        Normal = 0,
+        High = 1,
+        Critical = 2
     }
 }

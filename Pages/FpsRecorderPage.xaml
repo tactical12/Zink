@@ -9,6 +9,16 @@
         <SolidColorBrush x:Key="FpsGlassStrongBrush" Color="#CC0E151E"/>
         <SolidColorBrush x:Key="FpsBorderBrush" Color="#35FFFFFF"/>
         <SolidColorBrush x:Key="FpsAccentBrush" Color="#51D6FF"/>
+        <SolidColorBrush x:Key="ButtonBackground" Color="#183947"/>
+        <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#24556A"/>
+        <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#102A35"/>
+        <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="#26183947"/>
+        <SolidColorBrush x:Key="ButtonForeground" Color="White"/>
+        <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="White"/>
+        <SolidColorBrush x:Key="ButtonForegroundPressed" Color="White"/>
+        <SolidColorBrush x:Key="ButtonBorderBrush" Color="#7CBFEFFF"/>
+        <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="#A8D9FFFF"/>
+        <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="#5AA4D6FF"/>
 
         <Style x:Key="GlassPanelStyle" TargetType="Border">
             <Setter Property="CornerRadius" Value="22"/>
@@ -16,6 +26,32 @@
             <Setter Property="Background" Value="{StaticResource FpsGlassBrush}"/>
             <Setter Property="BorderBrush" Value="{StaticResource FpsBorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+
+        <Style x:Key="FpsActionButtonStyle" TargetType="Button">
+            <Setter Property="MinHeight" Value="40"/>
+            <Setter Property="Padding" Value="16,0"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="Background" Value="#183947"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="#7CBFEFFF"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="{TemplateBinding CornerRadius}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter Content="{TemplateBinding Content}"
+                                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </Page.Resources>
 
@@ -100,6 +136,7 @@
 
                             <Button Grid.Column="1"
                                     x:Name="PickGameButton"
+                                    Style="{StaticResource FpsActionButtonStyle}"
                                     Click="PickGameButton_Click"
                                     MinWidth="118">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
@@ -110,6 +147,7 @@
 
                             <Button Grid.Column="2"
                                     x:Name="StopButton"
+                                    Style="{StaticResource FpsActionButtonStyle}"
                                     Click="StopButton_Click"
                                     MinWidth="104">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
@@ -155,6 +193,7 @@
                             </Grid.ColumnDefinitions>
 
                             <Button x:Name="RecordButton"
+                                    Style="{StaticResource FpsActionButtonStyle}"
                                     Click="RecordButton_Click"
                                     HorizontalAlignment="Stretch">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
@@ -165,6 +204,7 @@
 
                             <Button Grid.Column="1"
                                     x:Name="WidgetButton"
+                                    Style="{StaticResource FpsActionButtonStyle}"
                                     Click="WidgetButton_Click"
                                     HorizontalAlignment="Stretch">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
@@ -222,6 +262,7 @@
                                       Toggled="Settings_Changed"/>
 
                         <Button x:Name="InstallRtssButton"
+                                Style="{StaticResource FpsActionButtonStyle}"
                                 Click="InstallRtssButton_Click"
                                 HorizontalAlignment="Stretch">
                             <StackPanel Orientation="Horizontal" Spacing="8">

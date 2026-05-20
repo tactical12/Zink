@@ -1812,6 +1812,7 @@ namespace Zink.Pages
         private void PulseMessages_Click(object sender, RoutedEventArgs e) => App.MainWindow.MainFrame.Navigate(typeof(Social.MessagesPage));
         private void PulseProfile_Click(object sender, RoutedEventArgs e) => App.MainWindow.MainFrame.Navigate(typeof(Social.ProfilePage));
         private void PulseLogs_Click(object sender, RoutedEventArgs e) => App.MainWindow.MainFrame.Navigate(typeof(SettingsPage));
+        private void PulseSpotifyBeta_Click(object sender, RoutedEventArgs e) => App.MainWindow.MainFrame.Navigate(typeof(SpotifyBetaPage));
 
         private void Spotify_Click(object sender, RoutedEventArgs e)
         {

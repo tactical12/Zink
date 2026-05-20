@@ -8,6 +8,7 @@ namespace Zink.Interop
         public const int GWLP_WNDPROC = -4;
         public const int WM_HOTKEY = 0x0312;
 
+        public const uint MOD_CONTROL = 0x0002;
         public const uint MOD_SHIFT = 0x0004;
         public const uint MOD_NOREPEAT = 0x4000;
 

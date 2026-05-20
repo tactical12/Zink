@@ -1,0 +1,533 @@
+<Page
+    x:Class="Zink.Pages.SpotifyBetaPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:pages="using:Zink.Pages"
+    Background="#00080B">
+
+    <Page.Resources>
+        <SolidColorBrush x:Key="AccentBrush" Color="#29F4DC"/>
+        <SolidColorBrush x:Key="BlueAccentBrush" Color="#2589FF"/>
+        <SolidColorBrush x:Key="SoftTextBrush" Color="#BED2DC"/>
+        <SolidColorBrush x:Key="DimTextBrush" Color="#8EA7B4"/>
+        <SolidColorBrush x:Key="LineBrush" Color="#26FFFFFF"/>
+        <AcrylicBrush x:Key="ShellBrush"
+                      TintColor="#091522"
+                      TintOpacity="0.84"
+                      TintLuminosityOpacity="0.42"
+                      FallbackColor="#E6091522"/>
+        <AcrylicBrush x:Key="PanelBrush"
+                      TintColor="#10222C"
+                      TintOpacity="0.78"
+                      TintLuminosityOpacity="0.35"
+                      FallbackColor="#DC10222C"/>
+
+        <Style x:Key="IconButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="42"/>
+            <Setter Property="Height" Value="42"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="{StaticResource LineBrush}"/>
+            <Setter Property="Background" Value="#253241"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+
+        <Style x:Key="NavButtonStyle" TargetType="Button">
+            <Setter Property="MinHeight" Value="44"/>
+            <Setter Property="Padding" Value="18,0"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        </Style>
+
+        <Style x:Key="PillButtonStyle" TargetType="Button">
+            <Setter Property="MinHeight" Value="42"/>
+            <Setter Property="Padding" Value="18,0"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="{StaticResource LineBrush}"/>
+            <Setter Property="Background" Value="#263642"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+    </Page.Resources>
+
+    <Grid Padding="22">
+        <Grid.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#70062D38" Offset="0"/>
+                <GradientStop Color="#780B4450" Offset="0.45"/>
+                <GradientStop Color="#9000080B" Offset="1"/>
+            </LinearGradientBrush>
+        </Grid.Background>
+
+        <Border CornerRadius="8"
+                BorderThickness="1"
+                BorderBrush="#527C93AA"
+                Background="{StaticResource ShellBrush}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="92"/>
+                </Grid.RowDefinitions>
+
+                <Grid ColumnSpacing="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="238"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="282"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border Background="#8210222C"
+                            BorderThickness="0,0,1,0"
+                            BorderBrush="{StaticResource LineBrush}">
+                        <Grid Padding="14,18" RowSpacing="18">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="190"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="118"/>
+                            </Grid.RowDefinitions>
+
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
+                                <Grid Width="92" Height="92">
+                                    <Ellipse Stroke="{StaticResource AccentBrush}" StrokeThickness="7"/>
+                                    <Ellipse Stroke="{StaticResource BlueAccentBrush}" StrokeThickness="7" Margin="16"/>
+                                    <FontIcon Glyph="&#xE768;" FontFamily="Segoe Fluent Icons" Foreground="{StaticResource AccentBrush}" FontSize="28" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Grid>
+                                <TextBlock Text="Zink Spotify" Foreground="White" FontSize="23" HorizontalAlignment="Center"/>
+                                <TextBlock Text="Feel the rhythm." Foreground="{StaticResource DimTextBrush}" FontSize="12" HorizontalAlignment="Center"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="1" Spacing="8">
+                                <Button Style="{StaticResource NavButtonStyle}" Background="#263846" Click="HomeNav_Click">
+                                    <StackPanel Orientation="Horizontal" Spacing="14">
+                                        <FontIcon Glyph="&#xE80F;" FontFamily="Segoe Fluent Icons" Foreground="{StaticResource AccentBrush}" FontSize="17"/>
+                                        <TextBlock Text="Home"/>
+                                    </StackPanel>
+                                </Button>
+                                <Button Style="{StaticResource NavButtonStyle}" Click="ExploreNav_Click">
+                                    <StackPanel Orientation="Horizontal" Spacing="14">
+                                        <FontIcon Glyph="&#xE721;" FontFamily="Segoe Fluent Icons" Foreground="{StaticResource SoftTextBrush}" FontSize="17"/>
+                                        <TextBlock Text="Explore"/>
+                                    </StackPanel>
+                                </Button>
+                                <Button Style="{StaticResource NavButtonStyle}" Click="LibraryButton_Click">
+                                    <StackPanel Orientation="Horizontal" Spacing="14">
+                                        <FontIcon Glyph="&#xE8F1;" FontFamily="Segoe Fluent Icons" Foreground="{StaticResource SoftTextBrush}" FontSize="17"/>
+                                        <TextBlock Text="Library"/>
+                                    </StackPanel>
+                                </Button>
+                                <Button Style="{StaticResource NavButtonStyle}" Click="FavoritesNav_Click">
+                                    <StackPanel Orientation="Horizontal" Spacing="14">
+                                        <FontIcon Glyph="&#xEB51;" FontFamily="Segoe Fluent Icons" Foreground="{StaticResource SoftTextBrush}" FontSize="17"/>
+                                        <TextBlock Text="Favorites"/>
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+
+                            <ListView x:Name="LibraryList"
+                                      Grid.Row="2"
+                                      Background="Transparent"
+                                      BorderThickness="0"
+                                      SelectionMode="None"
+                                      IsItemClickEnabled="True"
+                                      ItemClick="SpotifyItem_Click">
+                                <ListView.ItemTemplate>
+                                    <DataTemplate x:DataType="pages:SpotifyBetaTrack">
+                                        <Grid Height="58" ColumnSpacing="10">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="44"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Border Width="44" Height="44" CornerRadius="7" Background="#263846" VerticalAlignment="Center">
+                                                <Image Loaded="TrackImage_Loaded" Stretch="UniformToFill"/>
+                                            </Border>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <TextBlock Text="{x:Bind Title}" Foreground="White" TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Text="{x:Bind Artist}" Foreground="{StaticResource DimTextBrush}" FontSize="12" TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+
+                            <Border Grid.Row="3" CornerRadius="8" BorderThickness="1" BorderBrush="#36FFFFFF">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                        <GradientStop Color="#2D9A91" Offset="0"/>
+                                        <GradientStop Color="#123846" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                                <Grid Padding="16">
+                                    <StackPanel Spacing="6">
+                                        <FontIcon Glyph="&#xE734;" FontFamily="Segoe Fluent Icons" Foreground="{StaticResource AccentBrush}" FontSize="20" HorizontalAlignment="Left"/>
+                                        <TextBlock Text="Spotify account" Foreground="White" FontWeight="SemiBold"/>
+                                        <TextBlock x:Name="ConnectionStatusText" Text="Checking connection" Foreground="{StaticResource SoftTextBrush}" FontSize="12"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </Grid>
+                    </Border>
+
+                    <Grid Grid.Column="1" Padding="24" RowSpacing="16">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="280"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="150"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="150"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Style="{StaticResource IconButtonStyle}" Click="PreviousButton_Click">
+                                <FontIcon Glyph="&#xE76B;" FontFamily="Segoe Fluent Icons"/>
+                            </Button>
+                            <Button Grid.Column="1" Style="{StaticResource IconButtonStyle}" Click="NextButton_Click">
+                                <FontIcon Glyph="&#xE76C;" FontFamily="Segoe Fluent Icons"/>
+                            </Button>
+                            <AutoSuggestBox x:Name="SearchBox"
+                                            Grid.Column="2"
+                                            MinHeight="44"
+                                            PlaceholderText="Search songs, artists, albums..."
+                                            QuerySubmitted="SearchBox_QuerySubmitted"/>
+                            <Button x:Name="ConnectButton"
+                                    Grid.Column="3"
+                                    Style="{StaticResource PillButtonStyle}"
+                                    Background="#173E45"
+                                    Click="ConnectButton_Click">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE72D;" FontFamily="Segoe Fluent Icons" FontSize="14"/>
+                                    <TextBlock Text="Connect"/>
+                                </StackPanel>
+                            </Button>
+                            <Border Grid.Column="4" Height="44" CornerRadius="12" Background="#172B36" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" Padding="10,0">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Border Width="30" Height="30" CornerRadius="15" Background="#27424D" VerticalAlignment="Center">
+                                        <Image x:Name="ProfileImage" Stretch="UniformToFill"/>
+                                    </Border>
+                                    <TextBlock x:Name="ProfileNameText" Text="Spotify" Foreground="White" VerticalAlignment="Center"/>
+                                    <FontIcon Glyph="&#xE70D;" FontFamily="Segoe Fluent Icons" Foreground="{StaticResource SoftTextBrush}" FontSize="12" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <Border Grid.Row="1" CornerRadius="12" BorderThickness="1" BorderBrush="{StaticResource LineBrush}" Background="{StaticResource PanelBrush}">
+                            <Grid Padding="20" ColumnSpacing="26">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="280"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Border CornerRadius="8" Background="#263846">
+                                    <Image x:Name="HeroImage" Stretch="UniformToFill"/>
+                                </Border>
+                                <StackPanel Grid.Column="1" Spacing="12" VerticalAlignment="Center">
+                                    <Border CornerRadius="6" Background="#203C44" Padding="8,4" HorizontalAlignment="Left">
+                                        <TextBlock x:Name="HeroBadgeText" Text="SPOTIFY MIX" Foreground="{StaticResource AccentBrush}" FontWeight="SemiBold" FontSize="12"/>
+                                    </Border>
+                                    <TextBlock x:Name="HeroTitleText" Text="Connect Spotify" Foreground="White" FontSize="40" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock x:Name="HeroSubtitleText" Text="Real Spotify data will fill this home surface." Foreground="{StaticResource SoftTextBrush}" FontSize="17" TextWrapping="WrapWholeWords" MaxLines="2"/>
+                                    <TextBlock x:Name="ConnectHintText" Text="Connect Spotify to load your account." Foreground="{StaticResource DimTextBrush}" TextWrapping="WrapWholeWords"/>
+                                    <Grid ColumnSpacing="8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Button Style="{StaticResource PillButtonStyle}" Background="{StaticResource AccentBrush}" Foreground="#061417" Click="PlayHeroButton_Click">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <FontIcon Glyph="&#xE768;" FontFamily="Segoe Fluent Icons" FontSize="14"/>
+                                                <TextBlock Text="Play"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Grid.Column="1" Style="{StaticResource PillButtonStyle}" Click="SaveHeroButton_Click">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <FontIcon Glyph="&#xE710;" FontFamily="Segoe Fluent Icons" FontSize="14"/>
+                                                <TextBlock Text="Save"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Grid Grid.Column="2" ColumnSpacing="8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox x:Name="ManualCodeInput" MinHeight="40" PlaceholderText="Paste callback URL/code if browser sign-in returns to example.com"/>
+                                            <Button Grid.Column="1" Style="{StaticResource PillButtonStyle}" Click="FinishManualConnectButton_Click" Content="Finish"/>
+                                        </Grid>
+                                    </Grid>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <Grid Grid.Row="2">
+                            <TextBlock Text="Trending Albums" Foreground="White" FontSize="18" FontWeight="SemiBold"/>
+                            <Button HorizontalAlignment="Right" Background="Transparent" BorderThickness="0" Foreground="{StaticResource SoftTextBrush}" Content="View all" Click="ShowAlbums_Click"/>
+                        </Grid>
+                        <ListView x:Name="AlbumsList" Grid.Row="3" Background="Transparent" BorderThickness="0" SelectionMode="None" IsItemClickEnabled="True" ItemClick="SpotifyItem_Click">
+                            <ListView.ItemsPanel>
+                                <ItemsPanelTemplate><ItemsStackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                            </ListView.ItemsPanel>
+                            <ListView.ItemTemplate>
+                                <DataTemplate x:DataType="pages:SpotifyBetaTrack">
+                                    <Border Width="158" Height="142" Margin="0,0,12,0" CornerRadius="8" BorderThickness="1" BorderBrush="{StaticResource LineBrush}" Background="#6A112832">
+                                        <Grid>
+                                            <Image Loaded="TrackImage_Loaded" Stretch="UniformToFill"/>
+                                            <Border VerticalAlignment="Bottom" Background="#AA071016" Padding="10,8">
+                                                <StackPanel>
+                                                    <TextBlock Text="{x:Bind Title}" Foreground="White" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock Text="{x:Bind Artist}" Foreground="{StaticResource SoftTextBrush}" FontSize="12" TextTrimming="CharacterEllipsis"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+
+                        <Grid Grid.Row="4">
+                            <TextBlock Text="Recently Played" Foreground="White" FontSize="18" FontWeight="SemiBold"/>
+                            <Button HorizontalAlignment="Right" Background="Transparent" BorderThickness="0" Foreground="{StaticResource SoftTextBrush}" Content="View all" Click="ShowRecent_Click"/>
+                        </Grid>
+                        <ListView x:Name="RecentList" Grid.Row="5" Background="Transparent" BorderThickness="0" SelectionMode="None" IsItemClickEnabled="True" ItemClick="SpotifyItem_Click">
+                            <ListView.ItemsPanel>
+                                <ItemsPanelTemplate><ItemsStackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                            </ListView.ItemsPanel>
+                            <ListView.ItemTemplate>
+                                <DataTemplate x:DataType="pages:SpotifyBetaTrack">
+                                    <Border Width="158" Height="142" Margin="0,0,12,0" CornerRadius="8" BorderThickness="1" BorderBrush="{StaticResource LineBrush}" Background="#6A112832">
+                                        <Grid>
+                                            <Image Loaded="TrackImage_Loaded" Stretch="UniformToFill"/>
+                                            <Border VerticalAlignment="Bottom" Background="#AA071016" Padding="10,8">
+                                                <StackPanel>
+                                                    <TextBlock Text="{x:Bind Title}" Foreground="White" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock Text="{x:Bind Artist}" Foreground="{StaticResource SoftTextBrush}" FontSize="12" TextTrimming="CharacterEllipsis"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+
+                        <Grid Grid.Row="6" ColumnSpacing="20">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="For You" Foreground="White" FontSize="18" FontWeight="SemiBold"/>
+                            <TextBlock Grid.Column="1" Text="Your Playlists" Foreground="White" FontSize="18" FontWeight="SemiBold"/>
+                        </Grid>
+                        <Grid Grid.Row="7" ColumnSpacing="20">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <ListView x:Name="ForYouList" Background="Transparent" BorderThickness="0" SelectionMode="None" IsItemClickEnabled="True" ItemClick="SpotifyItem_Click">
+                                <ListView.ItemsPanel>
+                                    <ItemsPanelTemplate><ItemsWrapGrid Orientation="Horizontal" MaximumRowsOrColumns="2"/></ItemsPanelTemplate>
+                                </ListView.ItemsPanel>
+                                <ListView.ItemTemplate>
+                                    <DataTemplate x:DataType="pages:SpotifyBetaTrack">
+                                        <Border Width="110" Height="110" Margin="0,0,10,10" CornerRadius="8" BorderThickness="1" BorderBrush="{StaticResource LineBrush}" Background="#6A112832">
+                                            <Grid>
+                                                <Image Loaded="TrackImage_Loaded" Stretch="UniformToFill"/>
+                                                <TextBlock Text="{x:Bind Title}" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Bottom" Margin="9" TextWrapping="WrapWholeWords" MaxLines="2"/>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+                            <ListView x:Name="PlaylistsList" Grid.Column="1" Background="Transparent" BorderThickness="0" SelectionMode="None" IsItemClickEnabled="True" ItemClick="SpotifyItem_Click">
+                                <ListView.ItemTemplate>
+                                    <DataTemplate x:DataType="pages:SpotifyBetaTrack">
+                                        <Border Height="40" Margin="0,0,0,8" CornerRadius="8" BorderThickness="1" BorderBrush="{StaticResource LineBrush}" Background="#69122531">
+                                            <Grid Padding="10,0" ColumnSpacing="10">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <FontIcon Glyph="&#xE8F1;" FontFamily="Segoe Fluent Icons" Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Column="1" Text="{x:Bind Title}" Foreground="White" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Grid.Column="2" Text="{x:Bind Artist}" Foreground="{StaticResource SoftTextBrush}" FontSize="12" VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+                        </Grid>
+                    </Grid>
+
+                    <Border Grid.Column="2" Margin="0,50,12,16" CornerRadius="12" BorderThickness="1" BorderBrush="{StaticResource LineBrush}" Background="{StaticResource PanelBrush}">
+                        <Grid Padding="16" RowSpacing="14">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="220"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid>
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <FontIcon Glyph="&#xE9D9;" FontFamily="Segoe Fluent Icons" Foreground="{StaticResource AccentBrush}"/>
+                                    <TextBlock Text="NOW PLAYING" Foreground="White" FontWeight="SemiBold"/>
+                                </StackPanel>
+                                <FontIcon Glyph="&#xE712;" FontFamily="Segoe Fluent Icons" Foreground="{StaticResource SoftTextBrush}" HorizontalAlignment="Right"/>
+                            </Grid>
+                            <Border Grid.Row="1" CornerRadius="10" Background="#263846">
+                                <Grid>
+                                    <Image x:Name="NowPlayingArt" Stretch="UniformToFill"/>
+                                    <FontIcon x:Name="NowPlayingFallbackIcon" Glyph="&#xE768;" FontFamily="Segoe Fluent Icons" Foreground="{StaticResource AccentBrush}" FontSize="52" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Grid>
+                            </Border>
+                            <StackPanel Grid.Row="2" Spacing="4" HorizontalAlignment="Center">
+                                <TextBlock x:Name="NowPlayingTitle" Text="Nothing playing" Foreground="White" FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock x:Name="NowPlayingArtist" Text="Start Spotify on a device." Foreground="{StaticResource SoftTextBrush}" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock x:Name="NowPlayingAlbum" Text="" Foreground="{StaticResource DimTextBrush}" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="3" Spacing="12">
+                                <ProgressBar x:Name="NowPlayingProgress" Height="4" Minimum="0" Maximum="100" Value="0"/>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="16">
+                                    <FontIcon Glyph="&#xE8B1;" FontFamily="Segoe Fluent Icons" Foreground="{StaticResource SoftTextBrush}" Tapped="RefreshNowPlaying_Tapped"/>
+                                    <Button Width="58" Height="58" Padding="0" CornerRadius="29" Background="#5AFFFFFF" Click="PauseButton_Click">
+                                        <FontIcon Glyph="&#xE769;" FontFamily="Segoe Fluent Icons" FontSize="20"/>
+                                    </Button>
+                                    <FontIcon Glyph="&#xE8EE;" FontFamily="Segoe Fluent Icons" Foreground="{StaticResource SoftTextBrush}" VerticalAlignment="Center" Tapped="RefreshHome_Tapped"/>
+                                </StackPanel>
+                            </StackPanel>
+                            <Border Grid.Row="4" CornerRadius="8" BorderThickness="1" BorderBrush="{StaticResource LineBrush}" Background="#59122531" Padding="10">
+                                <Grid ColumnSpacing="8" RowSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Text="PLAYBACK SOURCE" Foreground="White" FontSize="12" FontWeight="SemiBold"/>
+                                    <Button Grid.Column="1" Width="32" Height="28" Padding="0" CornerRadius="8" Background="#263642" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" Click="RefreshDevicesButton_Click">
+                                        <FontIcon Glyph="&#xE72C;" FontFamily="Segoe Fluent Icons" Foreground="{StaticResource SoftTextBrush}" FontSize="13"/>
+                                    </Button>
+                                    <ComboBox x:Name="PlaybackDeviceBox"
+                                              Grid.Row="1"
+                                              Grid.ColumnSpan="2"
+                                              MinHeight="38"
+                                              HorizontalAlignment="Stretch"
+                                              DisplayMemberPath="DisplayName"
+                                              SelectionChanged="PlaybackDeviceBox_SelectionChanged"
+                                              PlaceholderText="Choose Spotify device"/>
+                                </Grid>
+                            </Border>
+
+                            <Grid Grid.Row="5" RowSpacing="8">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <Grid>
+                                    <TextBlock Text="QUEUE" Foreground="White" FontSize="12" FontWeight="SemiBold"/>
+                                    <Button HorizontalAlignment="Right" Background="Transparent" BorderThickness="0" Foreground="{StaticResource SoftTextBrush}" Content="Clear" Click="ClearQueue_Click"/>
+                                </Grid>
+                                <Grid Grid.Row="1">
+                                    <ListView x:Name="QueueList" Background="Transparent" BorderThickness="0" SelectionMode="None" IsItemClickEnabled="True" ItemClick="SpotifyItem_Click">
+                                        <ListView.ItemTemplate>
+                                            <DataTemplate x:DataType="pages:SpotifyBetaTrack">
+                                                <Grid Height="52" ColumnSpacing="10">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="42"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Width="42" Height="42" CornerRadius="6" Background="#263846">
+                                                        <Image Loaded="TrackImage_Loaded" Stretch="UniformToFill"/>
+                                                    </Border>
+                                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                        <TextBlock Text="{x:Bind Title}" Foreground="White" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                                        <TextBlock Text="{x:Bind Artist}" Foreground="{StaticResource SoftTextBrush}" FontSize="11" TextTrimming="CharacterEllipsis"/>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ListView.ItemTemplate>
+                                    </ListView>
+                                    <TextBlock x:Name="EmptyLibraryText"
+                                               Text="Connect Spotify to load queue."
+                                               Foreground="{StaticResource SoftTextBrush}"
+                                               TextWrapping="WrapWholeWords"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"/>
+                                </Grid>
+                            </Grid>
+                            <StackPanel Grid.Row="6" Orientation="Horizontal" Spacing="10">
+                                <FontIcon Glyph="&#xE767;" FontFamily="Segoe Fluent Icons" Foreground="White"/>
+                                <Slider Value="75" Width="180"/>
+                                <TextBlock Text="75%" Foreground="{StaticResource SoftTextBrush}"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Grid>
+
+                <Border Grid.Row="1" BorderThickness="0,1,0,0" BorderBrush="{StaticResource LineBrush}" Background="#A0060E17">
+                    <Grid Padding="24,12" ColumnSpacing="20">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="250"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="230"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="58"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Width="58" Height="58" CornerRadius="8" Background="#263846">
+                                <Image x:Name="BottomNowPlayingArt" Stretch="UniformToFill"/>
+                            </Border>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock x:Name="BottomTitleText" Text="Nothing playing" Foreground="White" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock x:Name="BottomArtistText" Text="Spotify" Foreground="{StaticResource SoftTextBrush}" FontSize="12" TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+                        </Grid>
+                        <StackPanel Grid.Column="1" Spacing="9" HorizontalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" Spacing="18" HorizontalAlignment="Center">
+                                <FontIcon Glyph="&#xE8B1;" FontFamily="Segoe Fluent Icons" Foreground="{StaticResource SoftTextBrush}" Tapped="RefreshNowPlaying_Tapped"/>
+                                <FontIcon Glyph="&#xE100;" FontFamily="Segoe Fluent Icons" Foreground="White" Tapped="PreviousButton_Tapped"/>
+                                <Button Width="44" Height="44" Padding="0" CornerRadius="22" Background="#5AFFFFFF" Click="PauseButton_Click">
+                                    <FontIcon Glyph="&#xE769;" FontFamily="Segoe Fluent Icons" FontSize="17"/>
+                                </Button>
+                                <FontIcon Glyph="&#xE101;" FontFamily="Segoe Fluent Icons" Foreground="White" VerticalAlignment="Center" Tapped="NextButton_Tapped"/>
+                                <FontIcon Glyph="&#xE8EE;" FontFamily="Segoe Fluent Icons" Foreground="{StaticResource SoftTextBrush}" VerticalAlignment="Center" Tapped="RefreshHome_Tapped"/>
+                            </StackPanel>
+                            <ProgressBar Width="420" Height="4" Minimum="0" Maximum="{Binding Maximum, ElementName=NowPlayingProgress}" Value="{Binding Value, ElementName=NowPlayingProgress}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="14" HorizontalAlignment="Right" VerticalAlignment="Center">
+                            <FontIcon Glyph="&#xE8F1;" FontFamily="Segoe Fluent Icons" Foreground="{StaticResource SoftTextBrush}"/>
+                            <FontIcon Glyph="&#xE767;" FontFamily="Segoe Fluent Icons" Foreground="White"/>
+                            <Slider Width="90" Value="75"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+
+        <WebView2 x:Name="SpotifyPlaybackWebView"
+                  Width="1"
+                  Height="1"
+                  Opacity="0.01"
+                  IsHitTestVisible="False"
+                  HorizontalAlignment="Left"
+                  VerticalAlignment="Top"/>
+    </Grid>
+</Page>

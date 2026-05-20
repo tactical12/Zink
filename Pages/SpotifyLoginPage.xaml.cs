@@ -8,10 +8,6 @@ namespace Zink.Pages
 {
     public sealed partial class SpotifyLoginPage : Page
     {
-        private const string ClientId = "2e88dcd486ec48aaaf54ac86e8c266a2";
-        private const string RedirectUri = "https://example.com/callback";
-        private const string Scope = "user-read-private user-read-email user-library-modify user-library-read";
-
         private bool _attached = false;
         private bool _tokenExchanged = false;
 
@@ -36,20 +32,13 @@ namespace Zink.Pages
 
         private void StartSpotifyLogin()
         {
-            string authUrl = $"https://accounts.spotify.com/authorize?" +
-                             $"client_id={ClientId}" +
-                             $"&response_type=code" +
-                             $"&redirect_uri={Uri.EscapeDataString(RedirectUri)}" +
-                             $"&scope={Uri.EscapeDataString(Scope)}" +
-                             $"&show_dialog=false";
-
-            SpotifyWebView.Source = new Uri(authUrl);
+            SpotifyWebView.Source = new Uri(SpotifyAuthHelper.GetNativeAuthorizationUrl(showDialog: false));
         }
 
         private async void SpotifyWebView_NavigationStarting(WebView2 sender, CoreWebView2NavigationStartingEventArgs args)
         {
             var url = args.Uri;
-            if (url.StartsWith(RedirectUri, StringComparison.OrdinalIgnoreCase))
+            if (url.StartsWith(SpotifyAuthHelper.DefaultRedirectUri, StringComparison.OrdinalIgnoreCase))
             {
                 args.Cancel = true;
 

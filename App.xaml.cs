@@ -3,7 +3,6 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Controls;
 using System;
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Windows.Media.Playback;
 using Windows.Storage;
@@ -31,12 +30,12 @@ namespace Zink
 
         private DateTimeOffset? _replayBufferStartedAtUtc;
         private static readonly TimeSpan RequiredReplayBufferDuration = TimeSpan.FromSeconds(45);
+        private const string BackgroundRunSettingKey = "ZinkBackgroundRunEnabled";
 
         public App()
         {
             this.InitializeComponent();
             DiagnosticLogService.InitializeFromSettings();
-            DiagnosticLogService.EnsureLogFile("app constructor");
             DiagnosticLogService.WriteLine("Zink app constructor started.");
             HookDiagnosticCrashLogging();
 
@@ -57,7 +56,6 @@ namespace Zink
                     Directory.CreateDirectory(DiagnosticLogService.LogDirectoryPath);
                     var crashLogPath = Path.Combine(DiagnosticLogService.LogDirectoryPath, $"CrashLog-{DiagnosticLogService.DeviceName}-latest.txt");
                     File.WriteAllText(crashLogPath, e.Exception + Environment.NewLine);
-                    WriteScreenShareCrashCopy("UnhandledException", e.Exception);
                 }
                 catch { }
                 finally
@@ -76,7 +74,6 @@ namespace Zink
                 try
                 {
                     DiagnosticLogService.WriteLine("AppDomain unhandled exception: " + e.ExceptionObject);
-                    WriteScreenShareCrashCopy("AppDomainUnhandledException", e.ExceptionObject);
                 }
                 catch
                 {
@@ -130,23 +127,6 @@ namespace Zink
             };
         }
 
-        private static void WriteScreenShareCrashCopy(string source, object crash)
-        {
-            try
-            {
-                Directory.CreateDirectory(DiagnosticLogService.ScreenShareDocumentsDirectoryPath);
-                var crashLogPath = Path.Combine(
-                    DiagnosticLogService.ScreenShareDocumentsDirectoryPath,
-                    $"CrashLog-{DiagnosticLogService.DeviceName}-latest.txt");
-
-                var body = $"{DateTimeOffset.Now:O} {source}{Environment.NewLine}{crash}{Environment.NewLine}";
-                File.WriteAllText(crashLogPath, body);
-            }
-            catch
-            {
-            }
-        }
-
         private static bool IsScreenShareDiagnosticException(Exception exception)
         {
             var typeName = exception.GetType().FullName ?? "";
@@ -160,21 +140,15 @@ namespace Zink
                 stack.Contains("SIPSorcery", StringComparison.OrdinalIgnoreCase);
         }
 
-        [DllImport("user32.dll")]
-        private static extern bool ShowWindow(nint hWnd, int nCmdShow);
-
-        private const int SW_MAXIMIZE = 3;
-
         protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
         {
             _ = InitializeAppServicesAsync();
 
             SetupTray();
-            _ = ZinkBackgroundModeService.Instance.ApplyAsync();
 
             StorageFile fileToOpen = null;
             bool launchedFromStartupTask = IsStartupTaskLaunch();
-            bool backgroundRunEnabled = BackgroundModePreferences.IsBackgroundRunEnabled;
+            bool backgroundRunEnabled = IsBackgroundRunEnabled();
             bool gamingReplayEnabled = RecordingPreferences.IsGamingBackgroundReplayEnabled;
 
             try
@@ -206,8 +180,7 @@ namespace Zink
                     _replayStartupTask = DelayedReplayStartupAsync(TimeSpan.FromSeconds(2));
                 }
 
-                var frame = GetRootFrame();
-                frame?.Navigate(typeof(VideoPlayerPage), fileToOpen);
+                NavigateToActivatedMediaFile(fileToOpen);
                 return;
             }
 
@@ -236,31 +209,31 @@ namespace Zink
                 return;
             }
 
-            var splashWindow = new Window();
-            splashWindow.Content = new SplashPage();
-            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(splashWindow);
-            ShowWindow(hwnd, SW_MAXIMIZE);
-            splashWindow.Activate();
+            MainWindow = new MainWindow();
+            MainWindow.Closed += OnMainWindowClosed;
+            MainWindow.Activate();
 
-            Task.Run(async () =>
+            _ = VideoLibraryService.Current.StartAsync(TimeSpan.FromSeconds(30));
+
+            if (backgroundRunEnabled && gamingReplayEnabled)
             {
-                await Task.Delay(2000);
-                splashWindow.DispatcherQueue.TryEnqueue(() =>
-                {
-                    MainWindow = new MainWindow();
-                    MainWindow.Closed += OnMainWindowClosed;
-                    MainWindow.Activate();
+                _replayStartupTask = DelayedReplayStartupAsync(TimeSpan.FromSeconds(2));
+            }
+        }
 
-                    _ = VideoLibraryService.Current.StartAsync(TimeSpan.FromSeconds(30));
+        private bool IsBackgroundRunEnabled()
+        {
+            try
+            {
+                object value = ApplicationData.Current.LocalSettings.Values[BackgroundRunSettingKey];
+                if (value is bool boolValue)
+                    return boolValue;
+            }
+            catch
+            {
+            }
 
-                    if (backgroundRunEnabled && gamingReplayEnabled)
-                    {
-                        _replayStartupTask = DelayedReplayStartupAsync(TimeSpan.FromSeconds(2));
-                    }
-
-                    splashWindow.Close();
-                });
-            });
+            return true;
         }
 
         private async Task DelayedReplayStartupAsync(TimeSpan delay)
@@ -437,7 +410,6 @@ namespace Zink
 
                 if (MainWindow != null)
                 {
-                    MainWindow.AllowClose = true;
                     MainWindow.Close();
                 }
                 else
@@ -446,7 +418,6 @@ namespace Zink
 
                     try
                     {
-                        ZinkBackgroundModeService.Instance.Dispose();
                         _trayService?.Dispose();
                     }
                     catch { }
@@ -546,6 +517,28 @@ namespace Zink
             return null;
         }
 
+        private void NavigateToActivatedMediaFile(StorageFile file)
+        {
+            var frame = GetRootFrame();
+            if (frame == null || file == null)
+                return;
+
+            frame.Navigate(IsMusicFile(file) ? typeof(MusicPlayerPage) : typeof(VideoPlayerPage), file);
+        }
+
+        private static bool IsMusicFile(StorageFile file)
+        {
+            var extension = file.FileType ?? "";
+
+            return extension.Equals(".mp3", StringComparison.OrdinalIgnoreCase) ||
+                extension.Equals(".m4a", StringComparison.OrdinalIgnoreCase) ||
+                extension.Equals(".wav", StringComparison.OrdinalIgnoreCase) ||
+                extension.Equals(".flac", StringComparison.OrdinalIgnoreCase) ||
+                extension.Equals(".aac", StringComparison.OrdinalIgnoreCase) ||
+                extension.Equals(".wma", StringComparison.OrdinalIgnoreCase) ||
+                extension.Equals(".ogg", StringComparison.OrdinalIgnoreCase);
+        }
+
         private void OnMainWindowClosed(object sender, Microsoft.UI.Xaml.WindowEventArgs e)
         {
             var hasActiveCall = IsActiveCallState(NativeCallCoordinator.Instance.CurrentSession.State);
@@ -577,7 +570,6 @@ namespace Zink
             try { VideoLibraryService.Current.Stop(); } catch { }
             try { DiscordPresenceService.Instance.Clear(); } catch { }
             try { DiscordPresenceService.Instance.Shutdown(); } catch { }
-            try { ZinkBackgroundModeService.Instance.Dispose(); } catch { }
 
             try
             {

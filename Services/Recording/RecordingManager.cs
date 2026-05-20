@@ -162,23 +162,26 @@ namespace Zink.Services.Recording
             PublishStatus("Background clipping stopped.");
         }
 
-        public async Task SaveLast45SecondsAsync()
+        public async Task<string?> SaveLast45SecondsAsync()
         {
+            PublishStatus("Recording the last 45 seconds.");
+
             if (_manualRecordingService.IsReplayBufferRunning)
             {
-                await _manualRecordingService.SaveReplayAsync();
+                string path = await _manualRecordingService.SaveReplayAsync();
                 PublishStatus("Saved the last 45 seconds.");
-                return;
+                return path;
             }
 
             if (_backgroundClipService.IsRunning)
             {
-                await _backgroundClipService.SaveLast45SecondsAsync();
+                string path = await _backgroundClipService.SaveLast45SecondsAsync();
                 PublishStatus("Saved the last 45 seconds.");
-                return;
+                return path;
             }
 
             PublishStatus("Replay buffer is not running.");
+            return null;
         }
 
         public void PublishStatus(string message)

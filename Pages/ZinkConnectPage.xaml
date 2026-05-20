@@ -17,9 +17,9 @@
     <Grid>
         <Grid.Background>
             <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                <GradientStop Color="#061119" Offset="0"/>
-                <GradientStop Color="#0B1822" Offset="0.45"/>
-                <GradientStop Color="#030609" Offset="1"/>
+                <GradientStop Color="#70062D38" Offset="0"/>
+                <GradientStop Color="#780B4450" Offset="0.45"/>
+                <GradientStop Color="#9000080B" Offset="1"/>
             </LinearGradientBrush>
         </Grid.Background>
 
@@ -52,7 +52,7 @@
                                Foreground="{StaticResource ConnectTextBrush}"
                                FontSize="44"
                                FontWeight="SemiBold"/>
-                    <TextBlock Text="A Chromium browser for Zink, opened in its own window with Edge-style controls, persistent sessions, and Store-friendly ad filtering."
+                    <TextBlock Text="A Chromium browser for Zink, opened in its own window with Edge-style controls, persistent sessions."
                                Foreground="{StaticResource ConnectMutedBrush}"
                                TextWrapping="WrapWholeWords"
                                FontSize="17"
@@ -80,7 +80,7 @@
                     BorderBrush="{StaticResource ConnectGlassStrokeBrush}"
                     BorderThickness="1"
                     Padding="22">
-                <TextBlock Text="YouTube ad blocking uses browser-safe request filtering and page cleanup. YouTube changes often, so this blocks common video ad paths and auto-skips removable ad overlays without adding unsafe system hooks."
+                <TextBlock Text="."
                            Foreground="{StaticResource ConnectMutedBrush}"
                            TextWrapping="WrapWholeWords"
                            FontSize="14"

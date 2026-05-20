@@ -4,7 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:wv2="using:Microsoft.UI.Xaml.Controls">
 
-    <Grid Background="#111111">
+    <Grid Background="#00080B">
         <wv2:WebView2
             x:Name="TikTokWebView"
             Source="https://www.tiktok.com/"

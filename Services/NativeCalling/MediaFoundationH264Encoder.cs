@@ -24,17 +24,15 @@ namespace Zink.Services.NativeCalling
         private static readonly Guid CodecApiAvEncVideoMaxKeyframeDistance = new("2987123A-BA93-4704-B489-EC1E5F25292C");
         private static readonly Guid CodecApiAvEncVideoForceKeyFrame = new("398C1B98-8353-475A-9EF2-8F265D260345");
         private static readonly Guid CodecApiAvEncVideoNumGopsPerIdr = new("83BC5BDB-5B89-4521-8F66-33151C373176");
-        private const int RecoveryKeyFrameIntervalFrames = NativeScreenShareStreamingService.TargetFps;
         private const int MfENeedMoreInput = unchecked((int)0xC00D6D72);
         private const int MfEStreamChange = unchecked((int)0xC00D6D61);
         private const int MfEUnsupportedD3DType = unchecked((int)0xC00D6D76);
         private const int MfENoEventsAvailable = unchecked((int)0xC00D3E80);
         private const int MftOutputStreamProvidesSamples = 0x00000100;
         private const int MftOutputStreamCanProvideSamples = 0x00000200;
-        private const int DxgiInputTexturePoolSize = 16;
+        private const int DxgiInputTexturePoolSize = 24;
         private const int ImfTransformProcessOutputVtableSlot = 25;
-        private const long FrameDuration100Ns = 10_000_000L / NativeScreenShareStreamingService.TargetFps;
-        private const bool UseDxgiSurfaceInputForHardwareEncoder = false;
+        private const bool UseDxgiSurfaceInputForHardwareEncoder = true;
         private static readonly int[] YFromR = BuildContributionTable(47, 16 << 8);
         private static readonly int[] YFromG = BuildContributionTable(157, 0);
         private static readonly int[] YFromB = BuildContributionTable(16, 0);
@@ -48,6 +46,9 @@ namespace Zink.Services.NativeCalling
         private Transform _encoder = null!;
         private readonly int _width;
         private readonly int _height;
+        private readonly int _frameRate;
+        private readonly long _frameDuration100Ns;
+        private readonly int _recoveryKeyFrameIntervalFrames;
         private int _bitrate;
         private bool _useRgb32Input;
         private bool _useDxgiSurfaceInput;
@@ -68,6 +69,12 @@ namespace Zink.Services.NativeCalling
         private readonly SharpDX.Direct3D11.Device? _preferredMediaFoundationDevice;
         private SharpDX.Direct3D11.Device? _encoderD3D11Device;
         private Texture2D[]? _dxgiInputTextures;
+        private Texture2D? _videoProcessorOutputTexture;
+        private VideoProcessorEnumerator? _videoProcessorEnumerator;
+        private VideoProcessor? _videoProcessor;
+        private VideoProcessorOutputView? _videoProcessorOutputView;
+        private int _videoProcessorSourceWidth;
+        private int _videoProcessorSourceHeight;
         private int _dxgiInputTextureIndex;
         private DXGIDeviceManager? _dxgiDeviceManager;
         private MediaEventGenerator? _hardwareEventGenerator;
@@ -104,13 +111,17 @@ namespace Zink.Services.NativeCalling
             int bitrate,
             bool preferHardware = true,
             bool requireHardware = false,
-            SharpDX.Direct3D11.Device? preferredMediaFoundationDevice = null)
+            SharpDX.Direct3D11.Device? preferredMediaFoundationDevice = null,
+            int frameRate = NativeScreenShareStreamingService.TargetFps)
         {
             _width = width;
             _height = height;
+            _frameRate = Math.Clamp(frameRate, 1, NativeScreenShareStreamingService.TargetFps);
+            _frameDuration100Ns = 10_000_000L / _frameRate;
+            _recoveryKeyFrameIntervalFrames = _frameRate * 2;
             _bitrate = bitrate;
             _preferredMediaFoundationDevice = preferredMediaFoundationDevice;
-            Debug.WriteLine($"[ScreenShare:H264] Creating encoder {width}x{height} @ {bitrate}bps.");
+            Debug.WriteLine($"[ScreenShare:H264] Creating encoder {width}x{height} @ {_frameRate}fps @ {bitrate}bps.");
             InitializeEncoder(bitrate, preferHardware, requireHardware);
         }
 
@@ -284,7 +295,7 @@ namespace Zink.Services.NativeCalling
         public bool IsHardwareAccelerated => _isHardwareAccelerated;
         public bool DxgiDeviceManagerAttached => _dxgiDeviceManagerAttached;
         public string GpuDeviceManagerMode => _gpuDeviceManagerMode;
-        public int RecoveryKeyFrameInterval => RecoveryKeyFrameIntervalFrames;
+        public int RecoveryKeyFrameInterval => _recoveryKeyFrameIntervalFrames;
         public bool RealtimeModeEnabled { get; private set; }
         public bool LowLatencyOutputEnabled { get; private set; }
         public bool CanEncodeGpuTexture => !_gpuTextureInputDisabled && _useDxgiSurfaceInput && _encoderD3D11Device != null;
@@ -336,7 +347,7 @@ namespace Zink.Services.NativeCalling
             using var sample = MediaFactory.CreateSample();
             sample.AddBuffer(inputBuffer);
             sample.SampleTime = _sampleTime;
-            sample.SampleDuration = FrameDuration100Ns;
+            sample.SampleDuration = _frameDuration100Ns;
 
             RequestRecoveryKeyFrameIfNeeded();
             try
@@ -349,7 +360,7 @@ namespace Zink.Services.NativeCalling
                 throw;
             }
 
-            _sampleTime += FrameDuration100Ns;
+            _sampleTime += _frameDuration100Ns;
 
             frames.AddRange(DrainOutput());
             _frameIndex++;
@@ -418,14 +429,15 @@ namespace Zink.Services.NativeCalling
             var frames = new List<H264EncodedFrame>();
             frames.AddRange(DrainOutput());
 
-            if (_hardwareEventGenerator != null && !TryConsumeHardwareInputRequest())
+            var consumedHardwareInputRequest = _hardwareEventGenerator == null || TryConsumeHardwareInputRequest();
+            if (_hardwareEventGenerator != null && !consumedHardwareInputRequest)
             {
                 var now = DateTimeOffset.UtcNow;
                 if (now - _lastHardwareInputWaitLogUtc >= TimeSpan.FromSeconds(2))
                 {
                     _loggedWaitingForHardwareInput = true;
                     _lastHardwareInputWaitLogUtc = now;
-                    Debug.WriteLine("[ScreenShare:H264] Waiting for NVENC METransformNeedInput before submitting GPU texture frames.");
+                    Debug.WriteLine("[ScreenShare:H264] NVENC has not requested input yet; draining output and skipping this frame to keep realtime pacing.");
                 }
 
                 return frames;
@@ -434,7 +446,8 @@ namespace Zink.Services.NativeCalling
             var texture = TryGetNextAvailableDxgiInputTexture();
             if (texture == null)
             {
-                ReturnHardwareInputRequest();
+                if (consumedHardwareInputRequest)
+                    ReturnHardwareInputRequest();
 
                 if (!_loggedHardwareInputBackPressure)
                 {
@@ -451,22 +464,25 @@ namespace Zink.Services.NativeCalling
             }
             catch (SharpDXException ex) when (ex.ResultCode.Code == unchecked((int)0x80070057))
             {
-                ReturnHardwareInputRequest();
-                _gpuTextureInputDisabled = true;
-                Debug.WriteLine($"[ScreenShare:H264] GPU texture video processor input rejected ({ex.ResultCode}); disabling GPU texture path for this encoder and falling back to bitmap NVENC input.");
-                return frames;
+                if (consumedHardwareInputRequest)
+                    ReturnHardwareInputRequest();
+                var description = sourceTexture.Description;
+                throw new InvalidOperationException(
+                    $"GPU texture video processor input was rejected by NVENC ({ex.ResultCode}). source={description.Width}x{description.Height}; format={description.Format}; bind={description.BindFlags}; usage={description.Usage}; options={description.OptionFlags}. The bitmap fallback is disabled so the GPU path can be fixed.",
+                    ex);
             }
             catch
             {
-                ReturnHardwareInputRequest();
+                if (consumedHardwareInputRequest)
+                    ReturnHardwareInputRequest();
                 throw;
             }
 
-            SubmitDxgiTexture(texture, frames);
+            SubmitDxgiTexture(texture, frames, consumedHardwareInputRequest);
             return frames;
         }
 
-        private void SubmitDxgiTexture(Texture2D texture, List<H264EncodedFrame> frames)
+        private void SubmitDxgiTexture(Texture2D texture, List<H264EncodedFrame> frames, bool hardwareInputRequestConsumed = true)
         {
             MediaBuffer? inputBuffer = null;
             Sample? sample = null;
@@ -484,16 +500,30 @@ namespace Zink.Services.NativeCalling
                 inputBuffer.CurrentLength = _inputBufferLength;
                 sample.AddBuffer(inputBuffer);
                 sample.SampleTime = _sampleTime;
-                sample.SampleDuration = FrameDuration100Ns;
+                sample.SampleDuration = _frameDuration100Ns;
 
                 RequestRecoveryKeyFrameIfNeeded();
                 try
                 {
                     _encoder.ProcessInput(0, sample, 0);
                 }
+                catch (SharpDXException ex) when (ex.ResultCode.Code == unchecked((int)0xC00D36B5))
+                {
+                    if (hardwareInputRequestConsumed)
+                        ReturnHardwareInputRequest();
+
+                    if (!_loggedWaitingForHardwareInput)
+                    {
+                        _loggedWaitingForHardwareInput = true;
+                        Debug.WriteLine($"[ScreenShare:H264] GPU texture submit was rejected because NVENC is not accepting input yet: 0x{ex.ResultCode.Code:X8} {ex.Message}");
+                    }
+
+                    return;
+                }
                 catch
                 {
-                    ReturnHardwareInputRequest();
+                    if (hardwareInputRequestConsumed)
+                        ReturnHardwareInputRequest();
                     throw;
                 }
 
@@ -508,7 +538,7 @@ namespace Zink.Services.NativeCalling
                 inputBuffer?.Dispose();
             }
 
-            _sampleTime += FrameDuration100Ns;
+            _sampleTime += _frameDuration100Ns;
             frames.AddRange(DrainOutput());
             _frameIndex++;
         }
@@ -593,7 +623,7 @@ namespace Zink.Services.NativeCalling
                         !TryReadEncodedSampleBytes(sampleToRead, out var data, out _))
                         break;
 
-                    AddEncodedFrame(frames, data);
+                    AddEncodedFrame(frames, data, GetSampleTimestampMilliseconds(sampleToRead));
                 }
                 finally
                 {
@@ -691,7 +721,7 @@ namespace Zink.Services.NativeCalling
                     TryReadEncodedSampleBytes(sampleToRead, out data, out diagnostics);
                 if (hasFrame)
                 {
-                    AddEncodedFrame(frames, data);
+                    AddEncodedFrame(frames, data, GetSampleTimestampMilliseconds(sampleToRead));
                     ReleaseCompletedHardwareInput();
                 }
                 else
@@ -837,10 +867,10 @@ namespace Zink.Services.NativeCalling
 
                     candidate.Set(MediaTypeAttributeKeys.AvgBitrate, _bitrate);
                     candidate.Set(MediaTypeAttributeKeys.FrameSize, PackRatio(_width, _height));
-                    candidate.Set(MediaTypeAttributeKeys.FrameRate, PackRatio(NativeScreenShareStreamingService.TargetFps, 1));
+                    candidate.Set(MediaTypeAttributeKeys.FrameRate, PackRatio(_frameRate, 1));
                     candidate.Set(MediaTypeAttributeKeys.PixelAspectRatio, PackRatio(1, 1));
                     candidate.Set(MediaTypeAttributeKeys.InterlaceMode, (int)VideoInterlaceMode.Progressive);
-                    candidate.Set(MediaTypeAttributeKeys.MaxKeyframeSpacing, RecoveryKeyFrameIntervalFrames);
+                    candidate.Set(MediaTypeAttributeKeys.MaxKeyframeSpacing, _recoveryKeyFrameIntervalFrames);
                     LowLatencyOutputEnabled = TrySetLowLatencyOutputTypeAttributes(candidate);
                     _encoder.SetOutputType(0, candidate, 0);
                     Debug.WriteLine($"[ScreenShare:H264] Encoder selected available output type {index} after {reason}: H.264 {_width}x{_height} @ {_bitrate}bps.");
@@ -866,7 +896,19 @@ namespace Zink.Services.NativeCalling
             return false;
         }
 
-        private void AddEncodedFrame(List<H264EncodedFrame> frames, byte[] data)
+        private static long GetSampleTimestampMilliseconds(Sample sample)
+        {
+            try
+            {
+                return Math.Max(0, sample.SampleTime / 10_000L);
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+
+        private void AddEncodedFrame(List<H264EncodedFrame> frames, byte[] data, long timestampMilliseconds)
         {
             var annexBData = NormalizeH264AccessUnitToAnnexB(data, out var convertedToAnnexB);
             var hasIdr = ContainsNalUnitType(annexBData, 5);
@@ -892,13 +934,13 @@ namespace Zink.Services.NativeCalling
                     $"[ScreenShare:H264] First encoded frame: raw={data.Length} bytes, send={annexBData.Length} bytes, framing={(convertedToAnnexB ? "length-prefixed->AnnexB" : "AnnexB")}, sps={hasSps}, pps={hasPps}, idr={hasIdr}.");
             }
 
-            if (!hasIdr && _frameIndex > 0 && _frameIndex % RecoveryKeyFrameIntervalFrames == 0)
+            if (!hasIdr && _frameIndex > 0 && _frameIndex % _recoveryKeyFrameIntervalFrames == 0)
             {
                 Debug.WriteLine(
                     $"[ScreenShare:H264] Recovery keyframe interval reached at encoder frame {_frameIndex}, but output had no IDR; treating it as delta.");
             }
 
-            frames.Add(new H264EncodedFrame(annexBData, hasIdr));
+            frames.Add(new H264EncodedFrame(annexBData, hasIdr, timestampMilliseconds));
         }
 
         private static byte[] NormalizeH264AccessUnitToAnnexB(byte[] frame, out bool converted)
@@ -1280,7 +1322,7 @@ namespace Zink.Services.NativeCalling
                     return false;
                 }
 
-                foreach (var activation in activations)
+                foreach (var activation in OrderHardwareEncoderActivations(activations))
                 {
                     try
                     {
@@ -1312,8 +1354,73 @@ namespace Zink.Services.NativeCalling
             return false;
         }
 
+        private static IEnumerable<Activate> OrderHardwareEncoderActivations(IReadOnlyList<Activate> activations)
+        {
+            var ordered = new List<(Activate Activation, int Score, int Index, string FriendlyName, string VendorId)>(activations.Count);
+            for (var i = 0; i < activations.Count; i++)
+            {
+                var activation = activations[i];
+                var friendlyName = GetActivationString(
+                    activation,
+                    TransformAttributeKeys.MftFriendlyNameAttribute,
+                    "hardware H.264 encoder");
+                var vendorId = GetActivationString(
+                    activation,
+                    TransformAttributeKeys.MftEnumHardwareVendorIdAttribute,
+                    "");
+                var family = GetHardwareEncoderFamily(friendlyName, vendorId);
+                var score = family switch
+                {
+                    "NVENC" => 0,
+                    "Intel Quick Sync" => 1,
+                    "AMD AMF" => 2,
+                    _ => 3
+                };
+
+                ordered.Add((activation, score, i, friendlyName, vendorId));
+            }
+
+            ordered.Sort((left, right) =>
+            {
+                var score = left.Score.CompareTo(right.Score);
+                return score != 0 ? score : left.Index.CompareTo(right.Index);
+            });
+
+            if (ordered.Count > 1)
+            {
+                var summary = string.Join(
+                    ", ",
+                    ordered.ConvertAll(item => $"{GetHardwareEncoderFamily(item.FriendlyName, item.VendorId)}:{item.FriendlyName}"));
+                Debug.WriteLine($"[ScreenShare:H264] Hardware encoder preference order: {summary}.");
+            }
+
+            foreach (var item in ordered)
+                yield return item.Activation;
+        }
+
         private void TryAttachDxgiDeviceManager(bool forceNativeDeviceManager)
         {
+            if (_preferredMediaFoundationDevice != null)
+            {
+                try
+                {
+                    DisposeGpuEncodingResources();
+
+                    _nativeMediaFoundationDevice = _preferredMediaFoundationDevice;
+                    EnableMultithreadProtection(_nativeMediaFoundationDevice);
+                    AttachDxgiDeviceManager(_nativeMediaFoundationDevice);
+                    _encoderD3D11Device = _nativeMediaFoundationDevice;
+                    _gpuDeviceManagerMode = "WGC shared native D3D11 device + NVENC Media Foundation DXGI manager";
+                    Debug.WriteLine("[ScreenShare:H264] WGC shared native D3D11 device attached to NVENC for GPU texture input.");
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[ScreenShare:H264] WGC shared native D3D11 device was rejected by NVENC; retrying with independent media device manager: {ex.Message}");
+                    DisposeGpuEncodingResources();
+                }
+            }
+
             if (!forceNativeDeviceManager)
             {
                 try
@@ -1340,17 +1447,13 @@ namespace Zink.Services.NativeCalling
 
             try
             {
-                _nativeMediaFoundationDevice = _preferredMediaFoundationDevice ?? CreateNativeMediaFoundationDeviceForEncoder();
+                _nativeMediaFoundationDevice = CreateNativeMediaFoundationDeviceForEncoder();
 
                 EnableMultithreadProtection(_nativeMediaFoundationDevice);
                 AttachDxgiDeviceManager(_nativeMediaFoundationDevice);
                 _encoderD3D11Device = _nativeMediaFoundationDevice;
-                _gpuDeviceManagerMode = _preferredMediaFoundationDevice != null
-                    ? "WGC shared native D3D11 device + NVENC Media Foundation DXGI manager"
-                    : "DirectX 12 WGC capture + NVENC native Media Foundation DXGI manager";
-                Debug.WriteLine(_preferredMediaFoundationDevice != null
-                    ? "[ScreenShare:H264] WGC shared native D3D11 device attached to NVENC for GPU texture input."
-                    : "[ScreenShare:H264] Native Media Foundation DXGI manager attached to NVENC after D3D11On12 rejection.");
+                _gpuDeviceManagerMode = "DirectX 12 WGC capture + NVENC native Media Foundation DXGI manager";
+                Debug.WriteLine("[ScreenShare:H264] Native Media Foundation DXGI manager attached to NVENC after D3D11On12 rejection.");
             }
             catch (Exception ex)
             {
@@ -1463,6 +1566,15 @@ namespace Zink.Services.NativeCalling
 
             DisposePendingHardwareInputs();
             DisposeHardwareEventGenerator();
+            DisposeVideoProcessorResources();
+
+            try
+            {
+                _videoProcessorOutputTexture?.Dispose();
+            }
+            catch
+            {
+            }
 
             if (_dxgiInputTextures != null)
             {
@@ -1507,6 +1619,9 @@ namespace Zink.Services.NativeCalling
             _directX12VideoDeviceManager = null;
             _nativeMediaFoundationDevice = null;
             _dxgiInputTextures = null;
+            _videoProcessorOutputTexture = null;
+            _videoProcessorSourceWidth = 0;
+            _videoProcessorSourceHeight = 0;
             _dxgiInputTextureIndex = 0;
         }
 
@@ -1668,10 +1783,10 @@ namespace Zink.Services.NativeCalling
             outputType.Set(MediaTypeAttributeKeys.Subtype, VideoFormatGuids.H264);
             outputType.Set(MediaTypeAttributeKeys.AvgBitrate, bitrate);
             outputType.Set(MediaTypeAttributeKeys.FrameSize, PackRatio(_width, _height));
-            outputType.Set(MediaTypeAttributeKeys.FrameRate, PackRatio(NativeScreenShareStreamingService.TargetFps, 1));
+            outputType.Set(MediaTypeAttributeKeys.FrameRate, PackRatio(_frameRate, 1));
             outputType.Set(MediaTypeAttributeKeys.PixelAspectRatio, PackRatio(1, 1));
             outputType.Set(MediaTypeAttributeKeys.InterlaceMode, (int)VideoInterlaceMode.Progressive);
-            outputType.Set(MediaTypeAttributeKeys.MaxKeyframeSpacing, RecoveryKeyFrameIntervalFrames);
+            outputType.Set(MediaTypeAttributeKeys.MaxKeyframeSpacing, _recoveryKeyFrameIntervalFrames);
             return outputType;
         }
 
@@ -1685,7 +1800,7 @@ namespace Zink.Services.NativeCalling
             inputType.Set(MediaTypeAttributeKeys.MajorType, MediaTypeGuids.Video);
             inputType.Set(MediaTypeAttributeKeys.Subtype, subtype);
             inputType.Set(MediaTypeAttributeKeys.FrameSize, PackRatio(_width, _height));
-            inputType.Set(MediaTypeAttributeKeys.FrameRate, PackRatio(NativeScreenShareStreamingService.TargetFps, 1));
+            inputType.Set(MediaTypeAttributeKeys.FrameRate, PackRatio(_frameRate, 1));
             inputType.Set(MediaTypeAttributeKeys.PixelAspectRatio, PackRatio(1, 1));
             inputType.Set(MediaTypeAttributeKeys.InterlaceMode, (int)VideoInterlaceMode.Progressive);
             inputType.Set(MediaTypeAttributeKeys.FixedSizeSamples, 1);
@@ -1797,25 +1912,14 @@ namespace Zink.Services.NativeCalling
             if (_encoderD3D11Device == null)
                 throw new InvalidOperationException("D3D11 input device was not initialized.");
 
-            using var videoDevice = _encoderD3D11Device.QueryInterface<VideoDevice>();
             using var videoContext = _encoderD3D11Device.ImmediateContext.QueryInterface<VideoContext>();
-
-            var description = new VideoProcessorContentDescription
-            {
-                InputFrameFormat = VideoFrameFormat.Progressive,
-                InputFrameRate = new Rational(NativeScreenShareStreamingService.TargetFps, 1),
-                InputWidth = sourceWidth,
-                InputHeight = sourceHeight,
-                OutputFrameRate = new Rational(NativeScreenShareStreamingService.TargetFps, 1),
-                OutputWidth = _width,
-                OutputHeight = _height,
-                Usage = VideoUsage.PlaybackNormal
-            };
-
-            videoDevice.CreateVideoProcessorEnumerator(ref description, out var enumerator);
-            using var enumeratorScope = enumerator;
-            videoDevice.CreateVideoProcessor(enumerator, 0, out var processor);
-            using var processorScope = processor;
+            using var videoDevice = _encoderD3D11Device.QueryInterface<VideoDevice>();
+            EnsureVideoProcessor(sourceWidth, sourceHeight);
+            var enumerator = _videoProcessorEnumerator ??
+                throw new InvalidOperationException("D3D11 video processor enumerator was not initialized.");
+            var processor = _videoProcessor ??
+                throw new InvalidOperationException("D3D11 video processor was not initialized.");
+            var conversionOutputTexture = EnsureVideoProcessorOutputTexture();
             var inputViewDescription = new VideoProcessorInputViewDescription
             {
                 Dimension = VpivDimension.Texture2D,
@@ -1831,20 +1935,7 @@ namespace Zink.Services.NativeCalling
                 inputViewDescription,
                 out var inputView);
             using var inputViewScope = inputView;
-            var outputViewDescription = new VideoProcessorOutputViewDescription
-            {
-                Dimension = VpovDimension.Texture2D,
-                Texture2D = new Texture2DVpov
-                {
-                    MipSlice = 0
-                }
-            };
-            videoDevice.CreateVideoProcessorOutputView(
-                targetTexture,
-                enumerator,
-                outputViewDescription,
-                out var outputView);
-            using var outputViewScope = outputView;
+            var outputView = EnsureVideoProcessorOutputView(conversionOutputTexture);
 
             var destination = GetAspectFitRectangle(sourceWidth, sourceHeight, _width, _height);
             videoContext.VideoProcessorSetStreamFrameFormat(processor, 0, VideoFrameFormat.Progressive);
@@ -1886,7 +1977,97 @@ namespace Zink.Services.NativeCalling
             };
 
             videoContext.VideoProcessorBlt(processor, outputView, _frameIndex, streams.Length, streams);
+            _encoderD3D11Device.ImmediateContext.CopyResource(conversionOutputTexture, targetTexture);
             _encoderD3D11Device.ImmediateContext.Flush();
+        }
+
+        private void EnsureVideoProcessor(int sourceWidth, int sourceHeight)
+        {
+            if (_encoderD3D11Device == null)
+                throw new InvalidOperationException("D3D11 input device was not initialized.");
+
+            if (_videoProcessor != null &&
+                _videoProcessorEnumerator != null &&
+                _videoProcessorSourceWidth == sourceWidth &&
+                _videoProcessorSourceHeight == sourceHeight)
+            {
+                return;
+            }
+
+            DisposeVideoProcessorResources();
+
+            using var videoDevice = _encoderD3D11Device.QueryInterface<VideoDevice>();
+            var description = new VideoProcessorContentDescription
+            {
+                InputFrameFormat = VideoFrameFormat.Progressive,
+                InputFrameRate = new Rational(_frameRate, 1),
+                InputWidth = sourceWidth,
+                InputHeight = sourceHeight,
+                OutputFrameRate = new Rational(_frameRate, 1),
+                OutputWidth = _width,
+                OutputHeight = _height,
+                Usage = VideoUsage.PlaybackNormal
+            };
+
+            videoDevice.CreateVideoProcessorEnumerator(ref description, out _videoProcessorEnumerator);
+            videoDevice.CreateVideoProcessor(_videoProcessorEnumerator, 0, out _videoProcessor);
+            _videoProcessorSourceWidth = sourceWidth;
+            _videoProcessorSourceHeight = sourceHeight;
+            Debug.WriteLine($"[ScreenShare:H264] Cached D3D11 video processor for {sourceWidth}x{sourceHeight} -> {_width}x{_height} NV12.");
+        }
+
+        private VideoProcessorOutputView EnsureVideoProcessorOutputView(Texture2D conversionOutputTexture)
+        {
+            if (_encoderD3D11Device == null)
+                throw new InvalidOperationException("D3D11 input device was not initialized.");
+
+            if (_videoProcessorOutputView != null)
+                return _videoProcessorOutputView;
+
+            var enumerator = _videoProcessorEnumerator ??
+                throw new InvalidOperationException("D3D11 video processor enumerator was not initialized.");
+            using var videoDevice = _encoderD3D11Device.QueryInterface<VideoDevice>();
+            var outputViewDescription = new VideoProcessorOutputViewDescription
+            {
+                Dimension = VpovDimension.Texture2D,
+                Texture2D = new Texture2DVpov
+                {
+                    MipSlice = 0
+                }
+            };
+
+            videoDevice.CreateVideoProcessorOutputView(
+                conversionOutputTexture,
+                enumerator,
+                outputViewDescription,
+                out _videoProcessorOutputView);
+
+            return _videoProcessorOutputView;
+        }
+
+        private Texture2D EnsureVideoProcessorOutputTexture()
+        {
+            if (_encoderD3D11Device == null)
+                throw new InvalidOperationException("D3D11 input device was not initialized.");
+
+            if (_videoProcessorOutputTexture != null)
+                return _videoProcessorOutputTexture;
+
+            _videoProcessorOutputTexture = new Texture2D(_encoderD3D11Device, new Texture2DDescription
+            {
+                Width = _width,
+                Height = _height,
+                MipLevels = 1,
+                ArraySize = 1,
+                Format = Format.NV12,
+                SampleDescription = new SampleDescription(1, 0),
+                Usage = ResourceUsage.Default,
+                BindFlags = BindFlags.RenderTarget,
+                CpuAccessFlags = CpuAccessFlags.None,
+                OptionFlags = ResourceOptionFlags.None
+            });
+            Debug.WriteLine("[ScreenShare:H264] Created D3D11 NV12 video processor output texture with RenderTarget bind flags.");
+            return _videoProcessorOutputTexture;
         }
 
         private RawRectangle GetAspectFitRectangle(
@@ -1916,6 +2097,17 @@ namespace Zink.Services.NativeCalling
 
         private void DisposeDxgiInputTextures()
         {
+            try
+            {
+                _videoProcessorOutputTexture?.Dispose();
+            }
+            catch
+            {
+            }
+
+            _videoProcessorOutputTexture = null;
+            DisposeVideoProcessorResources();
+
             if (_dxgiInputTextures == null)
                 return;
 
@@ -1932,6 +2124,39 @@ namespace Zink.Services.NativeCalling
 
             _dxgiInputTextures = null;
             _dxgiInputTextureIndex = 0;
+        }
+
+        private void DisposeVideoProcessorResources()
+        {
+            try
+            {
+                _videoProcessorOutputView?.Dispose();
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                _videoProcessor?.Dispose();
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                _videoProcessorEnumerator?.Dispose();
+            }
+            catch
+            {
+            }
+
+            _videoProcessorOutputView = null;
+            _videoProcessor = null;
+            _videoProcessorEnumerator = null;
+            _videoProcessorSourceWidth = 0;
+            _videoProcessorSourceHeight = 0;
         }
 
         private void InitializeHardwareEventPump()
@@ -1954,7 +2179,8 @@ namespace Zink.Services.NativeCalling
                     _hardwareEventThread = new Thread(HardwareEventLoop)
                     {
                         IsBackground = true,
-                        Name = "Zink NVENC MFT Event Pump"
+                        Name = "Zink NVENC MFT Event Pump",
+                        Priority = ThreadPriority.AboveNormal
                     };
                     _hardwareEventThread.Start();
                     Debug.WriteLine("[ScreenShare:H264] Hardware encoder async event pump enabled.");
@@ -2000,6 +2226,9 @@ namespace Zink.Services.NativeCalling
                         if (_stopHardwareEventThread)
                             return;
                     }
+
+                    if (ex.ResultCode.Code == unchecked((int)0xC00D3E85))
+                        return;
 
                     Debug.WriteLine($"[ScreenShare:H264] Hardware encoder event pump error: 0x{ex.ResultCode.Code:X8} {ex.Message}");
                     Thread.Sleep(5);
@@ -2147,7 +2376,7 @@ namespace Zink.Services.NativeCalling
             }
         }
 
-        private static bool TryEnableRealtimeEncoderMode(Transform encoder, bool enableHardwareAsyncMode)
+        private bool TryEnableRealtimeEncoderMode(Transform encoder, bool enableHardwareAsyncMode)
         {
             try
             {
@@ -2165,7 +2394,7 @@ namespace Zink.Services.NativeCalling
                     attributes.Set(CodecApiAvEncCommonLowLatency, 1);
                     attributes.Set(CodecApiAvEncCommonRealTime, 1);
                     attributes.Set(CodecApiAvEncCommonQualityVsSpeed, 100);
-                    attributes.Set(CodecApiAvEncVideoMaxKeyframeDistance, RecoveryKeyFrameIntervalFrames);
+                    attributes.Set(CodecApiAvEncVideoMaxKeyframeDistance, _recoveryKeyFrameIntervalFrames);
                     attributes.Set(CodecApiAvEncVideoNumGopsPerIdr, 1);
                 }
 
@@ -2199,7 +2428,7 @@ namespace Zink.Services.NativeCalling
         private void RequestRecoveryKeyFrameIfNeeded()
         {
             var forced = Interlocked.Exchange(ref _forceNextKeyFrame, 0) == 1;
-            if (!forced && (_frameIndex == 0 || _frameIndex % RecoveryKeyFrameIntervalFrames != 0))
+            if (!forced && (_frameIndex == 0 || _frameIndex % _recoveryKeyFrameIntervalFrames != 0))
                 return;
 
             try
@@ -2377,6 +2606,8 @@ namespace Zink.Services.NativeCalling
 
         public void Dispose()
         {
+            DisposeHardwareEventGenerator();
+
             try
             {
                 _encoder.ProcessMessage(TMessageType.NotifyEndOfStream, IntPtr.Zero);
@@ -2481,13 +2712,15 @@ namespace Zink.Services.NativeCalling
 
     public sealed class H264EncodedFrame
     {
-        public H264EncodedFrame(byte[] data, bool isKeyFrame)
+        public H264EncodedFrame(byte[] data, bool isKeyFrame, long timestampMilliseconds)
         {
             Data = data;
             IsKeyFrame = isKeyFrame;
+            TimestampMilliseconds = timestampMilliseconds;
         }
 
         public byte[] Data { get; }
         public bool IsKeyFrame { get; }
+        public long TimestampMilliseconds { get; }
     }
 }

@@ -3,6 +3,8 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Zink.Interop;
+using Zink.Services.NativeCalling;
+using CaptureNativeMethods = Zink.Services.NativeCalling.NativeMethods;
 
 namespace Zink.Services.Recording
 {
@@ -17,6 +19,7 @@ namespace Zink.Services.Recording
         private IMMDevice? _device;
         private IAudioClient? _audioClient;
         private IAudioCaptureClient? _captureClient;
+        private EventWaitHandle? _captureEvent;
 
         private WAVEFORMATEX _waveFormat;
         private bool _isFloatFormat;
@@ -164,14 +167,15 @@ namespace Zink.Services.Recording
 
                 var flags =
                     AUDCLNT_STREAMFLAGS.AUTOCONVERTPCM |
-                    AUDCLNT_STREAMFLAGS.SRC_DEFAULT_QUALITY;
+                    AUDCLNT_STREAMFLAGS.SRC_DEFAULT_QUALITY |
+                    AUDCLNT_STREAMFLAGS.EVENTCALLBACK;
 
                 if (UseLoopback)
                 {
                     flags |= AUDCLNT_STREAMFLAGS.LOOPBACK;
                 }
 
-                long bufferDuration100ns = 10_000_000;
+                long bufferDuration100ns = 2_000_000;
 
                 HResult.Check(
                     _audioClient.Initialize(
@@ -190,6 +194,11 @@ namespace Zink.Services.Recording
                     "IAudioClient.GetService(IAudioCaptureClient)");
 
                 _captureClient = (IAudioCaptureClient)captureClientObj;
+                _captureEvent?.Dispose();
+                _captureEvent = new EventWaitHandle(false, EventResetMode.AutoReset);
+                HResult.Check(
+                    _audioClient.SetEventHandle(_captureEvent.SafeWaitHandle.DangerousGetHandle()),
+                    "IAudioClient.SetEventHandle");
 
                 HResult.Check(
                     _audioClient.Start(),
@@ -245,105 +254,131 @@ namespace Zink.Services.Recording
 
         private async Task CaptureLoop(CancellationToken token)
         {
-            while (!token.IsCancellationRequested)
+            var mmcssHandle = IntPtr.Zero;
+            try
             {
-                uint nextPacketFrames = 0;
-
                 try
                 {
-                    HResult.Check(
-                        _captureClient!.GetNextPacketSize(out nextPacketFrames),
-                        "IAudioCaptureClient.GetNextPacketSize");
+                    Thread.CurrentThread.Priority = ThreadPriority.Highest;
+                    mmcssHandle = CaptureNativeMethods.AvSetMmThreadCharacteristics("Audio", out var taskIndex);
+                    if (mmcssHandle != IntPtr.Zero)
+                        CaptureNativeMethods.AvSetMmThreadPriority(mmcssHandle, AvrtPriority.Critical);
+
+                    await RecorderLog.InfoAsync(GetType().Name,
+                        $"Audio capture MMCSS enabled. taskIndex={taskIndex}, eventCallback={_captureEvent is not null}");
                 }
                 catch (Exception ex)
                 {
-                    await RecorderLog.ErrorAsync(GetType().Name, ex, "GetNextPacketSize failed");
-                    Thread.Sleep(5);
-                    continue;
+                    await RecorderLog.ErrorAsync(GetType().Name, ex, "Audio MMCSS setup failed");
                 }
 
-                if (nextPacketFrames == 0)
+                while (!token.IsCancellationRequested)
                 {
-                    Thread.Sleep(2);
-                    continue;
-                }
-
-                while (nextPacketFrames > 0 && !token.IsCancellationRequested)
-                {
-                    IntPtr dataPtr = IntPtr.Zero;
-                    uint framesRead = 0;
-                    AUDCLNT_BUFFERFLAGS flags = AUDCLNT_BUFFERFLAGS.NONE;
-                    long devicePosition = 0;
-                    long qpcPosition = 0;
-
-                    HResult.Check(
-                        _captureClient!.GetBuffer(
-                            out dataPtr,
-                            out framesRead,
-                            out flags,
-                            out devicePosition,
-                            out qpcPosition),
-                        "IAudioCaptureClient.GetBuffer");
+                    uint nextPacketFrames = 0;
 
                     try
                     {
-                        int bytesPerFrame = _bytesPerFrame;
-                        if (bytesPerFrame <= 0)
-                            throw new InvalidOperationException("Invalid audio block alignment.");
-
-                        int byteCount = checked((int)framesRead * bytesPerFrame);
-                        byte[] pcm = new byte[byteCount];
-
-                        bool isSilent = (flags & AUDCLNT_BUFFERFLAGS.SILENT) == AUDCLNT_BUFFERFLAGS.SILENT;
-
-                        if (!isSilent && byteCount > 0 && dataPtr != IntPtr.Zero)
-                        {
-                            Marshal.Copy(dataPtr, pcm, 0, byteCount);
-                        }
-
-                        TimeSpan packetTimestamp = DateTime.UtcNow - _captureStartUtc;
-
-                        _capturedFrames += framesRead;
-                        _packetCount++;
-                        _totalBytes += byteCount;
-
-                        if (_packetCount % 200 == 0)
-                        {
-                            await RecorderLog.InfoAsync(GetType().Name,
-                                $"Packets={_packetCount}, Bytes={_totalBytes}, FramesRead={framesRead}, Silent={isSilent}, Timestamp={packetTimestamp}, DevicePosition={devicePosition}, Qpc={qpcPosition}");
-                        }
-
-                        AudioPacketArrived?.Invoke(this, new AudioPacket
-                        {
-                            Timestamp = packetTimestamp,
-                            PcmData = pcm,
-                            SampleRate = (int)_waveFormat.nSamplesPerSec,
-                            Channels = _waveFormat.nChannels,
-                            BitsPerSample = _waveFormat.wBitsPerSample,
-                            FormatTag = _waveFormat.wFormatTag,
-                            IsFloatFormat = _isFloatFormat
-                        });
+                        HResult.Check(
+                            _captureClient!.GetNextPacketSize(out nextPacketFrames),
+                            "IAudioCaptureClient.GetNextPacketSize");
                     }
                     catch (Exception ex)
                     {
-                        await RecorderLog.ErrorAsync(GetType().Name, ex, "Audio packet processing failed");
+                        await RecorderLog.ErrorAsync(GetType().Name, ex, "GetNextPacketSize failed");
+                        _captureEvent?.WaitOne(5);
+                        continue;
                     }
-                    finally
+
+                    if (nextPacketFrames == 0)
                     {
+                        _captureEvent?.WaitOne(20);
+                        continue;
+                    }
+
+                    while (nextPacketFrames > 0 && !token.IsCancellationRequested)
+                    {
+                        IntPtr dataPtr = IntPtr.Zero;
+                        uint framesRead = 0;
+                        AUDCLNT_BUFFERFLAGS flags = AUDCLNT_BUFFERFLAGS.NONE;
+                        long devicePosition = 0;
+                        long qpcPosition = 0;
+
+                        HResult.Check(
+                            _captureClient!.GetBuffer(
+                                out dataPtr,
+                                out framesRead,
+                                out flags,
+                                out devicePosition,
+                                out qpcPosition),
+                            "IAudioCaptureClient.GetBuffer");
+
                         try
                         {
-                            _captureClient.ReleaseBuffer(framesRead);
+                            int bytesPerFrame = _bytesPerFrame;
+                            if (bytesPerFrame <= 0)
+                                throw new InvalidOperationException("Invalid audio block alignment.");
+
+                            int byteCount = checked((int)framesRead * bytesPerFrame);
+                            byte[] pcm = new byte[byteCount];
+
+                            bool isSilent = (flags & AUDCLNT_BUFFERFLAGS.SILENT) == AUDCLNT_BUFFERFLAGS.SILENT;
+
+                            if (!isSilent && byteCount > 0 && dataPtr != IntPtr.Zero)
+                            {
+                                Marshal.Copy(dataPtr, pcm, 0, byteCount);
+                            }
+
+                            // Use the audio sample clock, not wall-clock arrival time.
+                            TimeSpan packetTimestamp = TimeSpan.FromSeconds(
+                                _capturedFrames / (double)_waveFormat.nSamplesPerSec);
+
+                            _capturedFrames += framesRead;
+                            _packetCount++;
+                            _totalBytes += byteCount;
+
+                            if (_packetCount % 200 == 0)
+                            {
+                                await RecorderLog.InfoAsync(GetType().Name,
+                                    $"Packets={_packetCount}, Bytes={_totalBytes}, FramesRead={framesRead}, Silent={isSilent}, Timestamp={packetTimestamp}, DevicePosition={devicePosition}, Qpc={qpcPosition}");
+                            }
+
+                            AudioPacketArrived?.Invoke(this, new AudioPacket
+                            {
+                                Timestamp = packetTimestamp,
+                                PcmData = pcm,
+                                SampleRate = (int)_waveFormat.nSamplesPerSec,
+                                Channels = _waveFormat.nChannels,
+                                BitsPerSample = _waveFormat.wBitsPerSample,
+                                FormatTag = _waveFormat.wFormatTag,
+                                IsFloatFormat = _isFloatFormat
+                            });
                         }
                         catch (Exception ex)
                         {
-                            await RecorderLog.ErrorAsync(GetType().Name, ex, "ReleaseBuffer failed");
+                            await RecorderLog.ErrorAsync(GetType().Name, ex, "Audio packet processing failed");
                         }
-                    }
+                        finally
+                        {
+                            try
+                            {
+                                _captureClient.ReleaseBuffer(framesRead);
+                            }
+                            catch (Exception ex)
+                            {
+                                await RecorderLog.ErrorAsync(GetType().Name, ex, "ReleaseBuffer failed");
+                            }
+                        }
 
-                    HResult.Check(
-                        _captureClient.GetNextPacketSize(out nextPacketFrames),
-                        "IAudioCaptureClient.GetNextPacketSize");
+                        HResult.Check(
+                            _captureClient.GetNextPacketSize(out nextPacketFrames),
+                            "IAudioCaptureClient.GetNextPacketSize");
+                    }
                 }
+            }
+            finally
+            {
+                if (mmcssHandle != IntPtr.Zero)
+                    CaptureNativeMethods.AvRevertMmThreadCharacteristics(mmcssHandle);
             }
         }
 
@@ -414,6 +449,9 @@ namespace Zink.Services.Recording
                 try { Marshal.ReleaseComObject(_enumerator); } catch { }
                 _enumerator = null;
             }
+
+            _captureEvent?.Dispose();
+            _captureEvent = null;
 
             _initialized = false;
         }

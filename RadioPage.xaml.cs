@@ -49,6 +49,8 @@ namespace Zink
 
         private readonly SemaphoreSlim _stationSwitchLock = new(1, 1);
         private int _switchVersion = 0;
+        private CancellationTokenSource _directReconnectCts;
+        private int _directReconnectAttempts;
 
         private const double META_MIN_INTERVAL_SECONDS = 1.5;
         private static readonly Encoding IcyEncoding = Encoding.GetEncoding("ISO-8859-1");
@@ -155,10 +157,15 @@ namespace Zink
                 new RadioStation { Title = "Magic Radio", Image = "ms-appx:///Assets/Radio/magicradio.png", StreamUrl = "https://planetradio.co.uk/magic/player/" },
 
                 new RadioStation { Title = "BBC Radio 1", Image = "ms-appx:///Assets/Radio/bbcradio1.png", StreamUrl = "https://www.bbc.co.uk/sounds/play/live:bbc_radio_one" },
+                new RadioStation { Title = "BBC Radio 4", Image = "ms-appx:///Assets/Radio/bbcworld.png", StreamUrl = "https://www.bbc.co.uk/sounds/play/live:bbc_radio_fourfm" },
+                new RadioStation { Title = "BBC Radio 4 Extra", Image = "ms-appx:///Assets/Radio/bbcworld.png", StreamUrl = "https://www.bbc.co.uk/sounds/play/live:bbc_radio_four_extra" },
                 new RadioStation { Title = "BBC Radio 2", Image = "ms-appx:///Assets/Radio/bbcradio2.png", StreamUrl = "https://www.bbc.co.uk/sounds/play/live:bbc_radio_two" },
                 new RadioStation { Title = "BBC Radio 3", Image = "ms-appx:///Assets/Radio/bbcradio3.png", StreamUrl = "https://www.bbc.co.uk/sounds/play/live:bbc_radio_three" },
                 new RadioStation { Title = "BBC Radio 5 Live", Image = "ms-appx:///Assets/Radio/bbcradio5live.png", StreamUrl = "https://www.bbc.co.uk/sounds/play/live:bbc_radio_five_live" },
+                new RadioStation { Title = "BBC Radio 5 Sports Extra", Image = "ms-appx:///Assets/Radio/bbcradio5live.png", StreamUrl = "https://www.bbc.co.uk/sounds/play/live:bbc_radio_five_live_sports_extra" },
+                new RadioStation { Title = "BBC Radio 6 Music", Image = "ms-appx:///Assets/Radio/bbcradio1.png", StreamUrl = "https://www.bbc.co.uk/sounds/play/live:bbc_6music" },
                 new RadioStation { Title = "BBC Radio 1Xtra", Image = "ms-appx:///Assets/Radio/bbc1xtra.png", StreamUrl = "https://www.bbc.co.uk/sounds/play/live:bbc_1xtra" },
+                new RadioStation { Title = "BBC Asian Network", Image = "ms-appx:///Assets/Radio/bbc1xtra.png", StreamUrl = "https://www.bbc.co.uk/sounds/play/live:bbc_asian_network" },
 
                 new RadioStation { Title = "Hits Radio", Image = "ms-appx:///Assets/Radio/hitsradio.png", StreamUrl = "https://hellorayo.co.uk/hits-radio/play?stationId=352" },
                 new RadioStation { Title = "Greatest Hits Radio", Image = "ms-appx:///Assets/Radio/greatesthitsradio.png", StreamUrl = "https://planetradio.co.uk/greatest-hits/player/" },
@@ -168,10 +175,18 @@ namespace Zink
                 new RadioStation { Title = "Absolute Radio", Image = "ms-appx:///Assets/Radio/absolute.png", StreamUrl = "https://planetradio.co.uk/absolute/player/" },
                 new RadioStation { Title = "Classic FM", Image = "ms-appx:///Assets/Radio/classicfm.png", StreamUrl = "https://media-ssl.musicradio.com/ClassicFM" },
                 new RadioStation { Title = "Radio X", Image = "ms-appx:///Assets/Radio/radiox.png", StreamUrl = "https://media-ssl.musicradio.com/RadioXUK" },
+                new RadioStation { Title = "Radio X Classic Rock", Image = "ms-appx:///Assets/Radio/radiox.png", StreamUrl = "https://media-ssl.musicradio.com/RadioXClassicRock" },
+                new RadioStation { Title = "Radio X Chilled", Image = "ms-appx:///Assets/Radio/radiox.png", StreamUrl = "https://media-ssl.musicradio.com/RadioXChilled" },
 
                 new RadioStation { Title = "Gem 106", Image = "ms-appx:///Assets/Radio/gem106.png", StreamUrl = "https://planetradio.co.uk/gem/player/" },
                 new RadioStation { Title = "Premier Christian Radio", Image = "ms-appx:///Assets/Radio/premier.png", StreamUrl = "https://www.premier.plus/" },
                 new RadioStation { Title = "BBC Radio Derby", Image = "ms-appx:///Assets/Radio/radioderby.png", StreamUrl = "https://www.bbc.co.uk/sounds/play/live:bbc_radio_derby" },
+                new RadioStation { Title = "BBC Radio London", Image = "ms-appx:///Assets/Radio/bbcworld.png", StreamUrl = "https://www.bbc.co.uk/sounds/play/live:bbc_london" },
+                new RadioStation { Title = "BBC Radio Manchester", Image = "ms-appx:///Assets/Radio/bbcworld.png", StreamUrl = "https://www.bbc.co.uk/sounds/play/live:bbc_radio_manchester" },
+                new RadioStation { Title = "BBC Radio Scotland", Image = "ms-appx:///Assets/Radio/bbcworld.png", StreamUrl = "https://www.bbc.co.uk/sounds/play/live:bbc_radio_scotland_fm" },
+                new RadioStation { Title = "BBC Radio Wales", Image = "ms-appx:///Assets/Radio/bbcworld.png", StreamUrl = "https://www.bbc.co.uk/sounds/play/live:bbc_radio_wales_fm" },
+                new RadioStation { Title = "BBC Radio Cymru", Image = "ms-appx:///Assets/Radio/bbcworld.png", StreamUrl = "https://www.bbc.co.uk/sounds/play/live:bbc_radio_cymru" },
+                new RadioStation { Title = "BBC Radio Ulster", Image = "ms-appx:///Assets/Radio/bbcworld.png", StreamUrl = "https://www.bbc.co.uk/sounds/play/live:bbc_radio_ulster" },
 
                 new RadioStation { Title = "Jazz FM", Image = "ms-appx:///Assets/Radio/jazzfm.png", StreamUrl = "https://planetradio.co.uk/jazz-fm/player/" },
                 new RadioStation { Title = "MKFM", Image = "ms-appx:///Assets/Radio/mkfm.png", StreamUrl = "https://www.mkfm.com/on-air/radioplayer/" },
@@ -180,9 +195,34 @@ namespace Zink
                 new RadioStation { Title = "LBC", Image = "ms-appx:///Assets/Radio/lbc.png", StreamUrl = "https://media-ssl.musicradio.com/LBCUK" },
                 new RadioStation { Title = "Times Radio", Image = "ms-appx:///Assets/Radio/timesradio.png", StreamUrl = "https://timesradio.wireless.radio/stream" },
                 new RadioStation { Title = "Capital Dance", Image = "ms-appx:///Assets/Radio/capitaldance.png", StreamUrl = "https://media-ssl.musicradio.com/CapitalDance" },
+                new RadioStation { Title = "Capital Anthems", Image = "ms-appx:///Assets/Radio/capitalfm.png", StreamUrl = "https://media-ssl.musicradio.com/CapitalAnthems" },
+                new RadioStation { Title = "Capital Chill", Image = "ms-appx:///Assets/Radio/capitalfm.png", StreamUrl = "https://media-ssl.musicradio.com/CapitalChill" },
+                new RadioStation { Title = "Capital Scotland", Image = "ms-appx:///Assets/Radio/capitalfm.png", StreamUrl = "https://media-ssl.musicradio.com/CapitalScotland" },
+                new RadioStation { Title = "Heart 70s", Image = "ms-appx:///Assets/Radio/heartfm.png", StreamUrl = "https://media-ssl.musicradio.com/Heart70s" },
+                new RadioStation { Title = "Heart 80s", Image = "ms-appx:///Assets/Radio/heartfm.png", StreamUrl = "https://media-ssl.musicradio.com/Heart80s" },
+                new RadioStation { Title = "Heart 90s", Image = "ms-appx:///Assets/Radio/heartfm.png", StreamUrl = "https://media-ssl.musicradio.com/Heart90s" },
+                new RadioStation { Title = "Heart Dance", Image = "ms-appx:///Assets/Radio/heartfm.png", StreamUrl = "https://media-ssl.musicradio.com/HeartDance" },
+                new RadioStation { Title = "Heart Love", Image = "ms-appx:///Assets/Radio/heartfm.png", StreamUrl = "https://media-ssl.musicradio.com/HeartLove" },
+                new RadioStation { Title = "Smooth Chill", Image = "ms-appx:///Assets/Radio/smoothfm.png", StreamUrl = "https://media-ssl.musicradio.com/SmoothChill" },
+                new RadioStation { Title = "Smooth Country", Image = "ms-appx:///Assets/Radio/smoothfm.png", StreamUrl = "https://media-ssl.musicradio.com/SmoothCountry" },
+                new RadioStation { Title = "Smooth 70s", Image = "ms-appx:///Assets/Radio/smoothfm.png", StreamUrl = "https://media-ssl.musicradio.com/Smooth70s" },
+                new RadioStation { Title = "Smooth 80s", Image = "ms-appx:///Assets/Radio/smoothfm.png", StreamUrl = "https://media-ssl.musicradio.com/Smooth80s" },
+                new RadioStation { Title = "Smooth Relax", Image = "ms-appx:///Assets/Radio/smoothfm.png", StreamUrl = "https://media-ssl.musicradio.com/SmoothRelax" },
+                new RadioStation { Title = "Gold Radio", Image = "ms-appx:///Assets/Radio/classicfm.png", StreamUrl = "https://media-ssl.musicradio.com/Gold" },
+                new RadioStation { Title = "LBC News", Image = "ms-appx:///Assets/Radio/lbc.png", StreamUrl = "https://media-ssl.musicradio.com/LBCNewsUK" },
 
                 new RadioStation { Title = "Capital Xtra", Image = "ms-appx:///Assets/Radio/capitalxtra.png", StreamUrl = "https://www.globalplayer.com/live/capitalxtra/uk/" },
-                new RadioStation { Title = "Radio Essex", Image = "ms-appx:///Assets/Radio/radioessex.png", StreamUrl = "https://www.radioessex.com/player/" }
+                new RadioStation { Title = "Radio Essex", Image = "ms-appx:///Assets/Radio/radioessex.png", StreamUrl = "https://www.radioessex.com/player/" },
+                new RadioStation { Title = "Kisstory", Image = "ms-appx:///Assets/Radio/kissfm.png", StreamUrl = "https://listen-kisstory.sharp-stream.com/kisstory.mp3" },
+                new RadioStation { Title = "Kiss Fresh", Image = "ms-appx:///Assets/Radio/kissfm.png", StreamUrl = "https://listen-kissfresh.sharp-stream.com/kissfresh.mp3" },
+                new RadioStation { Title = "Kerrang! Radio", Image = "ms-appx:///Assets/Radio/absolute.png", StreamUrl = "https://listen-kerrang.sharp-stream.com/kerrang.mp3" },
+                new RadioStation { Title = "Planet Rock", Image = "ms-appx:///Assets/Radio/absolute.png", StreamUrl = "https://listen-planetrock.sharp-stream.com/planetrock.mp3" },
+                new RadioStation { Title = "Scala Radio", Image = "ms-appx:///Assets/Radio/classicfm.png", StreamUrl = "https://listen-scalafm.sharp-stream.com/scalaradio.mp3" },
+                new RadioStation { Title = "Union JACK Radio", Image = "ms-appx:///Assets/Radio/radiox.png", StreamUrl = "https://streaming.radio.co/sd8ab6ff39/listen" },
+                new RadioStation { Title = "Virgin Radio UK", Image = "ms-appx:///Assets/Radio/timesradio.png", StreamUrl = "https://radio.virginradio.co.uk/stream" },
+                new RadioStation { Title = "Virgin Radio Anthems", Image = "ms-appx:///Assets/Radio/timesradio.png", StreamUrl = "https://radio.virginradio.co.uk/anthems" },
+                new RadioStation { Title = "Virgin Radio Chilled", Image = "ms-appx:///Assets/Radio/timesradio.png", StreamUrl = "https://radio.virginradio.co.uk/chilled" },
+                new RadioStation { Title = "talkRADIO", Image = "ms-appx:///Assets/Radio/talksport.png", StreamUrl = "https://radio.talkradio.co.uk/stream" }
             };
 
             BuildAllStationsOrdered();
@@ -632,7 +672,7 @@ namespace Zink
                 return;
             }
 
-            try { _mp.MediaOpened -= OnOpened; _mp.MediaFailed -= OnFailed; } catch { }
+            try { _mp.MediaOpened -= OnOpened; _mp.MediaFailed -= OnFailed; _mp.MediaEnded -= OnEnded; } catch { }
 
             _mp.Source = MediaSource.CreateFromUri(new Uri(url));
             ApplyCurrentVolumeToAllPlayback(updateSlider: false);
@@ -657,6 +697,7 @@ namespace Zink
                     TrySetImage(new Uri(station.Image));
                     UpdateLikeButtonState();
                     ApplyCurrentVolumeToAllPlayback(updateSlider: false);
+                    _directReconnectAttempts = 0;
 
                     try
                     {
@@ -674,12 +715,15 @@ namespace Zink
 
                 StartIcyWatcher(url, station);
                 _ = DetectAndSetDirectStreamQualityAsync(station, url, versionGuard);
-                try { _mp.MediaOpened -= OnOpened; _mp.MediaFailed -= OnFailed; } catch { }
+                try { _mp.MediaOpened -= OnOpened; } catch { }
             }
 
             void OnFailed(MediaPlayer sender, MediaPlayerFailedEventArgs args)
             {
                 if (versionGuard != _switchVersion) return;
+
+                if (TryScheduleDirectReconnect(station, url, versionGuard, $"failed: {args.Error}"))
+                    return;
 
                 TryEnqueueOnUi(() =>
                 {
@@ -693,11 +737,18 @@ namespace Zink
                     UpdateLikeButtonState();
                 });
 
-                try { _mp.MediaOpened -= OnOpened; _mp.MediaFailed -= OnFailed; } catch { }
+                try { _mp.MediaOpened -= OnOpened; _mp.MediaFailed -= OnFailed; _mp.MediaEnded -= OnEnded; } catch { }
+            }
+
+            void OnEnded(MediaPlayer sender, object args)
+            {
+                if (versionGuard != _switchVersion) return;
+                TryScheduleDirectReconnect(station, url, versionGuard, "stream ended");
             }
 
             _mp.MediaOpened += OnOpened;
             _mp.MediaFailed += OnFailed;
+            _mp.MediaEnded += OnEnded;
 
             void FinalFail(string msg)
             {
@@ -714,6 +765,71 @@ namespace Zink
             }
         }
 
+        private bool TryScheduleDirectReconnect(RadioStation station, string url, int versionGuard, string reason)
+        {
+            if (station == null || string.IsNullOrWhiteSpace(url) || versionGuard != _switchVersion)
+                return false;
+
+            if (_directReconnectAttempts >= 5)
+                return false;
+
+            try
+            {
+                _directReconnectCts?.Cancel();
+                _directReconnectCts?.Dispose();
+            }
+            catch { }
+
+            _directReconnectCts = new CancellationTokenSource();
+            var token = _directReconnectCts.Token;
+            var attempt = ++_directReconnectAttempts;
+
+            TryEnqueueOnUi(() =>
+            {
+                NowPlayingText.Text = $"{station.Title} reconnecting...";
+                LoadingRing.IsActive = true;
+                LoadingRing.Visibility = Visibility.Visible;
+                SetCurrentStationLabel(station.Title);
+                TrySetPlaying(false);
+            });
+
+            _ = ReconnectDirectStationAsync(station, url, versionGuard, attempt, reason, token);
+            return true;
+        }
+
+        private async Task ReconnectDirectStationAsync(RadioStation station, string url, int versionGuard, int attempt, string reason, CancellationToken token)
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(750 * attempt), token);
+                if (token.IsCancellationRequested || versionGuard != _switchVersion)
+                    return;
+
+                TryEnqueueOnUi(() =>
+                {
+                    try
+                    {
+                        _mp.Source = MediaSource.CreateFromUri(new Uri(url));
+                        ApplyCurrentVolumeToAllPlayback(updateSlider: false);
+                        _mp.Play();
+                        NowPlayingText.Text = station.Title;
+                        LoadingRing.IsActive = false;
+                        LoadingRing.Visibility = Visibility.Collapsed;
+                        TrySetPlaying(true);
+                        SetCurrentStationLabel(station.Title);
+                        SetDiscordStationPresence(station);
+                        UpdateLikeButtonState();
+                    }
+                    catch
+                    {
+                        TryScheduleDirectReconnect(station, url, versionGuard, reason);
+                    }
+                });
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
         private void VolumeSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
         {
             if (_isApplyingVolumeFromCode || !_volumeReady)

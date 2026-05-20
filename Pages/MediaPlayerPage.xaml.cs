@@ -213,6 +213,22 @@ namespace Zink
                 }
             }
 
+            if (e.Parameter is StorageFile storageFile)
+            {
+                var title = string.IsNullOrWhiteSpace(storageFile.DisplayName)
+                    ? System.IO.Path.GetFileNameWithoutExtension(storageFile.Name)
+                    : storageFile.DisplayName;
+
+                var one = new ObservableCollection<MusicTrack>
+                {
+                    new MusicTrack(title, "", storageFile.Path, "ms-appx:///Assets/DefaultAlbumArt.jpg")
+                };
+
+                var resume = GetSavedPositionSeconds(storageFile.Path);
+                LoadQueue(one, resumeSeconds: resume);
+                return;
+            }
+
             if (e.Parameter is string maybePath &&
                 maybePath != "autoplay" &&
                 !string.IsNullOrWhiteSpace(maybePath) &&

@@ -39,9 +39,9 @@
     <Grid>
         <Grid.Background>
             <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                <GradientStop Color="#101820" Offset="0"/>
-                <GradientStop Color="#172431" Offset="0.5"/>
-                <GradientStop Color="#080B10" Offset="1"/>
+                <GradientStop Color="#70062D38" Offset="0"/>
+                <GradientStop Color="#780B4450" Offset="0.5"/>
+                <GradientStop Color="#9000080B" Offset="1"/>
             </LinearGradientBrush>
         </Grid.Background>
 

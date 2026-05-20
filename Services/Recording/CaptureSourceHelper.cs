@@ -1,9 +1,13 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing.Imaging;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
@@ -39,14 +43,34 @@ namespace Zink.Services.Recording
 
         public static int LastSelectedProcessId { get; private set; }
         public static string? LastSelectedProcessName { get; private set; }
+        private static CaptureSourceOption? _lastSelectedOption;
 
-        public static async Task<GraphicsCaptureItem?> GetOrCreateAsync(IntPtr hwnd)
+        public static void ClearCachedSelection()
+        {
+            _lastSelectedOption = null;
+            LastSelectedProcessId = 0;
+            LastSelectedProcessName = null;
+        }
+
+        public static async Task<GraphicsCaptureItem?> GetOrCreateAsync(IntPtr hwnd, bool preferCachedSelection = false)
         {
             if (!GraphicsCaptureSession.IsSupported())
                 return null;
 
-            LastSelectedProcessId = 0;
-            LastSelectedProcessName = null;
+            if (preferCachedSelection && _lastSelectedOption != null)
+            {
+                var cachedItem = CreateCaptureItem(_lastSelectedOption);
+                if (cachedItem != null)
+                {
+                    LastSelectedProcessId = _lastSelectedOption.ProcessId;
+                    LastSelectedProcessName = _lastSelectedOption.ProcessName;
+                    Debug.WriteLine($"[ScreenShare:WGC] Reusing selected {_lastSelectedOption.Kind}: {_lastSelectedOption.Name}.");
+                    return cachedItem;
+                }
+
+                Debug.WriteLine("[ScreenShare:WGC] Cached capture source could not be recreated; opening source picker.");
+                ClearCachedSelection();
+            }
 
             var selection = await PickWithZinkDialogAsync(hwnd);
             if (selection == null)
@@ -57,10 +81,9 @@ namespace Zink.Services.Recording
 
             LastSelectedProcessId = selection.ProcessId;
             LastSelectedProcessName = selection.ProcessName;
+            _lastSelectedOption = selection;
 
-            var item = selection.Kind == CaptureSourceKind.Screen || selection.Kind == CaptureSourceKind.Game
-                ? TryCreateForMonitor(selection.Handle)
-                : TryCreateForWindow(selection.Handle);
+            var item = CreateCaptureItem(selection);
 
             if (item == null)
                 Debug.WriteLine($"[ScreenShare:WGC] Failed to create capture item for selected {selection.Kind}: {selection.Name}.");
@@ -92,6 +115,13 @@ namespace Zink.Services.Recording
             return await GetOrCreateAsync(hwnd);
         }
 
+        private static GraphicsCaptureItem? CreateCaptureItem(CaptureSourceOption selection)
+        {
+            return selection.Kind == CaptureSourceKind.Screen || selection.Kind == CaptureSourceKind.Game
+                ? TryCreateForMonitor(selection.Handle)
+                : TryCreateForWindow(selection.Handle);
+        }
+
         private static async Task<CaptureSourceOption?> PickWithZinkDialogAsync(IntPtr appHwnd)
         {
             var options = EnumerateCaptureSources(appHwnd);
@@ -102,9 +132,16 @@ namespace Zink.Services.Recording
                 return options[0];
 
             var screens = options.FindAll(option => option.Kind == CaptureSourceKind.Screen);
-            var windows = options.FindAll(option => option.Kind == CaptureSourceKind.Window);
+            var windows = options.FindAll(option => option.Kind == CaptureSourceKind.Window && !IsWindowsGamingSystemSource(option));
             var games = options.FindAll(option => option.Kind == CaptureSourceKind.Game);
-            var selected = games.Count > 0 ? games[0] : screens.Count > 0 ? screens[0] : windows[0];
+            var gameWindows = windows.FindAll(option => IsKnownGameProcess(option.ProcessName));
+            var selected = gameWindows.Count > 0
+                ? gameWindows[0]
+                : games.Count > 0
+                    ? games[0]
+                    : windows.Count > 0
+                        ? windows[0]
+                        : screens[0];
 
             var screensList = CreateSourceList(screens, selected);
             var windowsList = CreateSourceList(windows, selected);
@@ -142,7 +179,7 @@ namespace Zink.Services.Recording
 
             var title = new TextBlock
             {
-                Text = "ZINK FPS Source Picker",
+                Text = "ZINK Capture Source Picker",
                 Foreground = new SolidColorBrush(Microsoft.UI.Colors.White),
                 FontSize = 25,
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
@@ -151,7 +188,7 @@ namespace Zink.Services.Recording
 
             var hint = new TextBlock
             {
-                Text = "Choose a running game, app window, or display for the FPS monitor.",
+                Text = "Choose a running game, app window, or display for preview and streaming.",
                 Foreground = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(190, 255, 255, 255)),
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 0, 0, 10)
@@ -193,10 +230,17 @@ namespace Zink.Services.Recording
             Grid.SetColumn(titleStack, 1);
             header.Children.Add(titleStack);
 
+            var availableWidth = root.ActualWidth > 0 ? root.ActualWidth : 1280;
+            var availableHeight = root.ActualHeight > 0 ? root.ActualHeight : 800;
+            var dialogWidth = Math.Clamp(availableWidth - 320, 760, 980);
+            var dialogMaxHeight = Math.Clamp(availableHeight - 170, 440, 720);
+
             var content = new Border
             {
-                Padding = new Thickness(20),
-                CornerRadius = new CornerRadius(24),
+                Width = dialogWidth,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                Padding = new Thickness(24),
+                CornerRadius = new CornerRadius(24, 24, 0, 0),
                 Background = new LinearGradientBrush
                 {
                     StartPoint = new global::Windows.Foundation.Point(0, 0),
@@ -249,21 +293,112 @@ namespace Zink.Services.Recording
                 Margin = new Thickness(0, 2, 0, 0)
             });
 
-            var dialog = new ContentDialog
+            var useButton = new Button
             {
-                XamlRoot = root.XamlRoot,
-                Title = null,
-                Content = content,
-                PrimaryButtonText = "Use source",
-                CloseButtonText = "Cancel",
-                DefaultButton = ContentDialogButton.Primary,
-                RequestedTheme = ElementTheme.Dark
+                Content = "Use source",
+                MinHeight = 38,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 94, 211, 222)),
+                Foreground = new SolidColorBrush(Microsoft.UI.Colors.White),
+                BorderThickness = new Thickness(0),
+                CornerRadius = new CornerRadius(6)
             };
 
-            var result = await dialog.ShowAsync();
-            return result == ContentDialogResult.Primary
-                ? selected
-                : null;
+            var cancelButton = new Button
+            {
+                Content = "Cancel",
+                MinHeight = 38,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 47, 69, 76)),
+                Foreground = new SolidColorBrush(Microsoft.UI.Colors.White),
+                BorderThickness = new Thickness(0),
+                CornerRadius = new CornerRadius(6)
+            };
+
+            var footer = new Grid
+            {
+                Width = dialogWidth,
+                Padding = new Thickness(24, 18, 24, 24),
+                ColumnSpacing = 10,
+                Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 32, 32, 32))
+            };
+            footer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            footer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            Grid.SetColumn(useButton, 0);
+            Grid.SetColumn(cancelButton, 1);
+            footer.Children.Add(useButton);
+            footer.Children.Add(cancelButton);
+
+            var dialogPanel = new Border
+            {
+                Width = dialogWidth,
+                MaxHeight = dialogMaxHeight + 92,
+                CornerRadius = new CornerRadius(24),
+                BorderBrush = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(96, 255, 255, 255)),
+                BorderThickness = new Thickness(1),
+                Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 32, 32, 32)),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                Child = new Grid
+                {
+                    RowDefinitions =
+                    {
+                        new RowDefinition { Height = new GridLength(1, GridUnitType.Star) },
+                        new RowDefinition { Height = GridLength.Auto }
+                    },
+                    Children =
+                    {
+                        new ScrollViewer
+                        {
+                            MaxHeight = dialogMaxHeight,
+                            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                            Content = content
+                        }
+                    }
+                }
+            };
+
+            Grid.SetRow(footer, 1);
+            ((Grid)dialogPanel.Child).Children.Add(footer);
+
+            var overlay = new Grid
+            {
+                Width = availableWidth,
+                Height = availableHeight,
+                Padding = new Thickness(24),
+                Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(80, 0, 0, 0)),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Stretch,
+                Children =
+                {
+                    dialogPanel
+                }
+            };
+
+            var popup = new Popup
+            {
+                XamlRoot = root.XamlRoot,
+                Child = overlay,
+                IsLightDismissEnabled = true,
+                ShouldConstrainToRootBounds = true
+            };
+
+            var completion = new TaskCompletionSource<CaptureSourceOption?>();
+            useButton.Click += (_, _) =>
+            {
+                completion.TrySetResult(selected);
+                popup.IsOpen = false;
+            };
+            cancelButton.Click += (_, _) =>
+            {
+                completion.TrySetResult(null);
+                popup.IsOpen = false;
+            };
+            popup.Closed += (_, _) => completion.TrySetResult(null);
+            popup.IsOpen = true;
+
+            return await completion.Task;
         }
 
         private static ListView CreateSourceList(IReadOnlyList<CaptureSourceOption> options, CaptureSourceOption selected)
@@ -271,10 +406,15 @@ namespace Zink.Services.Recording
             var list = new ListView
             {
                 SelectionMode = ListViewSelectionMode.Single,
-                MaxHeight = options.Count > 4 ? 258 : 190,
                 Padding = new Thickness(0),
-                Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent)
+                Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                HorizontalContentAlignment = HorizontalAlignment.Stretch
             };
+            ScrollViewer.SetHorizontalScrollBarVisibility(list, ScrollBarVisibility.Disabled);
+            ScrollViewer.SetHorizontalScrollMode(list, ScrollMode.Disabled);
+            ScrollViewer.SetVerticalScrollBarVisibility(list, ScrollBarVisibility.Disabled);
+            ScrollViewer.SetVerticalScrollMode(list, ScrollMode.Disabled);
 
             foreach (var option in options)
             {
@@ -283,6 +423,7 @@ namespace Zink.Services.Recording
                     Tag = option,
                     Padding = new Thickness(0),
                     Margin = new Thickness(0, 0, 0, 8),
+                    HorizontalContentAlignment = HorizontalAlignment.Stretch,
                     Content = CreateSourceRow(option)
                 };
 
@@ -297,28 +438,15 @@ namespace Zink.Services.Recording
 
         private static UIElement CreateSourceRow(CaptureSourceOption option)
         {
-            var icon = new FontIcon
-            {
-                Glyph = option.Kind == CaptureSourceKind.Screen ? "\uE7F4" : option.Kind == CaptureSourceKind.Game ? "\uE7FC" : "\uE8A7",
-                FontSize = 18,
-                Foreground = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 81, 214, 255))
-            };
-
-            var iconBox = new Border
-            {
-                Width = 40,
-                Height = 40,
-                CornerRadius = new CornerRadius(12),
-                Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(38, 81, 214, 255)),
-                Child = icon
-            };
+            var preview = CreateSourcePreview(option);
 
             var name = new TextBlock
             {
                 Text = option.Name,
                 Foreground = new SolidColorBrush(Microsoft.UI.Colors.White),
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                TextTrimming = TextTrimming.CharacterEllipsis
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                MaxLines = 1
             };
 
             var details = new TextBlock
@@ -326,12 +454,14 @@ namespace Zink.Services.Recording
                 Text = option.Details,
                 Foreground = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(170, 255, 255, 255)),
                 FontSize = 12,
-                TextTrimming = TextTrimming.CharacterEllipsis
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                MaxLines = 1
             };
 
             var textStack = new StackPanel
             {
                 Spacing = 2,
+                MinWidth = 0,
                 Children =
                 {
                     name,
@@ -339,37 +469,21 @@ namespace Zink.Services.Recording
                 }
             };
 
-            var typePill = new Border
-            {
-                Padding = new Thickness(10, 5, 10, 5),
-                CornerRadius = new CornerRadius(999),
-                Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(34, 255, 255, 255)),
-                Child = new TextBlock
-                {
-                    Text = option.Kind == CaptureSourceKind.Screen ? "Display" : option.Kind == CaptureSourceKind.Game ? "Game" : "Window",
-                    Foreground = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(220, 255, 255, 255)),
-                    FontSize = 12,
-                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
-                }
-            };
-
             var grid = new Grid
             {
                 ColumnSpacing = 12,
                 Padding = new Thickness(12),
-                Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(28, 255, 255, 255))
+                Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(28, 255, 255, 255)),
+                HorizontalAlignment = HorizontalAlignment.Stretch
             };
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 0 });
 
-            Grid.SetColumn(iconBox, 0);
+            Grid.SetColumn(preview, 0);
             Grid.SetColumn(textStack, 1);
-            Grid.SetColumn(typePill, 2);
 
-            grid.Children.Add(iconBox);
+            grid.Children.Add(preview);
             grid.Children.Add(textStack);
-            grid.Children.Add(typePill);
 
             return new Border
             {
@@ -378,6 +492,82 @@ namespace Zink.Services.Recording
                 BorderThickness = new Thickness(1),
                 Child = grid
             };
+        }
+
+        private static Border CreateSourcePreview(CaptureSourceOption option)
+        {
+            var previewUri = TryCreatePreviewThumbnail(option);
+            UIElement child = previewUri is null
+                ? new FontIcon
+                {
+                    Glyph = option.Kind == CaptureSourceKind.Screen ? "\uE7F4" : option.Kind == CaptureSourceKind.Game ? "\uE7FC" : "\uE8A7",
+                    FontSize = 26,
+                    Foreground = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(210, 255, 255, 255))
+                }
+                : new Image
+                {
+                    Source = new BitmapImage(previewUri),
+                    Stretch = Stretch.UniformToFill
+                };
+
+            return new Border
+            {
+                Width = 132,
+                Height = 74,
+                CornerRadius = new CornerRadius(10),
+                Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(42, 255, 255, 255)),
+                BorderBrush = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(54, 255, 255, 255)),
+                BorderThickness = new Thickness(1),
+                Child = child
+            };
+        }
+
+        private static Uri? TryCreatePreviewThumbnail(CaptureSourceOption option)
+        {
+            try
+            {
+                var rect = option.Kind == CaptureSourceKind.Window
+                    ? GetWindowPreviewRect(option.Handle)
+                    : GetMonitorPreviewRect(option.Handle);
+                var width = Math.Max(1, rect.Right - rect.Left);
+                var height = Math.Max(1, rect.Bottom - rect.Top);
+                if (width < 16 || height < 16)
+                    return null;
+
+                using var source = new global::System.Drawing.Bitmap(width, height);
+                using (var graphics = global::System.Drawing.Graphics.FromImage(source))
+                {
+                    graphics.CopyFromScreen(rect.Left, rect.Top, 0, 0, new global::System.Drawing.Size(width, height));
+                }
+
+                using var thumbnail = new global::System.Drawing.Bitmap(336, 188);
+                using (var graphics = global::System.Drawing.Graphics.FromImage(thumbnail))
+                {
+                    graphics.Clear(global::System.Drawing.Color.FromArgb(8, 13, 20));
+                    graphics.InterpolationMode = global::System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                    graphics.DrawImage(source, new global::System.Drawing.Rectangle(0, 0, thumbnail.Width, thumbnail.Height));
+                }
+
+                var fileName = $"zink-capture-preview-{Math.Abs(option.Handle.ToInt64())}-{Environment.TickCount64}.png";
+                var filePath = Path.Combine(Path.GetTempPath(), fileName);
+                thumbnail.Save(filePath, ImageFormat.Png);
+                return new Uri(filePath);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static RECT GetMonitorPreviewRect(IntPtr monitor)
+        {
+            var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+            return GetMonitorInfo(monitor, ref info) ? info.rcMonitor : default;
+        }
+
+        private static RECT GetWindowPreviewRect(IntPtr window)
+        {
+            return GetWindowRect(window, out var rect) ? rect : default;
         }
 
         private static TextBlock CreateSectionHeader(string text, int count)
@@ -664,12 +854,38 @@ namespace Zink.Services.Recording
             if (string.IsNullOrWhiteSpace(processName))
                 return false;
 
+            if (IsWindowsGamingSystemText(processName))
+                return false;
+
             return processName.Equals("Overwatch", StringComparison.OrdinalIgnoreCase) ||
                    processName.Equals("Overwatch Launcher", StringComparison.OrdinalIgnoreCase) ||
                    processName.Contains("Overwatch", StringComparison.OrdinalIgnoreCase) ||
                    processName.Contains("Game", StringComparison.OrdinalIgnoreCase) ||
                    processName.Contains("Shipping", StringComparison.OrdinalIgnoreCase) ||
                    processName.Contains("Win64", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsWindowsGamingSystemSource(CaptureSourceOption option)
+        {
+            return IsWindowsGamingSystemText(option.Name) ||
+                   IsWindowsGamingSystemText(option.Details) ||
+                   IsWindowsGamingSystemText(option.ProcessName);
+        }
+
+        private static bool IsWindowsGamingSystemText(string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return false;
+
+            return text.Contains("Xbox Game Bar", StringComparison.OrdinalIgnoreCase) ||
+                   text.Contains("Game Bar", StringComparison.OrdinalIgnoreCase) ||
+                   text.Contains("GameBar", StringComparison.OrdinalIgnoreCase) ||
+                   text.Contains("GameInput", StringComparison.OrdinalIgnoreCase) ||
+                   text.Contains("Game Input", StringComparison.OrdinalIgnoreCase) ||
+                   text.Contains("GameInputSvc", StringComparison.OrdinalIgnoreCase) ||
+                   text.Contains("GameBarFTServer", StringComparison.OrdinalIgnoreCase) ||
+                   text.Contains("GameBarPresenceWriter", StringComparison.OrdinalIgnoreCase) ||
+                   text.Contains("GamingServices", StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool IsLikelyFullscreenWindow(IntPtr hwnd, RECT windowRect)

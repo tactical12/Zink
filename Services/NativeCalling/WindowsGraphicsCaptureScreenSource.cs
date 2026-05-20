@@ -6,7 +6,6 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
-using System.Threading;
 using System.Threading.Tasks;
 using Windows.Graphics.Capture;
 using Windows.Graphics.DirectX;
@@ -25,14 +24,17 @@ namespace Zink.Services.NativeCalling
         private SharpDX.Direct3D11.Device? _sharpDxDevice;
         private Direct3D11CaptureFramePool? _framePool;
         private GraphicsCaptureSession? _session;
+        private GraphicsCaptureItem? _captureItem;
         private Texture2D? _stagingTexture;
         private Bitmap? _latestFrame;
         private CapturedGpuFrame? _latestGpuFrame;
         private long _frameArrivedCount;
-        private int _frameArrivedBreadcrumbs;
         private uint _lastFrameFingerprint;
         private int _sameFrameCount;
         private DateTimeOffset _lastFrameLogUtc = DateTimeOffset.MinValue;
+        private DateTimeOffset _lastGpuSampleUtc = DateTimeOffset.MinValue;
+        private DateTimeOffset _lastPreviewReadbackUtc = DateTimeOffset.MinValue;
+        private DateTimeOffset _lastPreviewSkipLogUtc = DateTimeOffset.MinValue;
         private bool _started;
         private bool _disabled;
         private bool _disposed = true;
@@ -63,10 +65,12 @@ namespace Zink.Services.NativeCalling
 
                 DiagnosticLogService.WriteLine("[ScreenShare:WGC] StartAsync entered.");
                 DiagnosticLogService.Flush();
-                ScreenShareCrashBreadcrumb.Mark("WGC StartAsync entered");
 
                 var hwnd = App.MainWindow?.GetWindowHandle() ?? IntPtr.Zero;
-                var item = await CaptureSourceHelper.GetPrimaryScreenOrPromptAsync(hwnd);
+                var captureMode = NativeScreenShareStreamingService.Instance.PreferredCaptureSourceMode;
+                var item = captureMode == NativeCaptureSourceMode.GameOrWindow
+                    ? await CaptureSourceHelper.GetOrCreateAsync(hwnd, preferCachedSelection: true)
+                    : await CaptureSourceHelper.GetPrimaryScreenOrPromptAsync(hwnd);
                 if (item == null)
                 {
                     Debug.WriteLine("[ScreenShare:WGC] No Windows Graphics Capture item was created.");
@@ -77,60 +81,8 @@ namespace Zink.Services.NativeCalling
 
                 _ = TryRequestBorderlessCaptureAccessAsync();
 
-                DiagnosticLogService.WriteLine($"[ScreenShare:WGC] Capture item ready {item.Size.Width}x{item.Size.Height}; arm64={IsArm64Process}.");
-                DiagnosticLogService.Flush();
-                ScreenShareCrashBreadcrumb.Mark($"WGC capture item ready {item.Size.Width}x{item.Size.Height}; arm64={IsArm64Process}");
-
-                _sharpDxDevice = CreateCaptureDevice();
-                EnableMultithreadProtection(_sharpDxDevice);
-
-                DiagnosticLogService.WriteLine("[ScreenShare:WGC] D3D11 capture device created.");
-                DiagnosticLogService.Flush();
-                ScreenShareCrashBreadcrumb.Mark("WGC D3D11 capture device created");
-
-                _winRtDevice = Direct3D11Helpers.CreateD3DDevice(_sharpDxDevice);
-
-                DiagnosticLogService.WriteLine("[ScreenShare:WGC] WinRT Direct3D device created.");
-                DiagnosticLogService.Flush();
-                ScreenShareCrashBreadcrumb.Mark("WGC WinRT Direct3D device created");
-
-                _framePool = IsArm64Process
-                    ? Direct3D11CaptureFramePool.Create(
-                        _winRtDevice,
-                        DirectXPixelFormat.B8G8R8A8UIntNormalized,
-                        2,
-                        item.Size)
-                    : Direct3D11CaptureFramePool.CreateFreeThreaded(
-                        _winRtDevice,
-                        DirectXPixelFormat.B8G8R8A8UIntNormalized,
-                        2,
-                        item.Size);
-
-                DiagnosticLogService.WriteLine(IsArm64Process
-                    ? "[ScreenShare:WGC] Dispatcher-backed frame pool created for ARM64 automatic capture."
-                    : "[ScreenShare:WGC] Free-threaded frame pool created.");
-                DiagnosticLogService.Flush();
-                ScreenShareCrashBreadcrumb.Mark(IsArm64Process
-                    ? "WGC dispatcher-backed frame pool created"
-                    : "WGC free-threaded frame pool created");
-
-                _session = _framePool.CreateCaptureSession(item);
-                TryDisableCaptureBorder(_session);
-                TryEnableCursorCapture(_session);
-                lock (_disposeSync)
-                {
-                    _disposed = false;
-                }
-
-                _framePool.FrameArrived += FramePool_FrameArrived;
-                ScreenShareCrashBreadcrumb.Mark("WGC FrameArrived handler attached");
-                _session.StartCapture();
-                _started = true;
-                ScreenShareCrashBreadcrumb.Mark("WGC StartCapture returned");
-
-                Debug.WriteLine($"[ScreenShare:WGC] Windows Graphics Capture started {item.Size.Width}x{item.Size.Height} via native D3D11 GPU capture device.");
-                DiagnosticLogService.WriteLine($"[ScreenShare:WGC] Windows Graphics Capture started {item.Size.Width}x{item.Size.Height} via native D3D11 GPU capture device.");
-                return true;
+                _captureItem = item;
+                return StartCaptureSession(item, $"mode={captureMode}");
             }
             catch (Exception ex)
             {
@@ -159,30 +111,8 @@ namespace Zink.Services.NativeCalling
             {
                 Debug.WriteLine($"[ScreenShare:WGC] D3D11 capture device with VideoSupport failed; retrying BGRA-only: {ex.Message}");
                 DiagnosticLogService.WriteLine($"[ScreenShare:WGC] D3D11 capture device with VideoSupport failed; retrying BGRA-only: {ex.Message}");
-                ScreenShareCrashBreadcrumb.Mark("WGC capture hardware device retrying BGRA-only");
-                try
-                {
-                    return new SharpDX.Direct3D11.Device(
-                        SharpDX.Direct3D.DriverType.Hardware,
-                        DeviceCreationFlags.BgraSupport);
-                }
-                catch (Exception retryEx)
-                {
-                    Debug.WriteLine($"[ScreenShare:WGC] D3D11 hardware capture device failed; retrying WARP BGRA-only: {retryEx.Message}");
-                    DiagnosticLogService.WriteLine($"[ScreenShare:WGC] D3D11 hardware capture device failed; retrying WARP BGRA-only: {retryEx.Message}");
-                    ScreenShareCrashBreadcrumb.Mark("WGC capture hardware device failed; retrying WARP");
-                    return new SharpDX.Direct3D11.Device(
-                        SharpDX.Direct3D.DriverType.Warp,
-                        DeviceCreationFlags.BgraSupport);
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[ScreenShare:WGC] D3D11 capture device failed; retrying WARP BGRA-only: {ex.Message}");
-                DiagnosticLogService.WriteLine($"[ScreenShare:WGC] D3D11 capture device failed; retrying WARP BGRA-only: {ex.Message}");
-                ScreenShareCrashBreadcrumb.Mark("WGC capture device failed; retrying WARP");
                 return new SharpDX.Direct3D11.Device(
-                    SharpDX.Direct3D.DriverType.Warp,
+                    SharpDX.Direct3D.DriverType.Hardware,
                     DeviceCreationFlags.BgraSupport);
             }
         }
@@ -209,11 +139,6 @@ namespace Zink.Services.NativeCalling
 
         private void FramePool_FrameArrived(Direct3D11CaptureFramePool sender, object args)
         {
-            var breadcrumbId = Interlocked.Increment(ref _frameArrivedBreadcrumbs);
-            var writeBreadcrumb = IsArm64Process && breadcrumbId <= 4;
-            if (writeBreadcrumb)
-                ScreenShareCrashBreadcrumb.Mark($"WGC FrameArrived entry #{breadcrumbId}");
-
             lock (_disposeSync)
             {
                 if (_disposed || _sharpDxDevice == null)
@@ -221,45 +146,63 @@ namespace Zink.Services.NativeCalling
 
                 try
                 {
-                    if (writeBreadcrumb)
-                        ScreenShareCrashBreadcrumb.Mark($"WGC FrameArrived #{breadcrumbId} before TryGetNextFrame");
-
                     using var frame = sender.TryGetNextFrame();
                     if (frame == null)
                         return;
 
-                    if (writeBreadcrumb)
-                        ScreenShareCrashBreadcrumb.Mark($"WGC FrameArrived #{breadcrumbId} got frame");
-
                     var quality = NativeScreenShareStreamingService.Instance.CurrentQuality;
-                    if (writeBreadcrumb)
-                        ScreenShareCrashBreadcrumb.Mark($"WGC FrameArrived #{breadcrumbId} before surface texture");
-
                     using var sourceTexture = Direct3D11Helpers.CreateSharpDXTexture2D(frame.Surface);
                     var description = sourceTexture.Description;
-                    if (writeBreadcrumb)
-                        ScreenShareCrashBreadcrumb.Mark($"WGC FrameArrived #{breadcrumbId} texture {description.Width}x{description.Height}");
-
                     var gpuFrame = CaptureGpuFrame(sourceTexture, description);
                     if (gpuFrame != null)
                     {
                         lock (_syncRoot)
                         {
                             _latestGpuFrame?.Dispose();
-                            _latestFrame?.Dispose();
                             _latestGpuFrame = gpuFrame;
-                            _latestFrame = null;
                             gpuFrame = null;
                         }
 
-                        LogFrameArrival(description.Width, description.Height, quality.Width, quality.Height, 0);
-                        if (writeBreadcrumb)
-                            ScreenShareCrashBreadcrumb.Mark($"WGC FrameArrived #{breadcrumbId} stored GPU frame");
+                        var streamingPerformanceMode = NativeScreenShareStreamingService.Instance.PrioritizeStreamingPerformance;
+                        var sample = streamingPerformanceMode
+                            ? (0, null)
+                            : TrySampleGpuFrame(sourceTexture, description);
+                        Bitmap? previewFrame = null;
+                        var previewInterval = streamingPerformanceMode
+                            ? TimeSpan.FromMilliseconds(125)
+                            : TimeSpan.FromMilliseconds(50);
+                        if (NativeScreenShareStreamingService.Instance.EnablePreviewFrames &&
+                            DateTimeOffset.UtcNow - _lastPreviewReadbackUtc >= previewInterval)
+                        {
+                            previewFrame = TryCreatePreviewFrame(sourceTexture, description, quality);
+                            _lastPreviewReadbackUtc = DateTimeOffset.UtcNow;
+                        }
+                        else if (streamingPerformanceMode &&
+                                 DateTimeOffset.UtcNow - _lastPreviewSkipLogUtc >= TimeSpan.FromSeconds(5))
+                        {
+                            _lastPreviewSkipLogUtc = DateTimeOffset.UtcNow;
+                            Debug.WriteLine("[ScreenShare:WGC] Preview readback throttled so GPU capture can keep realtime priority.");
+                        }
+
+                        if (previewFrame != null)
+                        {
+                            lock (_syncRoot)
+                            {
+                                _latestFrame?.Dispose();
+                                _latestFrame = previewFrame;
+                                previewFrame = null;
+                            }
+                        }
+
+                    LogFrameArrival(description.Width, description.Height, quality.Width, quality.Height, sample.Fingerprint, sample.AverageLuma);
+                    return;
+                }
+
+                    if (NativeScreenShareStreamingService.EnableDirectGpuTexturePath)
+                    {
+                        DiagnosticLogService.WriteLine("[ScreenShare:WGC] GPU frame copy returned no texture; bitmap readback fallback is disabled.");
                         return;
                     }
-
-                    if (writeBreadcrumb)
-                        ScreenShareCrashBreadcrumb.Mark($"WGC FrameArrived #{breadcrumbId} before staging readback");
 
                     EnsureStagingTexture(description);
                     if (_stagingTexture == null || _sharpDxDevice == null)
@@ -267,15 +210,9 @@ namespace Zink.Services.NativeCalling
 
                     _sharpDxDevice.ImmediateContext.CopyResource(sourceTexture, _stagingTexture);
                     _sharpDxDevice.ImmediateContext.Flush();
-                    if (writeBreadcrumb)
-                        ScreenShareCrashBreadcrumb.Mark($"WGC FrameArrived #{breadcrumbId} before MapSubresource");
-
                     var dataBox = _sharpDxDevice.ImmediateContext.MapSubresource(_stagingTexture, 0, MapMode.Read, SharpDX.Direct3D11.MapFlags.None);
                     try
                     {
-                        if (writeBreadcrumb)
-                            ScreenShareCrashBreadcrumb.Mark($"WGC FrameArrived #{breadcrumbId} mapped frame");
-
                         var fingerprint = SampleFrameFingerprint(
                             dataBox.DataPointer,
                             dataBox.RowPitch,
@@ -298,9 +235,7 @@ namespace Zink.Services.NativeCalling
                             gpuFrame = null;
                         }
 
-                        LogFrameArrival(description.Width, description.Height, quality.Width, quality.Height, fingerprint);
-                        if (writeBreadcrumb)
-                            ScreenShareCrashBreadcrumb.Mark($"WGC FrameArrived #{breadcrumbId} stored bitmap frame");
+                        LogFrameArrival(description.Width, description.Height, quality.Width, quality.Height, fingerprint, null);
                     }
                     finally
                     {
@@ -315,6 +250,51 @@ namespace Zink.Services.NativeCalling
             }
         }
 
+        private Bitmap? TryCreatePreviewFrame(Texture2D sourceTexture, Texture2DDescription description, ScreenShareQualityProfile quality)
+        {
+            try
+            {
+                EnsureStagingTexture(description);
+                if (_stagingTexture == null || _sharpDxDevice == null)
+                    return null;
+
+                _sharpDxDevice.ImmediateContext.CopyResource(sourceTexture, _stagingTexture);
+                _sharpDxDevice.ImmediateContext.Flush();
+                var dataBox = _sharpDxDevice.ImmediateContext.MapSubresource(_stagingTexture, 0, MapMode.Read, SharpDX.Direct3D11.MapFlags.None);
+                try
+                {
+                    var previewSize = GetPreviewBitmapSize(quality);
+                    return CreateScaledBitmapFromBgra(
+                        dataBox.DataPointer,
+                        dataBox.RowPitch,
+                        description.Width,
+                        description.Height,
+                        previewSize.Width,
+                        previewSize.Height);
+                }
+                finally
+                {
+                    _sharpDxDevice.ImmediateContext.UnmapSubresource(_stagingTexture, 0);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ScreenShare:WGC] Preview readback failed: {ex.Message}");
+                return null;
+            }
+        }
+
+        private static (int Width, int Height) GetPreviewBitmapSize(ScreenShareQualityProfile quality)
+        {
+            var streamingPerformanceMode = NativeScreenShareStreamingService.Instance.PrioritizeStreamingPerformance;
+            var maxPreviewWidth = streamingPerformanceMode
+                ? Math.Min(quality.PreviewMaxWidth, quality.Height >= 1080 ? 960 : 854)
+                : quality.PreviewMaxWidth;
+            var width = Math.Min(quality.Width, Math.Max(1, maxPreviewWidth));
+            var height = Math.Max(1, (int)Math.Round(width * (double)quality.Height / quality.Width));
+            return (width, height);
+        }
+
         private CapturedGpuFrame? CaptureGpuFrame(Texture2D sourceTexture, Texture2DDescription sourceDescription)
         {
             if (!NativeScreenShareStreamingService.EnableDirectGpuTexturePath)
@@ -325,31 +305,145 @@ namespace Zink.Services.NativeCalling
 
             try
             {
-                var gpuTexture = new Texture2D(_sharpDxDevice, new Texture2DDescription
+                var bindFlagCandidates = new[]
                 {
-                    CpuAccessFlags = CpuAccessFlags.None,
-                    BindFlags = BindFlags.ShaderResource | BindFlags.Decoder,
-                    Format = sourceDescription.Format,
-                    Width = sourceDescription.Width,
-                    Height = sourceDescription.Height,
-                    OptionFlags = ResourceOptionFlags.None,
-                    MipLevels = 1,
-                    ArraySize = 1,
-                    SampleDescription = new SampleDescription(1, 0),
-                    Usage = ResourceUsage.Default
-                });
+                    BindFlags.ShaderResource | BindFlags.RenderTarget,
+                    BindFlags.ShaderResource
+                };
 
-                _sharpDxDevice.ImmediateContext.CopyResource(sourceTexture, gpuTexture);
-                return new CapturedGpuFrame(gpuTexture, sourceDescription.Width, sourceDescription.Height);
+                Exception? lastError = null;
+                foreach (var bindFlags in bindFlagCandidates)
+                {
+                    try
+                    {
+                        var gpuTexture = new Texture2D(_sharpDxDevice, new Texture2DDescription
+                        {
+                            CpuAccessFlags = CpuAccessFlags.None,
+                            BindFlags = bindFlags,
+                            Format = sourceDescription.Format,
+                            Width = sourceDescription.Width,
+                            Height = sourceDescription.Height,
+                            OptionFlags = ResourceOptionFlags.None,
+                            MipLevels = 1,
+                            ArraySize = 1,
+                            SampleDescription = new SampleDescription(1, 0),
+                            Usage = ResourceUsage.Default
+                        });
+
+                        _sharpDxDevice.ImmediateContext.CopyResource(sourceTexture, gpuTexture);
+                        return new CapturedGpuFrame(gpuTexture, sourceDescription.Width, sourceDescription.Height, sourceDescription.Format, bindFlags);
+                    }
+                    catch (Exception ex)
+                    {
+                        lastError = ex;
+                        Debug.WriteLine($"[ScreenShare:WGC] GPU frame texture copy failed with bind flags {bindFlags}: {ex.Message}");
+                    }
+                }
+
+                throw new InvalidOperationException(
+                    $"WGC GPU frame copy failed for all GPU texture descriptors. source={sourceDescription.Width}x{sourceDescription.Height}; format={sourceDescription.Format}; last={lastError?.Message}",
+                    lastError);
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[ScreenShare:WGC] GPU frame copy failed; falling back to bitmap path: {ex.Message}");
+                Debug.WriteLine($"[ScreenShare:WGC] GPU frame copy failed: {ex.Message}");
+                DiagnosticLogService.WriteLine($"[ScreenShare:WGC] GPU frame copy failed: {ex}");
                 return null;
             }
         }
 
-        private void LogFrameArrival(int sourceWidth, int sourceHeight, int targetWidth, int targetHeight, uint fingerprint)
+        public Task<bool> RestartAsync()
+        {
+            var item = _captureItem;
+            if (item == null || _disabled)
+                return Task.FromResult(false);
+
+            DisposeCaptureSession();
+            return Task.FromResult(StartCaptureSession(item, "stale-frame recovery"));
+        }
+
+        private bool StartCaptureSession(GraphicsCaptureItem item, string reason)
+        {
+            DiagnosticLogService.WriteLine($"[ScreenShare:WGC] Capture item ready {item.Size.Width}x{item.Size.Height}; {reason}; arm64={IsArm64Process}.");
+            DiagnosticLogService.Flush();
+
+            _sharpDxDevice = CreateCaptureDevice();
+            EnableMultithreadProtection(_sharpDxDevice);
+
+            DiagnosticLogService.WriteLine("[ScreenShare:WGC] D3D11 capture device created.");
+            DiagnosticLogService.Flush();
+
+            _winRtDevice = Direct3D11Helpers.CreateD3DDevice(_sharpDxDevice);
+
+            DiagnosticLogService.WriteLine("[ScreenShare:WGC] WinRT Direct3D device created.");
+            DiagnosticLogService.Flush();
+
+            _framePool = Direct3D11CaptureFramePool.CreateFreeThreaded(
+                _winRtDevice,
+                DirectXPixelFormat.B8G8R8A8UIntNormalized,
+                3,
+                item.Size);
+
+            DiagnosticLogService.WriteLine("[ScreenShare:WGC] Free-threaded frame pool created.");
+            DiagnosticLogService.Flush();
+
+            _session = _framePool.CreateCaptureSession(item);
+            TryDisableCaptureBorder(_session);
+            TryEnableCursorCapture(_session);
+            lock (_disposeSync)
+            {
+                _disposed = false;
+            }
+
+            _framePool.FrameArrived += FramePool_FrameArrived;
+            _session.StartCapture();
+            _started = true;
+
+            Debug.WriteLine($"[ScreenShare:WGC] Windows Graphics Capture started {item.Size.Width}x{item.Size.Height} via native D3D11 GPU capture device.");
+            DiagnosticLogService.WriteLine($"[ScreenShare:WGC] Windows Graphics Capture started {item.Size.Width}x{item.Size.Height} via native D3D11 GPU capture device.");
+            return true;
+        }
+
+        private (uint Fingerprint, double? AverageLuma) TrySampleGpuFrame(Texture2D sourceTexture, Texture2DDescription description)
+        {
+            var now = DateTimeOffset.UtcNow;
+            if (_frameArrivedCount > 0 && now - _lastGpuSampleUtc < TimeSpan.FromSeconds(2))
+                return (0, null);
+
+            if (_sharpDxDevice == null)
+                return (0, null);
+
+            try
+            {
+                EnsureStagingTexture(description);
+                if (_stagingTexture == null)
+                    return (0, null);
+
+                _sharpDxDevice.ImmediateContext.CopyResource(sourceTexture, _stagingTexture);
+                _sharpDxDevice.ImmediateContext.Flush();
+                var dataBox = _sharpDxDevice.ImmediateContext.MapSubresource(_stagingTexture, 0, MapMode.Read, SharpDX.Direct3D11.MapFlags.None);
+                try
+                {
+                    _lastGpuSampleUtc = now;
+                    return SampleFrameDiagnostics(
+                        dataBox.DataPointer,
+                        dataBox.RowPitch,
+                        description.Width,
+                        description.Height);
+                }
+                finally
+                {
+                    _sharpDxDevice.ImmediateContext.UnmapSubresource(_stagingTexture, 0);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ScreenShare:WGC] GPU frame pixel sample failed: {ex.Message}");
+                return (0, null);
+            }
+        }
+
+        private void LogFrameArrival(int sourceWidth, int sourceHeight, int targetWidth, int targetHeight, uint fingerprint, double? averageLuma)
         {
             var frameCount = ++_frameArrivedCount;
             if (fingerprint != 0 && fingerprint == _lastFrameFingerprint)
@@ -364,8 +458,12 @@ namespace Zink.Services.NativeCalling
             if (frameCount == 1 || now - _lastFrameLogUtc >= TimeSpan.FromSeconds(2) || _sameFrameCount == 120)
             {
                 _lastFrameLogUtc = now;
-                Debug.WriteLine(
-                    $"[ScreenShare:WGC] frame={frameCount}; source={sourceWidth}x{sourceHeight}; target={targetWidth}x{targetHeight}; hash=0x{fingerprint:X8}; sameFrame={_sameFrameCount}.");
+                var lumaText = averageLuma.HasValue
+                    ? $"; avgLuma={averageLuma.Value:0.0}"
+                    : string.Empty;
+                var message = $"[ScreenShare:WGC] frame={frameCount}; source={sourceWidth}x{sourceHeight}; target={targetWidth}x{targetHeight}; hash=0x{fingerprint:X8}; sameFrame={_sameFrameCount}{lumaText}.";
+                Debug.WriteLine(message);
+                DiagnosticLogService.WriteLine(message);
             }
         }
 
@@ -413,7 +511,7 @@ namespace Zink.Services.NativeCalling
             });
         }
 
-        private static Bitmap CreateScaledBitmapFromBgra(
+        private static unsafe Bitmap CreateScaledBitmapFromBgra(
             IntPtr sourcePtr,
             int sourceStride,
             int sourceWidth,
@@ -421,30 +519,98 @@ namespace Zink.Services.NativeCalling
             int targetWidth,
             int targetHeight)
         {
-            using var source = new Bitmap(
-                sourceWidth,
-                sourceHeight,
-                sourceStride,
-                PixelFormat.Format32bppArgb,
-                sourcePtr);
-
             var target = new Bitmap(targetWidth, targetHeight, PixelFormat.Format32bppArgb);
-            using var graphics = Graphics.FromImage(target);
-            graphics.Clear(Color.Black);
-            graphics.CompositingMode = CompositingMode.SourceCopy;
-            graphics.CompositingQuality = CompositingQuality.AssumeLinear;
-            graphics.InterpolationMode = InterpolationMode.Bilinear;
-            graphics.PixelOffsetMode = PixelOffsetMode.Half;
-            graphics.SmoothingMode = SmoothingMode.None;
             var destination = GetAspectFitRectangle(sourceWidth, sourceHeight, targetWidth, targetHeight);
-            graphics.DrawImage(
-                source,
-                destination,
-                0,
-                0,
-                sourceWidth,
-                sourceHeight,
-                GraphicsUnit.Pixel);
+            var targetData = target.LockBits(
+                new Rectangle(0, 0, targetWidth, targetHeight),
+                ImageLockMode.WriteOnly,
+                PixelFormat.Format32bppArgb);
+
+            try
+            {
+                var targetBase = (byte*)targetData.Scan0;
+                for (var y = 0; y < targetHeight; y++)
+                {
+                    var targetRow = targetBase + y * targetData.Stride;
+                    for (var x = 0; x < targetWidth * 4; x++)
+                        targetRow[x] = 0;
+                }
+
+                var sourceBase = (byte*)sourcePtr;
+                const int weightScale = 256;
+                var x0Map = new int[destination.Width];
+                var x1Map = new int[destination.Width];
+                var xWeightMap = new int[destination.Width];
+                var scaleX = (double)sourceWidth / destination.Width;
+                var scaleY = (double)sourceHeight / destination.Height;
+
+                for (var x = 0; x < destination.Width; x++)
+                {
+                    var sourceX = ((x + 0.5) * scaleX) - 0.5;
+                    if (sourceX < 0)
+                        sourceX = 0;
+
+                    var x0 = (int)sourceX;
+                    var xWeight = (int)Math.Round((sourceX - x0) * weightScale);
+                    var x1 = x0 + 1;
+                    if (x1 >= sourceWidth)
+                    {
+                        x1 = x0;
+                        xWeight = 0;
+                    }
+
+                    x0Map[x] = x0;
+                    x1Map[x] = x1;
+                    xWeightMap[x] = Math.Clamp(xWeight, 0, weightScale);
+                }
+
+                for (var y = 0; y < destination.Height; y++)
+                {
+                    var sourceY = ((y + 0.5) * scaleY) - 0.5;
+                    if (sourceY < 0)
+                        sourceY = 0;
+
+                    var y0 = (int)sourceY;
+                    var yWeight = (int)Math.Round((sourceY - y0) * weightScale);
+                    var y1 = y0 + 1;
+                    if (y1 >= sourceHeight)
+                    {
+                        y1 = y0;
+                        yWeight = 0;
+                    }
+                    yWeight = Math.Clamp(yWeight, 0, weightScale);
+
+                    var sourceRow0 = sourceBase + y0 * sourceStride;
+                    var sourceRow1 = sourceBase + y1 * sourceStride;
+                    var targetRow = targetBase + (destination.Y + y) * targetData.Stride + destination.X * 4;
+
+                    for (var x = 0; x < destination.Width; x++)
+                    {
+                        var x0 = x0Map[x];
+                        var x1 = x1Map[x];
+                        var xWeight = xWeightMap[x];
+                        var inverseXWeight = weightScale - xWeight;
+                        var inverseYWeight = weightScale - yWeight;
+
+                        var pixel00 = sourceRow0 + x0 * 4;
+                        var pixel10 = sourceRow0 + x1 * 4;
+                        var pixel01 = sourceRow1 + x0 * 4;
+                        var pixel11 = sourceRow1 + x1 * 4;
+                        var targetPixel = targetRow + x * 4;
+
+                        for (var channel = 0; channel < 4; channel++)
+                        {
+                            var top = (pixel00[channel] * inverseXWeight) + (pixel10[channel] * xWeight);
+                            var bottom = (pixel01[channel] * inverseXWeight) + (pixel11[channel] * xWeight);
+                            targetPixel[channel] = (byte)(((top * inverseYWeight) + (bottom * yWeight) + 32768) >> 16);
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                target.UnlockBits(targetData);
+            }
 
             return target;
         }
@@ -467,7 +633,14 @@ namespace Zink.Services.NativeCalling
 
         private static unsafe uint SampleFrameFingerprint(IntPtr sourcePtr, int sourceStride, int width, int height)
         {
+            return SampleFrameDiagnostics(sourcePtr, sourceStride, width, height).Fingerprint;
+        }
+
+        private static unsafe (uint Fingerprint, double AverageLuma) SampleFrameDiagnostics(IntPtr sourcePtr, int sourceStride, int width, int height)
+        {
             var hash = 2166136261u;
+            long lumaTotal = 0;
+            var sampleCount = 0;
             var sourceBase = (byte*)sourcePtr;
             var sampleRows = Math.Min(12, Math.Max(1, height));
             var sampleColumns = Math.Min(16, Math.Max(1, width));
@@ -483,10 +656,15 @@ namespace Zink.Services.NativeCalling
                     hash = (hash ^ pixel[0]) * 16777619u;
                     hash = (hash ^ pixel[1]) * 16777619u;
                     hash = (hash ^ pixel[2]) * 16777619u;
+                    lumaTotal += (pixel[2] * 54) + (pixel[1] * 183) + (pixel[0] * 19);
+                    sampleCount++;
                 }
             }
 
-            return hash;
+            var averageLuma = sampleCount > 0
+                ? (double)lumaTotal / (sampleCount * 256)
+                : 0;
+            return (hash, averageLuma);
         }
 
         private static void TryEnableCursorCapture(GraphicsCaptureSession session)
@@ -535,6 +713,19 @@ namespace Zink.Services.NativeCalling
 
         public void Dispose()
         {
+            DisposeCaptureSession();
+
+            lock (_syncRoot)
+            {
+                _latestFrame?.Dispose();
+                _latestGpuFrame?.Dispose();
+                _latestFrame = null;
+                _latestGpuFrame = null;
+            }
+        }
+
+        private void DisposeCaptureSession()
+        {
             lock (_disposeSync)
             {
                 _disposed = true;
@@ -552,32 +743,42 @@ namespace Zink.Services.NativeCalling
                 _sharpDxDevice = null;
                 _winRtDevice = null;
             }
-
-            lock (_syncRoot)
-            {
-                _latestFrame?.Dispose();
-                _latestGpuFrame?.Dispose();
-                _latestFrame = null;
-                _latestGpuFrame = null;
-            }
         }
     }
 
     public sealed class CapturedGpuFrame : IDisposable
     {
-        public CapturedGpuFrame(Texture2D texture, int width, int height)
+        private bool _detached;
+
+        public CapturedGpuFrame(Texture2D texture, int width, int height, Format format, BindFlags bindFlags)
         {
             Texture = texture;
             Width = width;
             Height = height;
+            Format = format;
+            BindFlags = bindFlags;
         }
 
         public Texture2D Texture { get; }
         public int Width { get; }
         public int Height { get; }
+        public Format Format { get; }
+        public BindFlags BindFlags { get; }
+
+        public CapturedGpuFrame Detach()
+        {
+            _detached = true;
+            return this;
+        }
 
         public void Dispose()
         {
+            if (_detached)
+            {
+                _detached = false;
+                return;
+            }
+
             Texture.Dispose();
         }
     }

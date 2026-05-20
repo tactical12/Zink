@@ -21,6 +21,7 @@ namespace Zink.Pages
         private string _pendingSearchQuery;
         private bool _isResolvingBestMatch;
         private bool _hasShownCurrentLoad;
+        private bool _adBlockAttached;
         private LikedRadioSong _pendingSong;
         private string _resolvedVideoUrl;
 
@@ -69,8 +70,10 @@ namespace Zink.Pages
 
             var env = await CoreWebView2Environment.CreateWithOptionsAsync(null, userDataFolder, null);
             await YouTubeWebView.EnsureCoreWebView2Async(env);
+            await ConfigureYouTubeAdBlockAsync();
 
             YouTubeWebView.CoreWebView2.ContainsFullScreenElementChanged += CoreWebView2_ContainsFullScreenElementChanged;
+            YouTubeWebView.CoreWebView2.WebMessageReceived += YouTubeWebView_WebMessageReceived;
 
             if (!_navigationHandlerAttached)
             {
@@ -85,6 +88,326 @@ namespace Zink.Pages
             _webViewInitialized = true;
 
             await NavigateToInitialTargetAsync();
+        }
+
+        private async Task ConfigureYouTubeAdBlockAsync()
+        {
+            if (_adBlockAttached || YouTubeWebView?.CoreWebView2 == null)
+                return;
+
+            var core = YouTubeWebView.CoreWebView2;
+            core.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
+            core.WebResourceRequested += YouTubeWebView_WebResourceRequested;
+
+            await core.AddScriptToExecuteOnDocumentCreatedAsync(@"
+(() => {
+    if (window.__zinkYouTubeGuardInstalled) return;
+    window.__zinkYouTubeGuardInstalled = true;
+
+    const post = (state) => {
+        try { chrome.webview.postMessage({ type: 'zink-youtube-fullscreen', state }); } catch {}
+    };
+
+    const hideSelectors = [
+        '.ytp-ad-module',
+        '.ytp-ad-overlay-container',
+        '.ytp-ad-player-overlay',
+        '.video-ads',
+        '.ytp-ad-image-overlay',
+        '.ytp-ad-text-overlay',
+        '.ytp-ad-preview-container',
+        '.ytp-ad-survey',
+        '.ytp-ad-message-container',
+        '.ytp-ad-button',
+        '.ytp-ad-button-link',
+        '.ytp-ad-simple-ad-badge',
+        '.ytp-ad-player-overlay-layout',
+        '.ytp-ad-player-overlay-layout__player-card-container',
+        '.ytp-ad-visit-advertiser-button',
+        '.ytp-ad-visit-advertiser-button-content',
+        '.ytp-ad-player-overlay-instream-info',
+        'ytd-ad-slot-renderer',
+        'ytd-companion-slot-renderer',
+        'ytd-promoted-sparkles-web-renderer',
+        'ytd-display-ad-renderer',
+        'ytd-in-feed-ad-layout-renderer',
+        'ytd-action-companion-ad-renderer',
+        'ytd-statement-banner-renderer',
+        'ytd-rich-item-renderer:has(ytd-ad-slot-renderer)'
+    ];
+
+    function scrubPlayerJson(value) {
+        if (!value || typeof value !== 'object') return value;
+        try {
+            const stack = [value];
+            const badKeys = new Set([
+                'adPlacements',
+                'adSlots',
+                'adBreakHeartbeatParams',
+                'playerAds',
+                'playerLegacyDesktopYpcOfferRenderer',
+                'playerResponseAds',
+                'instreamVideoAdRenderer',
+                'companionAdRenderer',
+                'mealbarPromoRenderer',
+                'promotedSparklesWebRenderer',
+                'statementBannerRenderer'
+            ]);
+
+            while (stack.length) {
+                const obj = stack.pop();
+                if (!obj || typeof obj !== 'object') continue;
+
+                for (const key of Object.keys(obj)) {
+                    if (badKeys.has(key) || key.toLowerCase().includes('adplacement')) {
+                        delete obj[key];
+                        continue;
+                    }
+
+                    const child = obj[key];
+                    if (child && typeof child === 'object') stack.push(child);
+                }
+            }
+        } catch {}
+        return value;
+    }
+
+    const originalFetch = window.fetch;
+    if (typeof originalFetch === 'function') {
+        window.fetch = async function(...args) {
+            const response = await originalFetch.apply(this, args);
+            try {
+                const url = String(args[0] && (args[0].url || args[0]) || '');
+                if (/\/youtubei\/v1\/(player|next)/i.test(url)) {
+                    const clone = response.clone();
+                    const text = await clone.text();
+                    const json = scrubPlayerJson(JSON.parse(text));
+                    return new Response(JSON.stringify(json), {
+                        status: response.status,
+                        statusText: response.statusText,
+                        headers: response.headers
+                    });
+                }
+            } catch {}
+            return response;
+        };
+    }
+
+    const OriginalXHR = window.XMLHttpRequest;
+    if (OriginalXHR) {
+        window.XMLHttpRequest = function() {
+            const xhr = new OriginalXHR();
+            let requestUrl = '';
+            const open = xhr.open;
+            xhr.open = function(method, url, ...rest) {
+                requestUrl = String(url || '');
+                return open.call(xhr, method, url, ...rest);
+            };
+            xhr.addEventListener('readystatechange', function() {
+                try {
+                    if (xhr.readyState !== 4 || !/\/youtubei\/v1\/(player|next)/i.test(requestUrl)) return;
+                    const json = scrubPlayerJson(JSON.parse(xhr.responseText));
+                    Object.defineProperty(xhr, 'responseText', { get: () => JSON.stringify(json) });
+                    Object.defineProperty(xhr, 'response', { get: () => JSON.stringify(json) });
+                } catch {}
+            });
+            return xhr;
+        };
+    }
+
+    function forcePlayerFullscreen(on) {
+        try {
+            document.documentElement.classList.toggle('zink-youtube-fullscreen', !!on);
+            document.body.classList.toggle('zink-youtube-fullscreen', !!on);
+        } catch {}
+    }
+
+    function zapAds() {
+        const player = document.querySelector('.html5-video-player');
+        const video = document.querySelector('video');
+        const visibleAdUi = !!document.querySelector(
+            '.ytp-ad-player-overlay, .ytp-ad-text, .ytp-ad-preview-container, .ytp-ad-message-container, .ytp-ad-button, .ytp-ad-simple-ad-badge, .ytp-ad-player-overlay-layout, .ytp-ad-visit-advertiser-button, .ytp-ad-skip-button-modern, .ytp-ad-skip-button, .ytp-skip-ad-button, .ytp-skip-ad-button-modern'
+        );
+        const adTextVisible = /\b(sponsored|visit site|skip|advertiser|ad)\b/i.test(
+            Array.from(document.querySelectorAll('.ytp-ad-player-overlay, .ytp-ad-message-container, .ytp-ad-button, .ytp-ad-simple-ad-badge, .ytp-ad-visit-advertiser-button, .ytp-skip-ad-button, .ytp-ad-skip-button-modern'))
+                .map(el => el.textContent || el.getAttribute('aria-label') || el.getAttribute('title') || '')
+                .join(' ')
+        );
+        const adShowing = !!player && (
+            player.classList.contains('ad-showing') ||
+            player.classList.contains('ad-interrupting')
+        );
+
+        const skipButtons = document.querySelectorAll(
+            '.ytp-ad-skip-button-modern, .ytp-ad-skip-button, .ytp-skip-ad-button, .ytp-skip-ad-button-modern, button[class*=""ytp-ad-skip""], button[class*=""skip""]'
+        );
+        for (const skipButton of skipButtons) {
+            try { skipButton.click(); } catch {}
+        }
+
+        if (adShowing && (visibleAdUi || adTextVisible) && video) {
+            try {
+                video.muted = true;
+                video.playbackRate = 16;
+
+                if (Number.isFinite(video.duration) && video.duration > 0 && video.duration <= 300) {
+                    video.currentTime = Math.max(0, video.duration - 0.25);
+                } else {
+                    video.currentTime = Math.min(video.currentTime + 10, Math.max(video.currentTime + 10, 30));
+                }
+            } catch {}
+        } else if (video) {
+            try {
+                video.muted = false;
+                video.playbackRate = 1;
+            } catch {}
+        }
+
+        for (const selector of hideSelectors) {
+            try {
+                document.querySelectorAll(selector).forEach(node => {
+                    node.style.setProperty('display', 'none', 'important');
+                });
+            } catch {}
+        }
+    }
+
+    function installFullscreenBridge() {
+        const style = document.createElement('style');
+        style.textContent = `
+            html.zink-youtube-fullscreen,
+            body.zink-youtube-fullscreen {
+                overflow: hidden !important;
+                background: #000 !important;
+            }
+            html.zink-youtube-fullscreen ytd-app,
+            html.zink-youtube-fullscreen #page-manager,
+            html.zink-youtube-fullscreen ytd-watch-flexy,
+            html.zink-youtube-fullscreen #player,
+            html.zink-youtube-fullscreen #movie_player,
+            html.zink-youtube-fullscreen .html5-video-container,
+            html.zink-youtube-fullscreen video {
+                position: fixed !important;
+                inset: 0 !important;
+                width: 100vw !important;
+                height: 100vh !important;
+                max-width: none !important;
+                max-height: none !important;
+                z-index: 2147483647 !important;
+                background: #000 !important;
+            }
+            html.zink-youtube-fullscreen video {
+                object-fit: contain !important;
+            }
+        `;
+        document.documentElement.appendChild(style);
+
+        document.addEventListener('fullscreenchange', () => {
+            const on = !!document.fullscreenElement;
+            forcePlayerFullscreen(on);
+            post(on ? 'enter' : 'exit');
+        }, true);
+
+        document.addEventListener('click', (event) => {
+            const button = event.target && event.target.closest
+                ? event.target.closest('.ytp-fullscreen-button, button[title*=""Full screen""], button[aria-label*=""Full screen""]')
+                : null;
+            if (!button) return;
+
+            setTimeout(() => {
+                const player = document.querySelector('.html5-video-player');
+                const on = !!document.fullscreenElement || !!(player && player.classList.contains('ytp-fullscreen'));
+                forcePlayerFullscreen(on);
+                post(on ? 'enter' : 'exit');
+            }, 120);
+        }, true);
+    }
+
+    document.addEventListener('click', () => {
+        burstZap();
+    }, true);
+
+    function burstZap() {
+        for (let i = 0; i < 40; i++) {
+            setTimeout(zapAds, i * 100);
+        }
+    }
+
+    window.__zinkZapYouTubeAds = function() { burstZap(); zapAds(); };
+
+    setInterval(zapAds, 500);
+    installFullscreenBridge();
+    new MutationObserver(zapAds).observe(document.documentElement, { childList: true, subtree: true, attributes: true });
+    burstZap();
+    zapAds();
+})();
+");
+
+            _adBlockAttached = true;
+        }
+
+        private void YouTubeWebView_WebResourceRequested(CoreWebView2 sender, CoreWebView2WebResourceRequestedEventArgs args)
+        {
+            try
+            {
+                string uri = args.Request.Uri ?? string.Empty;
+                if (!IsBlockedYouTubeAdRequest(uri))
+                    return;
+
+                args.Response = sender.Environment.CreateWebResourceResponse(
+                    new global::Windows.Storage.Streams.InMemoryRandomAccessStream(),
+                    204,
+                    "No Content",
+                    "Content-Type: text/plain");
+            }
+            catch { }
+        }
+
+        private static bool IsBlockedYouTubeAdRequest(string uri)
+        {
+            if (string.IsNullOrWhiteSpace(uri))
+                return false;
+
+            return uri.Contains("doubleclick.net", StringComparison.OrdinalIgnoreCase) ||
+                   uri.Contains("googleads.g.doubleclick.net", StringComparison.OrdinalIgnoreCase) ||
+                   uri.Contains("googlesyndication.com", StringComparison.OrdinalIgnoreCase) ||
+                   uri.Contains("googleadservices.com", StringComparison.OrdinalIgnoreCase) ||
+                   uri.Contains("/pagead/", StringComparison.OrdinalIgnoreCase) ||
+                   uri.Contains("/ptracking", StringComparison.OrdinalIgnoreCase) ||
+                   uri.Contains("/api/stats/ads", StringComparison.OrdinalIgnoreCase) ||
+                   uri.Contains("/api/stats/qoe", StringComparison.OrdinalIgnoreCase) && uri.Contains("adformat", StringComparison.OrdinalIgnoreCase) ||
+                   uri.Contains("/api/stats/watchtime", StringComparison.OrdinalIgnoreCase) && uri.Contains("adformat", StringComparison.OrdinalIgnoreCase) ||
+                   uri.Contains("/pcs/activeview", StringComparison.OrdinalIgnoreCase) ||
+                   uri.Contains("/pagead/interaction", StringComparison.OrdinalIgnoreCase) ||
+                   uri.Contains("/pubads", StringComparison.OrdinalIgnoreCase) ||
+                   uri.Contains("/securepubads", StringComparison.OrdinalIgnoreCase) ||
+                   uri.Contains("adservice.google.", StringComparison.OrdinalIgnoreCase) ||
+                   uri.Contains("static.doubleclick.net", StringComparison.OrdinalIgnoreCase) ||
+                   uri.Contains("/get_midroll_", StringComparison.OrdinalIgnoreCase) ||
+                   uri.Contains("ad_break", StringComparison.OrdinalIgnoreCase) ||
+                   uri.Contains("adformat=", StringComparison.OrdinalIgnoreCase) ||
+                   uri.Contains("ctier=L", StringComparison.OrdinalIgnoreCase) && uri.Contains("oad=", StringComparison.OrdinalIgnoreCase) ||
+                   uri.Contains("youtube.com/pagead/", StringComparison.OrdinalIgnoreCase) ||
+                   uri.Contains("youtube.com/get_video_info", StringComparison.OrdinalIgnoreCase) && uri.Contains("adformat", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void YouTubeWebView_WebMessageReceived(CoreWebView2 sender, CoreWebView2WebMessageReceivedEventArgs args)
+        {
+            try
+            {
+                string message = args.WebMessageAsJson ?? "";
+                if (message.Contains("zink-youtube-fullscreen", StringComparison.OrdinalIgnoreCase) &&
+                    message.Contains("enter", StringComparison.OrdinalIgnoreCase))
+                {
+                    App.MainWindow.EnterFullscreenMode();
+                }
+                else if (message.Contains("zink-youtube-fullscreen", StringComparison.OrdinalIgnoreCase) &&
+                         message.Contains("exit", StringComparison.OrdinalIgnoreCase))
+                {
+                    App.MainWindow.ExitFullscreenMode();
+                }
+            }
+            catch { }
         }
 
         private async Task NavigateToInitialTargetAsync()
@@ -393,13 +716,11 @@ namespace Zink.Pages
 
             if (sender.ContainsFullScreenElement)
             {
-                _appWindow.SetPresenter(AppWindowPresenterKind.FullScreen);
-                App.MainWindow.SetSidebarVisibility(false);
+                App.MainWindow.EnterFullscreenMode();
             }
             else
             {
-                _appWindow.SetPresenter(AppWindowPresenterKind.Overlapped);
-                App.MainWindow.SetSidebarVisibility(true);
+                App.MainWindow.ExitFullscreenMode();
             }
         }
 

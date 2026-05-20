@@ -5,7 +5,8 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:Zink"
     xmlns:controls="using:Microsoft.UI.Xaml.Controls"
-    xmlns:conv="using:Zink">
+    xmlns:conv="using:Zink"
+    RequestedTheme="Dark">
 
     <Application.Resources>
         <ResourceDictionary>
@@ -16,6 +17,23 @@
 
             <!-- Use your custom BooleanToVisibilityConverter -->
             <conv:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+
+            <SolidColorBrush x:Key="ApplicationPageBackgroundThemeBrush" Color="#00000000"/>
+            <SolidColorBrush x:Key="LayerFillColorDefaultBrush" Color="#403B7582"/>
+            <SolidColorBrush x:Key="ZinkGlassPanelBrush" Color="#583B7582"/>
+            <SolidColorBrush x:Key="ZinkGlassCardBrush" Color="#383B7582"/>
+            <SolidColorBrush x:Key="ZinkGlassBorderBrush" Color="#40A3D9E6"/>
+            <SolidColorBrush x:Key="ZinkGlassHoverBrush" Color="#2872ACB9"/>
+            <SolidColorBrush x:Key="ZinkGlassSelectedBrush" Color="#368EC8D5"/>
+            <SolidColorBrush x:Key="ScrollBarThumbFill" Color="#E6FFFFFF"/>
+            <SolidColorBrush x:Key="ScrollBarThumbFillPointerOver" Color="#FFFFFFFF"/>
+            <SolidColorBrush x:Key="ScrollBarThumbFillPressed" Color="#FFFFFFFF"/>
+            <SolidColorBrush x:Key="ScrollBarThumbFillDisabled" Color="#55FFFFFF"/>
+            <SolidColorBrush x:Key="ScrollBarPanningThumbFill" Color="#E6FFFFFF"/>
+            <SolidColorBrush x:Key="ScrollBarPanningThumbFillPointerOver" Color="#FFFFFFFF"/>
+            <SolidColorBrush x:Key="ScrollBarPanningThumbFillPressed" Color="#FFFFFFFF"/>
+            <SolidColorBrush x:Key="ScrollBarTrackFill" Color="#22FFFFFF"/>
+            <SolidColorBrush x:Key="ScrollBarTrackFillPointerOver" Color="#33FFFFFF"/>
 
             <!-- Other app resources here -->
         </ResourceDictionary>

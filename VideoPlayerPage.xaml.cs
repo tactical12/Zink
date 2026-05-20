@@ -22,6 +22,8 @@ using System;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Collections.Generic;
@@ -111,13 +113,56 @@ namespace Zink
         private const string CodecStatePendingAc4 = "pending_ac4";
 
         private const string VIDEO_VOLUME_KEY = "Zink_VideoPlayer_Volume";
+        private const string VIDEO_SURROUND_MODE_KEY = "Zink_VideoPlayer_SurroundMode";
         private double _lastNonZeroVolume = 1.0;
         private bool _volumeUiReady = false;
+        private IReadOnlyList<AudioStreamInfo> _detectedAudioStreams = Array.Empty<AudioStreamInfo>();
+        private AudioStreamInfo _selectedAudioStream;
+        private string _audioInfoStatus = "No audio information detected yet.";
+        private string _preferredSurroundMode = SurroundModeAuto;
 
         private Flyout _soundFlyout;
         private Slider _flyoutVolumeSlider;
         private TextBlock _flyoutVolumeText;
         private Button _flyoutMuteButton;
+        private ComboBox _surroundModeComboBox;
+        private TextBlock _surroundModeStatusText;
+
+        private const string SurroundModeAuto = "auto";
+        private const string SurroundModeAtmos = "atmos";
+        private const string SurroundMode21 = "2.1";
+        private const string SurroundMode51 = "5.1";
+        private const string SurroundMode71 = "7.1";
+        private const string SurroundMode72 = "7.2";
+        private const string SurroundMode512 = "5.1.2";
+        private const string SurroundMode712 = "7.1.2";
+        private const string SurroundMode714 = "7.1.4";
+        private const string SurroundMode914 = "9.1.4";
+        private const string SurroundMode916 = "9.1.6";
+        private const string SurroundMode24110 = "24.1.10";
+
+        private sealed class AudioStreamInfo
+        {
+            public int StreamIndex { get; set; }
+            public int AudioTrackNumber { get; set; }
+            public string Codec { get; set; }
+            public string CodecLongName { get; set; }
+            public string Profile { get; set; }
+            public int Channels { get; set; }
+            public string ChannelLayout { get; set; }
+            public string Language { get; set; }
+            public string Title { get; set; }
+            public bool IsDolbyAtmos { get; set; }
+            public string SurroundLayout { get; set; }
+        }
+
+        private sealed class SurroundModeOption
+        {
+            public string Mode { get; set; }
+            public string Label { get; set; }
+
+            public override string ToString() => Label;
+        }
 
         public VideoPlayerPage()
         {
@@ -206,6 +251,8 @@ namespace Zink
 
         private void InitializeSoundFlyout()
         {
+            _preferredSurroundMode = LoadSavedSurroundMode();
+
             _flyoutVolumeText = new TextBlock
             {
                 Text = "100%",
@@ -231,6 +278,37 @@ namespace Zink
             };
             _flyoutMuteButton.Click += FlyoutMuteButton_Click;
 
+            _surroundModeStatusText = new TextBlock
+            {
+                Text = "Surround mode: Auto",
+                TextWrapping = TextWrapping.Wrap,
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+
+            _surroundModeComboBox = new ComboBox
+            {
+                Header = "Surround",
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                ItemsSource = new List<SurroundModeOption>
+                {
+                    new SurroundModeOption { Mode = SurroundModeAuto, Label = "Auto / best available" },
+                    new SurroundModeOption { Mode = SurroundModeAtmos, Label = "Dolby Atmos" },
+                    new SurroundModeOption { Mode = SurroundMode21, Label = "Surround 2.1" },
+                    new SurroundModeOption { Mode = SurroundMode51, Label = "Surround 5.1" },
+                    new SurroundModeOption { Mode = SurroundMode71, Label = "Surround 7.1" },
+                    new SurroundModeOption { Mode = SurroundMode72, Label = "Surround 7.2" },
+                    new SurroundModeOption { Mode = SurroundMode512, Label = "Dolby Atmos 5.1.2" },
+                    new SurroundModeOption { Mode = SurroundMode712, Label = "Dolby Atmos 7.1.2" },
+                    new SurroundModeOption { Mode = SurroundMode714, Label = "Surround 7.1.4 / Atmos" },
+                    new SurroundModeOption { Mode = SurroundMode914, Label = "Surround 9.1.4 / Atmos" },
+                    new SurroundModeOption { Mode = SurroundMode916, Label = "Surround 9.1.6 / Atmos" },
+                    new SurroundModeOption { Mode = SurroundMode24110, Label = "Dolby Atmos 24.1.10" }
+                },
+                SelectedValuePath = "Mode",
+                SelectedValue = _preferredSurroundMode
+            };
+            _surroundModeComboBox.SelectionChanged += SurroundModeComboBox_SelectionChanged;
+
             var titleText = new TextBlock
             {
                 Text = "Sound",
@@ -247,6 +325,8 @@ namespace Zink
             panel.Children.Add(_flyoutVolumeSlider);
             panel.Children.Add(_flyoutVolumeText);
             panel.Children.Add(_flyoutMuteButton);
+            panel.Children.Add(_surroundModeComboBox);
+            panel.Children.Add(_surroundModeStatusText);
 
             _soundFlyout = new Flyout
             {
@@ -514,6 +594,9 @@ namespace Zink
             _codecPromptAlreadyShownForCurrentFile = false;
             _lastCodecPromptedPath = null;
             _userPausedDiscordPresence = false;
+            _detectedAudioStreams = Array.Empty<AudioStreamInfo>();
+            _selectedAudioStream = null;
+            _audioInfoStatus = "Detecting audio format...";
             ResetDiscordPlaybackClock();
 
             if (_suppressCodecPromptOnce)
@@ -524,6 +607,8 @@ namespace Zink
             {
                 await PromptForMissingCodecIfNeededAsync(file);
             }
+
+            await DetectAndPrepareAudioInfoAsync(file);
 
             if (_forceStartFromBeginningOnNextLoad)
             {
@@ -727,19 +812,23 @@ namespace Zink
                 if (string.IsNullOrWhiteSpace(ffprobePath) || !File.Exists(ffprobePath))
                     return null;
 
-                string args =
-                    $"-v error -select_streams a:0 -show_entries stream=codec_name " +
-                    $"-of default=noprint_wrappers=1:nokey=1 \"{file.Path}\"";
-
                 var startInfo = new ProcessStartInfo
                 {
                     FileName = ffprobePath,
-                    Arguments = args,
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     CreateNoWindow = true
                 };
+                startInfo.ArgumentList.Add("-v");
+                startInfo.ArgumentList.Add("error");
+                startInfo.ArgumentList.Add("-select_streams");
+                startInfo.ArgumentList.Add("a:0");
+                startInfo.ArgumentList.Add("-show_entries");
+                startInfo.ArgumentList.Add("stream=codec_name");
+                startInfo.ArgumentList.Add("-of");
+                startInfo.ArgumentList.Add("default=noprint_wrappers=1:nokey=1");
+                startInfo.ArgumentList.Add(file.Path);
 
                 using var process = new Process();
                 process.StartInfo = startInfo;
@@ -765,6 +854,521 @@ namespace Zink
             return null;
         }
 
+        private async System.Threading.Tasks.Task DetectAndPrepareAudioInfoAsync(WStorage.StorageFile file)
+        {
+            try
+            {
+                var streams = await DetectAudioStreamsAsync(file);
+                _detectedAudioStreams = streams;
+                _selectedAudioStream = GetPreferredAudioStream(streams, _preferredSurroundMode);
+
+                if (_selectedAudioStream != null)
+                {
+                    _audioInfoStatus =
+                        $"{GetSurroundModeSelectionPrefix(_preferredSurroundMode)} selected: {FormatAudioStreamSummary(_selectedAudioStream)}";
+                }
+                else
+                {
+                    _audioInfoStatus = "No Dolby Atmos, 2.1, 5.1, 7.1, 7.2, DTS, or newer surround audio track detected.";
+                }
+
+                UpdateSurroundModeStatusText();
+            }
+            catch
+            {
+                _detectedAudioStreams = Array.Empty<AudioStreamInfo>();
+                _selectedAudioStream = null;
+                _audioInfoStatus = "Audio information could not be detected for this film.";
+                UpdateSurroundModeStatusText();
+            }
+        }
+
+        private async System.Threading.Tasks.Task<IReadOnlyList<AudioStreamInfo>> DetectAudioStreamsAsync(WStorage.StorageFile file)
+        {
+            var results = new List<AudioStreamInfo>();
+
+            try
+            {
+                if (file == null || string.IsNullOrWhiteSpace(file.Path))
+                    return results;
+
+                var ffprobePath = await GetBundledFfprobePathAsync();
+                if (string.IsNullOrWhiteSpace(ffprobePath) || !File.Exists(ffprobePath))
+                    return results;
+
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = ffprobePath,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+                startInfo.ArgumentList.Add("-v");
+                startInfo.ArgumentList.Add("error");
+                startInfo.ArgumentList.Add("-select_streams");
+                startInfo.ArgumentList.Add("a");
+                startInfo.ArgumentList.Add("-show_entries");
+                startInfo.ArgumentList.Add("stream=index,codec_name,codec_long_name,profile,channels,channel_layout:stream_tags=language,title");
+                startInfo.ArgumentList.Add("-of");
+                startInfo.ArgumentList.Add("json");
+                startInfo.ArgumentList.Add(file.Path);
+
+                using var process = new Process();
+                process.StartInfo = startInfo;
+                process.Start();
+
+                string stdout = await process.StandardOutput.ReadToEndAsync();
+                _ = await process.StandardError.ReadToEndAsync();
+
+                await System.Threading.Tasks.Task.Run(() => process.WaitForExit(8000));
+
+                if (!process.HasExited)
+                {
+                    try { process.Kill(true); } catch { }
+                    return results;
+                }
+
+                if (string.IsNullOrWhiteSpace(stdout))
+                    return results;
+
+                using var doc = JsonDocument.Parse(stdout);
+                if (!doc.RootElement.TryGetProperty("streams", out var streams) ||
+                    streams.ValueKind != JsonValueKind.Array)
+                {
+                    return results;
+                }
+
+                int audioTrackNumber = 0;
+
+                foreach (var stream in streams.EnumerateArray())
+                {
+                    string language = null;
+                    string title = null;
+
+                    if (stream.TryGetProperty("tags", out var tags))
+                    {
+                        if (tags.TryGetProperty("language", out var languageElement))
+                            language = languageElement.GetString();
+
+                        if (tags.TryGetProperty("title", out var titleElement))
+                            title = titleElement.GetString();
+                    }
+
+                    results.Add(new AudioStreamInfo
+                    {
+                        StreamIndex = TryGetJsonInt(stream, "index"),
+                        AudioTrackNumber = audioTrackNumber,
+                        Codec = TryGetJsonString(stream, "codec_name"),
+                        CodecLongName = TryGetJsonString(stream, "codec_long_name"),
+                        Profile = TryGetJsonString(stream, "profile"),
+                        Channels = TryGetJsonInt(stream, "channels"),
+                        ChannelLayout = TryGetJsonString(stream, "channel_layout"),
+                        Language = language,
+                        Title = title,
+                        IsDolbyAtmos = IsDolbyAtmosStream(
+                            TryGetJsonString(stream, "codec_name"),
+                            TryGetJsonString(stream, "codec_long_name"),
+                            TryGetJsonString(stream, "profile"),
+                            TryGetJsonString(stream, "channel_layout"),
+                            title),
+                        SurroundLayout = DetectSurroundLayout(
+                            TryGetJsonInt(stream, "channels"),
+                            TryGetJsonString(stream, "channel_layout"),
+                            TryGetJsonString(stream, "codec_long_name"),
+                            TryGetJsonString(stream, "profile"),
+                            title)
+                    });
+
+                    audioTrackNumber++;
+                }
+            }
+            catch { }
+
+            return results;
+        }
+
+        private static AudioStreamInfo GetPreferredAudioStream(IReadOnlyList<AudioStreamInfo> streams, string preferredMode)
+        {
+            try
+            {
+                if (streams == null || streams.Count == 0)
+                    return null;
+
+                string mode = NormalizeSurroundMode(preferredMode);
+
+                if (!string.Equals(mode, SurroundModeAuto, StringComparison.OrdinalIgnoreCase))
+                {
+                    AudioStreamInfo preferred = null;
+                    int preferredScore = int.MinValue;
+
+                    foreach (var stream in streams)
+                    {
+                        if (!StreamMatchesSurroundMode(stream, mode))
+                            continue;
+
+                        int score = GetAudioStreamScore(stream);
+                        if (score > preferredScore)
+                        {
+                            preferred = stream;
+                            preferredScore = score;
+                        }
+                    }
+
+                    if (preferred != null)
+                        return preferred;
+                }
+
+                return GetBestAudioStream(streams);
+            }
+            catch
+            {
+                return GetBestAudioStream(streams);
+            }
+        }
+
+        private static string TryGetJsonString(JsonElement element, string propertyName)
+        {
+            try
+            {
+                if (element.TryGetProperty(propertyName, out var value) &&
+                    value.ValueKind == JsonValueKind.String)
+                {
+                    return value.GetString();
+                }
+            }
+            catch { }
+
+            return null;
+        }
+
+        private static int TryGetJsonInt(JsonElement element, string propertyName)
+        {
+            try
+            {
+                if (element.TryGetProperty(propertyName, out var value))
+                {
+                    if (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out int number))
+                        return number;
+
+                    if (value.ValueKind == JsonValueKind.String &&
+                        int.TryParse(value.GetString(), out number))
+                    {
+                        return number;
+                    }
+                }
+            }
+            catch { }
+
+            return 0;
+        }
+
+        private static AudioStreamInfo GetBestAudioStream(IReadOnlyList<AudioStreamInfo> streams)
+        {
+            try
+            {
+                AudioStreamInfo best = null;
+                int bestScore = int.MinValue;
+
+                if (streams == null)
+                    return null;
+
+                foreach (var stream in streams)
+                {
+                    int score = GetAudioStreamScore(stream);
+                    if (score > bestScore)
+                    {
+                        best = stream;
+                        bestScore = score;
+                    }
+                }
+
+                return best;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static int GetAudioStreamScore(AudioStreamInfo stream)
+        {
+            if (stream == null)
+                return int.MinValue;
+
+            int score = Math.Max(0, stream.Channels) * 100;
+            string codec = (stream.Codec ?? "").Trim().ToLowerInvariant();
+            string profile = (stream.Profile ?? "").Trim().ToLowerInvariant();
+            string layout = (stream.ChannelLayout ?? "").Trim().ToLowerInvariant();
+            string title = (stream.Title ?? "").Trim().ToLowerInvariant();
+
+            if (codec == "truehd")
+                score += 90;
+            else if (codec == "eac3" || codec == "ac4")
+                score += 70;
+            else if (codec == "ac3")
+                score += 60;
+            else if (codec == "dts" || codec == "dca")
+                score += 65;
+
+            if (stream.IsDolbyAtmos)
+                score += 140;
+
+            if (string.Equals(stream.SurroundLayout, SurroundMode24110, StringComparison.OrdinalIgnoreCase))
+                score += 100;
+            else if (string.Equals(stream.SurroundLayout, SurroundMode916, StringComparison.OrdinalIgnoreCase))
+                score += 70;
+            else if (string.Equals(stream.SurroundLayout, SurroundMode914, StringComparison.OrdinalIgnoreCase))
+                score += 65;
+            else if (string.Equals(stream.SurroundLayout, SurroundMode714, StringComparison.OrdinalIgnoreCase))
+                score += 60;
+            else if (string.Equals(stream.SurroundLayout, SurroundMode712, StringComparison.OrdinalIgnoreCase))
+                score += 55;
+            else if (string.Equals(stream.SurroundLayout, SurroundMode512, StringComparison.OrdinalIgnoreCase))
+                score += 52;
+            else if (string.Equals(stream.SurroundLayout, SurroundMode72, StringComparison.OrdinalIgnoreCase))
+                score += 50;
+
+            if (profile.Contains("ma") || profile.Contains("hd") ||
+                layout.Contains("7.1") || title.Contains("7.1"))
+            {
+                score += 20;
+            }
+
+            return score;
+        }
+
+        private static string FormatAudioStreamSummary(AudioStreamInfo stream)
+        {
+            if (stream == null)
+                return "Unknown audio";
+
+            string channelText = FormatChannelText(stream.Channels, stream.ChannelLayout, stream.SurroundLayout);
+            string codecText = FormatCodecText(stream.Codec, stream.Profile);
+            string atmosText = stream.IsDolbyAtmos ? " Dolby Atmos" : "";
+            string languageText = string.IsNullOrWhiteSpace(stream.Language)
+                ? ""
+                : $" - {stream.Language.ToUpperInvariant()}";
+            string titleText = string.IsNullOrWhiteSpace(stream.Title)
+                ? ""
+                : $" - {stream.Title}";
+
+            return $"{channelText} {codecText}{atmosText}{languageText}{titleText}".Trim();
+        }
+
+        private static string FormatChannelText(int channels, string layout, string detectedLayout = null)
+        {
+            if (!string.IsNullOrWhiteSpace(detectedLayout))
+                return detectedLayout;
+
+            var layoutText = layout ?? "";
+
+            if (ContainsLayoutToken(layoutText, SurroundMode24110))
+                return SurroundMode24110;
+
+            if (ContainsLayoutToken(layoutText, SurroundMode916))
+                return "9.1.6";
+
+            if (ContainsLayoutToken(layoutText, SurroundMode914))
+                return "9.1.4";
+
+            if (ContainsLayoutToken(layoutText, SurroundMode714))
+                return "7.1.4";
+
+            if (ContainsLayoutToken(layoutText, SurroundMode712))
+                return "7.1.2";
+
+            if (ContainsLayoutToken(layoutText, SurroundMode512))
+                return "5.1.2";
+
+            if (ContainsLayoutToken(layoutText, SurroundMode72))
+                return "7.2";
+
+            if (channels >= 8 || ContainsLayoutToken(layoutText, SurroundMode71))
+                return "7.1";
+
+            if (channels >= 6 || ContainsLayoutToken(layoutText, SurroundMode51))
+                return "5.1";
+
+            if (channels == 3 || ContainsLayoutToken(layoutText, SurroundMode21))
+                return "2.1";
+
+            if (channels == 2)
+                return "Stereo";
+
+            if (channels == 1)
+                return "Mono";
+
+            if (channels > 0)
+                return $"{channels} channel";
+
+            return "Unknown channels";
+        }
+
+        private static string FormatCodecText(string codec, string profile)
+        {
+            string normalized = (codec ?? "").Trim().ToLowerInvariant();
+            string profileText = string.IsNullOrWhiteSpace(profile) ? "" : $" {profile}";
+
+            return normalized switch
+            {
+                "truehd" => "Dolby TrueHD",
+                "eac3" => "Dolby Digital Plus",
+                "ac3" => "Dolby Digital",
+                "ac4" => "Dolby AC-4",
+                "dts" => $"DTS{profileText}",
+                "dca" => $"DTS{profileText}",
+                "aac" => "AAC",
+                "opus" => "Opus",
+                "mp3" => "MP3",
+                _ => string.IsNullOrWhiteSpace(codec) ? "Unknown codec" : codec.ToUpperInvariant()
+            };
+        }
+
+        private static string DetectSurroundLayout(int channels, string layout, string codecLongName, string profile, string title)
+        {
+            string combined = $"{layout} {codecLongName} {profile} {title}".ToLowerInvariant();
+
+            if (ContainsLayoutToken(combined, SurroundMode24110) || channels >= 35)
+                return SurroundMode24110;
+
+            if (ContainsLayoutToken(combined, SurroundMode916))
+                return SurroundMode916;
+
+            if (ContainsLayoutToken(combined, SurroundMode914))
+                return SurroundMode914;
+
+            if (ContainsLayoutToken(combined, SurroundMode714))
+                return SurroundMode714;
+
+            if (ContainsLayoutToken(combined, SurroundMode712))
+                return SurroundMode712;
+
+            if (ContainsLayoutToken(combined, SurroundMode512))
+                return SurroundMode512;
+
+            if (ContainsLayoutToken(combined, SurroundMode72))
+                return SurroundMode72;
+
+            if (ContainsLayoutToken(combined, SurroundMode71) || channels == 8)
+                return SurroundMode71;
+
+            if (ContainsLayoutToken(combined, SurroundMode51) || channels == 6)
+                return SurroundMode51;
+
+            if (ContainsLayoutToken(combined, SurroundMode21) || channels == 3)
+                return SurroundMode21;
+
+            if (channels >= 16)
+                return SurroundMode916;
+
+            if (channels >= 14)
+                return SurroundMode914;
+
+            if (channels >= 12)
+                return SurroundMode714;
+
+            if (channels >= 10)
+                return SurroundMode712;
+
+            if (channels >= 9)
+                return SurroundMode72;
+
+            return null;
+        }
+
+        private static bool IsDolbyAtmosStream(string codec, string codecLongName, string profile, string layout, string title)
+        {
+            string normalizedCodec = (codec ?? "").Trim().ToLowerInvariant();
+            string combined = $"{codecLongName} {profile} {layout} {title}".ToLowerInvariant();
+
+            if (combined.Contains("atmos") ||
+                combined.Contains("joc") ||
+                combined.Contains("joint object coding") ||
+                combined.Contains("truehd atmos") ||
+                combined.Contains("object") ||
+                combined.Contains("immersive"))
+            {
+                return normalizedCodec is "truehd" or "eac3" or "ac4" or "mlp";
+            }
+
+            return false;
+        }
+
+        private static bool StreamMatchesSurroundMode(AudioStreamInfo stream, string mode)
+        {
+            if (stream == null)
+                return false;
+
+            mode = NormalizeSurroundMode(mode);
+
+            if (string.Equals(mode, SurroundModeAtmos, StringComparison.OrdinalIgnoreCase))
+                return stream.IsDolbyAtmos;
+
+            if (string.Equals(stream.SurroundLayout, mode, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            string summary = $"{stream.ChannelLayout} {stream.CodecLongName} {stream.Profile} {stream.Title}".ToLowerInvariant();
+            return ContainsLayoutToken(summary, mode);
+        }
+
+        private static bool ContainsLayoutToken(string text, string layout)
+        {
+            if (string.IsNullOrWhiteSpace(text) || string.IsNullOrWhiteSpace(layout))
+                return false;
+
+            string escapedLayout = Regex.Escape(layout).Replace("\\.", "[._]");
+            return Regex.IsMatch(
+                text,
+                $@"(?<!\d){escapedLayout}(?!(?:[._]\d)|\d)",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        }
+
+        private static string NormalizeSurroundMode(string mode)
+        {
+            if (string.IsNullOrWhiteSpace(mode))
+                return SurroundModeAuto;
+
+            mode = mode.Trim().ToLowerInvariant();
+
+            return mode switch
+            {
+                SurroundModeAtmos => SurroundModeAtmos,
+                SurroundMode21 => SurroundMode21,
+                SurroundMode51 => SurroundMode51,
+                SurroundMode71 => SurroundMode71,
+                SurroundMode72 => SurroundMode72,
+                SurroundMode512 => SurroundMode512,
+                SurroundMode712 => SurroundMode712,
+                SurroundMode714 => SurroundMode714,
+                SurroundMode914 => SurroundMode914,
+                SurroundMode916 => SurroundMode916,
+                SurroundMode24110 => SurroundMode24110,
+                _ => SurroundModeAuto
+            };
+        }
+
+        private static string GetSurroundModeSelectionPrefix(string mode)
+        {
+            mode = NormalizeSurroundMode(mode);
+
+            return mode switch
+            {
+                SurroundModeAtmos => "Dolby Atmos",
+                SurroundMode21 => "Surround 2.1",
+                SurroundMode51 => "Surround 5.1",
+                SurroundMode71 => "Surround 7.1",
+                SurroundMode72 => "Surround 7.2",
+                SurroundMode512 => "Dolby Atmos 5.1.2",
+                SurroundMode712 => "Dolby Atmos 7.1.2",
+                SurroundMode714 => "Surround 7.1.4",
+                SurroundMode914 => "Surround 9.1.4",
+                SurroundMode916 => "Surround 9.1.6",
+                SurroundMode24110 => "Dolby Atmos 24.1.10",
+                _ => "Auto"
+            };
+        }
+
         private async System.Threading.Tasks.Task<string> GetBundledFfprobePathAsync()
         {
             try
@@ -785,6 +1389,19 @@ namespace Zink
                     return rootProbeFile.Path;
                 }
                 catch { }
+            }
+            catch { }
+
+            try
+            {
+                var baseDirectory = AppContext.BaseDirectory;
+                var toolProbePath = Path.Combine(baseDirectory, ToolsFolderName, FfprobeExeName);
+                if (File.Exists(toolProbePath))
+                    return toolProbePath;
+
+                var rootProbePath = Path.Combine(baseDirectory, FfprobeExeName);
+                if (File.Exists(rootProbePath))
+                    return rootProbePath;
             }
             catch { }
 
@@ -1051,7 +1668,42 @@ namespace Zink
                 try { ApplyNativeSubtitleTrackState(_nativeSubtitlesEnabled); } catch { }
             };
 
+            item.AudioTracksChanged += (_, __) =>
+            {
+                try
+                {
+                    DispatcherQueue.TryEnqueue(() => TryAutoSelectBestAudioTrack());
+                }
+                catch { }
+            };
+
             return item;
+        }
+
+        private void TryAutoSelectBestAudioTrack()
+        {
+            try
+            {
+                var item = _currentPlaybackItem;
+                var selected = _selectedAudioStream;
+
+                if (item == null || selected == null)
+                    return;
+
+                var tracks = item.AudioTracks;
+                if (tracks == null || tracks.Count == 0)
+                    return;
+
+                int trackNumber = Math.Max(0, selected.AudioTrackNumber);
+                if (trackNumber < tracks.Count)
+                {
+                    tracks.SelectedIndex = trackNumber;
+                    _audioInfoStatus =
+                        $"{GetSurroundModeSelectionPrefix(_preferredSurroundMode)} selected: {FormatAudioStreamSummary(selected)}";
+                    UpdateSurroundModeStatusText();
+                }
+            }
+            catch { }
         }
 
         private async System.Threading.Tasks.Task<WStorage.StorageFile> FindSidecarSubtitleAsync(WStorage.StorageFile videoFile)
@@ -1135,6 +1787,58 @@ namespace Zink
             catch { }
         }
 
+        private async void AudioInfoButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (XamlRoot == null)
+                    return;
+
+                var content = new StackPanel
+                {
+                    Spacing = 8,
+                    Width = 420
+                };
+
+                content.Children.Add(new TextBlock
+                {
+                    Text = _audioInfoStatus,
+                    TextWrapping = TextWrapping.Wrap
+                });
+
+                if (_detectedAudioStreams != null && _detectedAudioStreams.Count > 0)
+                {
+                    foreach (var stream in _detectedAudioStreams)
+                    {
+                        content.Children.Add(new TextBlock
+                        {
+                            Text = $"Track {stream.AudioTrackNumber + 1}: {FormatAudioStreamSummary(stream)}",
+                            TextWrapping = TextWrapping.Wrap
+                        });
+                    }
+                }
+                else
+                {
+                    content.Children.Add(new TextBlock
+                    {
+                        Text = "Zink will show 5.1, 7.1, Dolby, and DTS details here when they are detected in the film.",
+                        TextWrapping = TextWrapping.Wrap
+                    });
+                }
+
+                var dialog = new ContentDialog
+                {
+                    Title = "Audio info",
+                    Content = content,
+                    CloseButtonText = "OK",
+                    XamlRoot = XamlRoot
+                };
+
+                await dialog.ShowAsync();
+            }
+            catch { }
+        }
+
         private void MediaPlayer_MediaOpened(MediaPlayer sender, object args)
         {
             DispatcherQueue.TryEnqueue(() =>
@@ -1174,6 +1878,7 @@ namespace Zink
                         catch { }
 
                         SyncDiscordPlaybackClockFromSession(force: true);
+                        TryAutoSelectBestAudioTrack();
                         ResetDiscordSecondPushTracking();
                         try { _discordPresenceTimer?.Start(); } catch { }
                         RefreshDiscordVideoPresence(forcePlaying: true, forcePush: true);
@@ -1653,6 +2358,77 @@ namespace Zink
             try
             {
                 WStorage.ApplicationData.Current.LocalSettings.Values[VIDEO_VOLUME_KEY] = volume;
+            }
+            catch { }
+        }
+
+        private string LoadSavedSurroundMode()
+        {
+            try
+            {
+                if (WStorage.ApplicationData.Current.LocalSettings.Values.TryGetValue(VIDEO_SURROUND_MODE_KEY, out object value) &&
+                    value is string savedMode)
+                {
+                    return NormalizeSurroundMode(savedMode);
+                }
+            }
+            catch { }
+
+            return SurroundModeAuto;
+        }
+
+        private void SaveSurroundMode(string mode)
+        {
+            try
+            {
+                WStorage.ApplicationData.Current.LocalSettings.Values[VIDEO_SURROUND_MODE_KEY] = NormalizeSurroundMode(mode);
+            }
+            catch { }
+        }
+
+        private void SurroundModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            try
+            {
+                string selectedMode = NormalizeSurroundMode(_surroundModeComboBox?.SelectedValue as string);
+                _preferredSurroundMode = selectedMode;
+                SaveSurroundMode(selectedMode);
+
+                _selectedAudioStream = GetPreferredAudioStream(_detectedAudioStreams, _preferredSurroundMode);
+                if (_selectedAudioStream != null)
+                {
+                    _audioInfoStatus =
+                        $"{GetSurroundModeSelectionPrefix(_preferredSurroundMode)} selected: {FormatAudioStreamSummary(_selectedAudioStream)}";
+                }
+                else
+                {
+                    _audioInfoStatus =
+                        $"{GetSurroundModeSelectionPrefix(_preferredSurroundMode)} is selected, but this video does not expose a matching audio track.";
+                }
+
+                TryAutoSelectBestAudioTrack();
+                UpdateSurroundModeStatusText();
+            }
+            catch { }
+        }
+
+        private void UpdateSurroundModeStatusText()
+        {
+            try
+            {
+                if (_surroundModeStatusText == null)
+                    return;
+
+                if (_selectedAudioStream != null)
+                {
+                    _surroundModeStatusText.Text =
+                        $"{GetSurroundModeSelectionPrefix(_preferredSurroundMode)}: {FormatAudioStreamSummary(_selectedAudioStream)}";
+                    return;
+                }
+
+                _surroundModeStatusText.Text = string.IsNullOrWhiteSpace(_audioInfoStatus)
+                    ? $"{GetSurroundModeSelectionPrefix(_preferredSurroundMode)}: no audio track detected yet."
+                    : _audioInfoStatus;
             }
             catch { }
         }

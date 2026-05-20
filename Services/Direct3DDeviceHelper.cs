@@ -1,5 +1,5 @@
-﻿using System;
 using Windows.Graphics.DirectX.Direct3D11;
+using Zink.Services.Recording;
 
 namespace Zink.Services
 {
@@ -7,7 +7,7 @@ namespace Zink.Services
     {
         public static IDirect3DDevice CreateDevice()
         {
-            throw new NotImplementedException("Wire this to your existing Zink D3D11 device helper.");
+            return Direct3D11Helpers.CreateD3DDevice();
         }
     }
 }

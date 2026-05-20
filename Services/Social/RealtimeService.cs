@@ -147,7 +147,7 @@ namespace Zink.Services.Social
             _ws = new ClientWebSocket();
 
 
-            var uri = new Uri($"wss://calls.zinkapp.net/ws?token={Uri.EscapeDataString(token)}");
+            var uri = new Uri($"wss://34-73-152-179.nip.io/ws?token={Uri.EscapeDataString(token)}");
 
             try
             {

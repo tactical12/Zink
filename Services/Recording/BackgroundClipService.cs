@@ -53,10 +53,11 @@ namespace Zink.Services.Recording
             StatusChanged?.Invoke(this, "Background clipping stopped.");
         }
 
-        public async Task SaveLast45SecondsAsync()
+        public async Task<string> SaveLast45SecondsAsync()
         {
             string path = await ManualRecordingService.Instance.SaveReplayAsync();
             StatusChanged?.Invoke(this, $"Saved last 45 seconds: {path}");
+            return path;
         }
 
         public async ValueTask DisposeAsync()

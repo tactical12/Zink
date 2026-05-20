@@ -11,67 +11,79 @@
             <TextBlock TextWrapping="Wrap">
 Privacy Policy for Zink
 
-Zink ("we", "our", or "us") is committed to protecting your privacy and ensuring transparency about how we handle your data when you use our app.
+Zink ("we", "our", or "us") is a media, browsing, calling, recording, and streaming hub for Windows. This policy explains what data Zink uses, why it is used, and when data may leave your device.
 
-1. Information We Collect
+1. Information Zink Uses
 
-- User Data:  
-  We collect minimal personal data required for basic app functionality such as user IDs and authentication tokens.
+- Account and authentication data:
+  Some features use third-party sign-in, such as Spotify or Zink social/calling services. Zink stores access tokens locally so you do not need to sign in every time. Zink does not store your Spotify password.
 
-- Audio and Video Data:  
-  When you use voice and video calling features, Zink accesses your device’s microphone and camera to enable communication. Audio and video streams are transmitted securely via Discord’s services.
+- Spotify integration:
+  Spotify features use Spotify's OAuth and Web API services for playback, library, device, and saved-track features. Spotify account data is handled according to Spotify's privacy policy at https://www.spotify.com/privacy/.
 
-- Spotify Integration:  
-  Zink integrates with Spotify to provide music playback. Your Spotify account data and playback information are handled according to Spotify’s privacy policies. We do not store your Spotify credentials.
+- Web browsing and third-party web services:
+  Zink Connect and the app's web pages can open third-party services such as YouTube, Spotify, Discord, Netflix, TikTok, X, Twitch, and other websites. Those services may collect data according to their own privacy policies and terms. Zink does not claim ownership of those third-party services.
 
-- Discord Chat Integration:  
-  Zink uses Discord’s chat services to enable text, voice, and video communication between users. The app connects to Discord servers to facilitate messaging and calls. User data sent through Discord (messages, voice, video) is handled according to Discord’s Privacy Policy (https://discord.com/privacy). We do not store your Discord credentials; authentication happens via Discord’s official OAuth flow.
+- Browser history and browsing data:
+  Zink Connect can store local browsing history and WebView data on your device for convenience. You can turn browser history off and clear browsing data from the app settings.
 
-- Local File Access:  
-  When using features that require selecting files (e.g., music or video library import), Zink requests access to your local files via standard file picker dialogs. We only access the files or folders you explicitly select. The app does not scan or collect data from your device without your consent. File access is limited to user-initiated actions; we do not automatically read or upload any files.
+- Ad blocking and content filtering:
+  Zink Connect includes ad-blocking and filtering functionality to improve the browsing experience. Filtering is applied locally inside the Zink browser experience where supported.
 
-- Usage Data and Diagnostics:  
-  We may collect anonymous analytics data to improve app performance and user experience.
+- Microphone and audio data:
+  Microphone access is used only for user-started features such as voice calls, screen recording with microphone audio, and live streaming. Zink does not record microphone audio unless you start a feature that uses it.
 
-2. How We Use Your Data
+- Screen capture and recording data:
+  Screen capture is used only when you choose to start screen sharing, screen recording, FPS recording, or streaming. Captured video is saved locally or sent to the service you choose, such as a call or stream destination.
 
-- To provide and maintain core app features, including media playback, calls, and user interaction.  
-- To communicate between users securely through Discord.  
-- To enable music streaming via Spotify APIs in compliance with Spotify’s terms.
+- Local media files and folders:
+  Zink accesses music, video, or folder content only after you choose files or folders through Windows picker dialogs or file associations. Zink does not automatically scan your entire device.
+
+- Diagnostics and support reports:
+  Zink can create diagnostic logs and support bundles to help troubleshoot calls, screen sharing, streaming, and playback. Uploads happen only when you choose an upload action. If an upload fails, the report may be saved locally on your device.
+
+2. How Zink Uses Data
+
+- To play local and online media.
+- To connect to third-party services that you choose to use.
+- To enable calls, screen sharing, recording, streaming, and diagnostics.
+- To remember local preferences such as theme, history settings, media libraries, and playback state.
 
 3. Permissions
 
-- Microphone and Camera:  
-  Access is required solely for voice and video calls. Permissions are requested explicitly at runtime.
+- Internet access:
+  Required for streaming media, web browsing, radio, account sign-in, third-party services, diagnostics upload, and real-time calling.
 
-- Network Access:  
-  Necessary for streaming media, communicating with servers, and accessing third-party services.
+- Microphone:
+  Required for voice calls, microphone recording, and live streaming when you enable microphone audio.
 
-- File System Access:  
-  Access to local files and folders is only granted via user action through file picker dialogs.
+- Graphics capture:
+  Required for screen sharing, screen recording, FPS recording, and streaming. Capture begins only after you choose or start a capture feature.
+
+- Global media control:
+  Used to detect and display currently playing media from compatible apps, such as Spotify, so Zink can show playback status and controls.
+
+- File access:
+  Used only for files and folders you select, files you open with Zink, and media output locations you choose.
 
 4. Third-Party Services
 
-- Spotify:  
-  Music playback uses Spotify’s services and APIs. For details on Spotify’s data handling, visit https://www.spotify.com/privacy/.
+Zink may connect to third-party services including Spotify, Discord, YouTube, Twitch, X, TikTok, Netflix, Amazon, Microsoft/Xbox, and other websites displayed inside the app. Each third-party service remains responsible for its own content, accounts, subscriptions, terms, and privacy practices.
 
-- Discord:  
-  Used for chat and messaging features. See https://discord.com/privacy for their privacy practices.
+5. User Control
 
-5. User Rights
+- You can stop calls, recording, streaming, and screen sharing at any time.
+- You can clear local browsing data and disable browser history.
+- You can revoke app permissions in Windows Settings.
+- You can sign out of third-party services through those services or by clearing local WebView data.
+- Zink does not sell your personal data.
 
-- You can disable microphone, camera, and file access permissions at any time via device settings.  
-- You can contact us to request access to or deletion of your personal data.  
-- We do not sell or share your personal data with third parties outside of the services needed to operate the app.
+6. Contact
 
-6. Contact Us
+If you have questions or concerns about privacy, contact:
+francehayle@outlook.com
 
-If you have any questions or concerns about your privacy, please contact us at:  
-[francehayle@outlook.com]
-
-
-
-                Written and Last updated: [26/06/2025]
+Last updated: 21 May 2026
             </TextBlock>
         </StackPanel>
     </ScrollViewer>

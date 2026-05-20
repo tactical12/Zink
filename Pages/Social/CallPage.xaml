@@ -8,12 +8,12 @@
     mc:Ignorable="d"
     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
 
-    <Grid>
+    <Grid x:Name="CallPageRoot">
         <Grid.Background>
             <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                <GradientStop Color="#0E1014" Offset="0"/>
-                <GradientStop Color="#12161C" Offset="0.55"/>
-                <GradientStop Color="#0B0D11" Offset="1"/>
+                <GradientStop Color="#70062D38" Offset="0"/>
+                <GradientStop Color="#780B4450" Offset="0.55"/>
+                <GradientStop Color="#9000080B" Offset="1"/>
             </LinearGradientBrush>
         </Grid.Background>
 
@@ -118,14 +118,16 @@
 
                                 <Image x:Name="RemoteScreenImage"
                        Margin="12"
-                       Stretch="Uniform"/>
+                       Stretch="Uniform"
+                       IsHitTestVisible="False"/>
 
                                 <MediaPlayerElement x:Name="RemoteScreenPlayer"
                        Margin="12"
                        Stretch="Uniform"
                        AreTransportControlsEnabled="False"
                        AutoPlay="True"
-                       Visibility="Collapsed"/>
+                       Visibility="Collapsed"
+                       IsHitTestVisible="False"/>
 
                                 <StackPanel x:Name="RemotePlaceholderPanel"
                             VerticalAlignment="Center"
@@ -273,12 +275,14 @@
                                     </StackPanel>
                                 </Border>
 
-                                <Border HorizontalAlignment="Left"
+                                <Border x:Name="MediaOverlayBadge"
+                        HorizontalAlignment="Left"
                         VerticalAlignment="Top"
                         Margin="16"
                         Padding="12,6"
                         CornerRadius="999"
-                        Background="#8C000000">
+                        Background="#8C000000"
+                        Visibility="Collapsed">
                                     <TextBlock x:Name="MediaOverlayText"
                              Text="Ready"
                              Foreground="White"
@@ -370,6 +374,7 @@
                                         VerticalAlignment="Stretch"
                                         Background="Transparent"
                                         Visibility="Collapsed"
+                                        IsHitTestVisible="False"
                                         Canvas.ZIndex="150"/>
 
                                 <Button x:Name="FullscreenButton"
@@ -384,7 +389,8 @@
                         Background="#D4111318"
                         BorderBrush="#66FFFFFF"
                         BorderThickness="1"
-                        Canvas.ZIndex="100"
+                        Canvas.ZIndex="5000"
+                        IsHitTestVisible="True"
                         ToolTipService.ToolTip="Fullscreen screen share">
                                     <FontIcon x:Name="FullscreenIcon"
                                 Glyph="&#xE740;"
@@ -392,28 +398,6 @@
                                 Foreground="White"/>
                                 </Button>
                             </Grid>
-
-                            <Button x:Name="FullscreenExitButton"
-                                    HorizontalAlignment="Right"
-                                    VerticalAlignment="Bottom"
-                                    Margin="18"
-                                    Width="52"
-                                    Height="52"
-                                    Padding="0"
-                                    CornerRadius="26"
-                                    Click="FullscreenButton_Click"
-                                    Visibility="Collapsed"
-                                    Background="#D4111318"
-                                    BorderBrush="#66FFFFFF"
-                                    BorderThickness="1"
-                                    Canvas.ZIndex="5000"
-                                    IsHitTestVisible="True"
-                                    ToolTipService.ToolTip="Exit fullscreen">
-                                <FontIcon Glyph="&#xE73F;"
-                                          FontSize="20"
-                                          Foreground="White"/>
-                            </Button>
-
                             <!-- Control dock -->
                             <Border x:Name="CallControlDock"
                       HorizontalAlignment="Center"
@@ -592,6 +576,28 @@
                                 Foreground="White"/>
                                         </Button>
                                         <TextBlock Text="Preview"
+                               Foreground="White"
+                               FontSize="11"
+                               TextTrimming="CharacterEllipsis"
+                               HorizontalAlignment="Center"/>
+                                    </StackPanel>
+
+                                    <StackPanel Width="80" Spacing="6" HorizontalAlignment="Center">
+                                        <Button x:Name="FullscreenDockButton"
+                            Width="56"
+                            Height="56"
+                            CornerRadius="28"
+                            Click="FullscreenButton_Click"
+                            Background="#171A20"
+                            BorderBrush="#2FFFFFFF"
+                            BorderThickness="1"
+                            ToolTipService.ToolTip="Fullscreen screen share">
+                                            <FontIcon x:Name="FullscreenDockIcon"
+                                Glyph="&#xE740;"
+                                FontSize="24"
+                                Foreground="White"/>
+                                        </Button>
+                                        <TextBlock Text="Fullscreen"
                                Foreground="White"
                                FontSize="11"
                                TextTrimming="CharacterEllipsis"
@@ -824,6 +830,26 @@
                 </StackPanel>
             </Border>
         </Grid>
+
+        <Border x:Name="FullscreenExitHotspot"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Bottom"
+                Margin="18"
+                Width="56"
+                Height="56"
+                CornerRadius="28"
+                Visibility="Collapsed"
+                Background="#E8111318"
+                BorderBrush="#80FFFFFF"
+                BorderThickness="1"
+                IsHitTestVisible="True"
+                ToolTipService.ToolTip="Exit fullscreen">
+            <FontIcon Glyph="&#xE73F;"
+                      FontSize="22"
+                      Foreground="White"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center"/>
+        </Border>
 
         <FlyoutBase.AttachedFlyout>
             <MenuFlyout x:Name="MoreFlyout">
