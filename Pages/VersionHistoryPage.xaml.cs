@@ -11,6 +11,20 @@ namespace Zink.Pages
         private readonly Dictionary<string, (string Title, DateTime? Released, string Notes)> _changelog =
             new(StringComparer.OrdinalIgnoreCase)
             {
+                // 3.0.33.0
+                ["3.0.33.0"] = (
+                    Title: "Version 3.0.33.0",
+                    Released: new DateTime(2026, 05, 24),
+                    Notes:
+@"Version 3.0.33.0
+- Turned the Visualizer into a working live audio visualizer using real system output audio instead of simulated demo data.
+- Added new visualizer designs: Mirror bars, Dots, Tunnel, and Pulse, alongside the existing Bars, Wave, and Circle styles.
+- Added colour themes for the visualizer: Sky, Fire, Neon, Ocean, and Mono.
+- Added real 0% to 100% Sensitivity and Smoothing sliders with exact percentage labels.
+- Added saved visualizer settings so selected design, colour, sensitivity, and smoothing are restored after navigating away and back.
+- Added Save and Reset buttons for visualizer settings.
+- Improved the visualizer drawing pipeline with smoother live levels, waveform samples, pulse response, and ambient background rendering."
+                ),
                 // 3.0.0.0 (NEW)
                 ["3.0.0.0"] = (
                     Title: "Version 3.0.0.0",

@@ -120,6 +120,17 @@
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Version 3.0.33.0" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                    <Button x:Name="LearnMore3033Button" Grid.Column="1" Style="{StaticResource GlassButtonStyle}" Content="Learn More" Click="LearnMore3033Button_Click"/>
+                                </Grid>
+                            </Border>
+
+                            <Border Style="{StaticResource VersionRowStyle}">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
                                     <TextBlock Text="Version 3.0.0.0" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center"/>
                                     <Button x:Name="LearnMore300Button" Grid.Column="1" Style="{StaticResource GlassButtonStyle}" Content="Learn More" Click="LearnMore300Button_Click"/>
                                 </Grid>
