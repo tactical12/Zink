@@ -45,7 +45,11 @@
                         <FontIcon Glyph="&#xE774;"
                                   FontFamily="Segoe Fluent Icons"
                                   Foreground="{StaticResource ConnectAccentBrush}"
-                                  FontSize="34"/>
+                                  Width="56"
+                                  Height="56"
+                                  FontSize="34"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"/>
                     </Border>
 
                     <TextBlock Text="Zink Connect"
@@ -72,19 +76,6 @@
                                 CornerRadius="18"/>
                     </StackPanel>
                 </StackPanel>
-            </Border>
-
-            <Border Grid.Row="1"
-                    CornerRadius="24"
-                    Background="#40111A22"
-                    BorderBrush="{StaticResource ConnectGlassStrokeBrush}"
-                    BorderThickness="1"
-                    Padding="22">
-                <TextBlock Text="."
-                           Foreground="{StaticResource ConnectMutedBrush}"
-                           TextWrapping="WrapWholeWords"
-                           FontSize="14"
-                           LineHeight="22"/>
             </Border>
         </Grid>
     </Grid>
