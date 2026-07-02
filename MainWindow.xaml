@@ -559,8 +559,12 @@
                 </LinearGradientBrush>
             </Grid.Background>
 
+            <Image Source="ms-appx:///Assets/splashScreen.png"
+                   Stretch="UniformToFill"/>
+
             <StackPanel HorizontalAlignment="Center"
                         VerticalAlignment="Center"
+                        Opacity="0"
                         Spacing="22">
                 <Border Width="178"
                         Height="178"

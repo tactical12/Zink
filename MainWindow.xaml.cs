@@ -1321,12 +1321,14 @@ namespace Zink
             catch { }
         }
 
-        private void HideStartupOverlay()
+        private async void HideStartupOverlay()
         {
             if (_startupOverlayHidden)
                 return;
 
             _startupOverlayHidden = true;
+
+            await Task.Delay(TimeSpan.FromSeconds(3));
 
             try
             {
