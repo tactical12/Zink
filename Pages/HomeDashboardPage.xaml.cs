@@ -1087,6 +1087,7 @@ namespace Zink.Pages
                 HeroPlaybackValue.Text = "Stopped";
                 HeroDurationValue.Text = "-";
                 ResumeButton.IsEnabled = false;
+                ResetClearButton.IsEnabled = false;
                 HeroThumb.Visibility = Visibility.Collapsed;
                 HeroThumbFallback.Visibility = Visibility.Visible;
                 if (HomeRadioVolumePanel != null)
@@ -1181,6 +1182,7 @@ namespace Zink.Pages
             HeroPlaybackValue.Text = "Ready";
             HeroDurationValue.Text = string.Equals(item.Kind, "radio", StringComparison.OrdinalIgnoreCase) ? "Live" : "-";
             ResumeButton.IsEnabled = true;
+            ResetClearButton.IsEnabled = true;
             _lastPlayable = item;
 
             if (persist)
@@ -1727,6 +1729,32 @@ namespace Zink.Pages
                 _lastPlayable.Kind = DetectKindFromPath(_lastPlayable.PayloadPath);
 
             NavigateFromRecent(_lastPlayable);
+        }
+
+        private void ResetClearButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var token = _lastPlayable?.PayloadToken;
+
+                if (string.IsNullOrWhiteSpace(token))
+                    token = Settings.Values[LS_LastToken] as string;
+
+                if (!string.IsNullOrWhiteSpace(token))
+                {
+                    try
+                    {
+                        var futureAccessList = WPerms.StorageApplicationPermissions.FutureAccessList;
+                        if (futureAccessList.ContainsItem(token))
+                            futureAccessList.Remove(token);
+                    }
+                    catch { }
+                }
+
+                ClearHeroFromSettings();
+                SetHeroEmptyState();
+            }
+            catch { }
         }
 
         private async void OpenFileButton_Click(object sender, RoutedEventArgs e)
