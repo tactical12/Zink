@@ -1735,7 +1735,15 @@ namespace Zink.Pages
         {
             try
             {
+                var payloadPath = _lastPlayable?.PayloadPath;
+                var kind = _lastPlayable?.Kind;
                 var token = _lastPlayable?.PayloadToken;
+
+                if (string.IsNullOrWhiteSpace(payloadPath))
+                    payloadPath = Settings.Values[LS_LastPath] as string;
+
+                if (string.IsNullOrWhiteSpace(kind))
+                    kind = Settings.Values[LS_LastKind] as string;
 
                 if (string.IsNullOrWhiteSpace(token))
                     token = Settings.Values[LS_LastToken] as string;
@@ -1751,6 +1759,7 @@ namespace Zink.Pages
                     catch { }
                 }
 
+                ActivityHub.RemovePayload(payloadPath, ToActivityHubType(kind));
                 ClearHeroFromSettings();
                 SetHeroEmptyState();
             }
@@ -2210,6 +2219,17 @@ namespace Zink.Pages
                 return DetectKindFromPath(payload);
 
             return "page";
+        }
+
+        private static string? ToActivityHubType(string? kind)
+        {
+            return kind?.ToLowerInvariant() switch
+            {
+                "music" => ActivityHub.ActivityKind.Music.ToString(),
+                "video" => ActivityHub.ActivityKind.Video.ToString(),
+                "radio" => ActivityHub.ActivityKind.Radio.ToString(),
+                _ => null
+            };
         }
 
         private static string DetectKindFromPath(string path)
