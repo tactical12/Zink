@@ -103,12 +103,16 @@ namespace Zink
         private double _pendingReloadResumeSeconds = 0;
 
         private const string CodecInstallerFolderName = "CodecInstallers";
+        private const string ToolsFolderName = "Tools";
+        private const string FfprobeExeName = "ffprobe.exe";
+
         private const string DolbyDigitalPlusPrefix = "DolbyLaboratories.DolbyDigitalPlusDecoderOEM_";
         private const string DolbyAC4Prefix = "DolbyLaboratories.DolbyAC4DecoderOEM_";
         private const string MicrosoftHevcVideoExtensionPrefix = "Microsoft.HEVCVideoExtension";
         private const string MicrosoftHevcVideoExtensionsPrefix = "Microsoft.HEVCVideoExtensions";
         private const string MicrosoftHevcDeviceExtensionPrefix = "Microsoft.HEVCVideoExtensionsFromDeviceManufacturer";
         private const string DolbyAccessPrefix = "DolbyLaboratories.DolbyAccess";
+        private const string DolbyVisionAccessPrefix = "DolbyLaboratories.DolbyVisionAccess";
 
         private const string CodecStateNotNeeded = "not_needed";
         private const string CodecStateInstalledDdp = "installed_ddp";
@@ -195,6 +199,7 @@ namespace Zink
             public string DisplayAdvancedColorKind { get; set; }
             public bool HevcExtensionInstalled { get; set; }
             public bool DolbyAccessInstalled { get; set; }
+            public bool DolbyVisionAccessInstalled { get; set; }
             public string NativeCodecPath { get; set; }
             public string PlaybackPath { get; set; }
             public string DetectionSource { get; set; }
@@ -867,7 +872,54 @@ namespace Zink
 
         private async System.Threading.Tasks.Task<string> DetectPrimaryAudioCodecAsync(WStorage.StorageFile file)
         {
-            await System.Threading.Tasks.Task.CompletedTask;
+            try
+            {
+                if (file == null || string.IsNullOrWhiteSpace(file.Path))
+                    return null;
+
+                var ffprobePath = await GetBundledFfprobePathAsync();
+                if (string.IsNullOrWhiteSpace(ffprobePath) || !File.Exists(ffprobePath))
+                    return null;
+
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = ffprobePath,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+                startInfo.ArgumentList.Add("-v");
+                startInfo.ArgumentList.Add("error");
+                startInfo.ArgumentList.Add("-select_streams");
+                startInfo.ArgumentList.Add("a:0");
+                startInfo.ArgumentList.Add("-show_entries");
+                startInfo.ArgumentList.Add("stream=codec_name");
+                startInfo.ArgumentList.Add("-of");
+                startInfo.ArgumentList.Add("default=noprint_wrappers=1:nokey=1");
+                startInfo.ArgumentList.Add(file.Path);
+
+                using var process = new Process();
+                process.StartInfo = startInfo;
+
+                process.Start();
+
+                string stdout = await process.StandardOutput.ReadToEndAsync();
+                _ = await process.StandardError.ReadToEndAsync();
+
+                await System.Threading.Tasks.Task.Run(() => process.WaitForExit(8000));
+
+                if (!process.HasExited)
+                {
+                    try { process.Kill(true); } catch { }
+                    return null;
+                }
+
+                if (!string.IsNullOrWhiteSpace(stdout))
+                    return stdout.Trim();
+            }
+            catch { }
+
             return null;
         }
 
@@ -902,8 +954,107 @@ namespace Zink
 
         private async System.Threading.Tasks.Task<IReadOnlyList<AudioStreamInfo>> DetectAudioStreamsAsync(WStorage.StorageFile file)
         {
-            await System.Threading.Tasks.Task.CompletedTask;
-            return Array.Empty<AudioStreamInfo>();
+            var results = new List<AudioStreamInfo>();
+
+            try
+            {
+                if (file == null || string.IsNullOrWhiteSpace(file.Path))
+                    return results;
+
+                var ffprobePath = await GetBundledFfprobePathAsync();
+                if (string.IsNullOrWhiteSpace(ffprobePath) || !File.Exists(ffprobePath))
+                    return results;
+
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = ffprobePath,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+                startInfo.ArgumentList.Add("-v");
+                startInfo.ArgumentList.Add("error");
+                startInfo.ArgumentList.Add("-select_streams");
+                startInfo.ArgumentList.Add("a");
+                startInfo.ArgumentList.Add("-show_entries");
+                startInfo.ArgumentList.Add("stream=index,codec_name,codec_long_name,profile,channels,channel_layout:stream_tags=language,title");
+                startInfo.ArgumentList.Add("-of");
+                startInfo.ArgumentList.Add("json");
+                startInfo.ArgumentList.Add(file.Path);
+
+                using var process = new Process();
+                process.StartInfo = startInfo;
+                process.Start();
+
+                string stdout = await process.StandardOutput.ReadToEndAsync();
+                _ = await process.StandardError.ReadToEndAsync();
+
+                await System.Threading.Tasks.Task.Run(() => process.WaitForExit(8000));
+
+                if (!process.HasExited)
+                {
+                    try { process.Kill(true); } catch { }
+                    return results;
+                }
+
+                if (string.IsNullOrWhiteSpace(stdout))
+                    return results;
+
+                using var doc = JsonDocument.Parse(stdout);
+                if (!doc.RootElement.TryGetProperty("streams", out var streams) ||
+                    streams.ValueKind != JsonValueKind.Array)
+                {
+                    return results;
+                }
+
+                int audioTrackNumber = 0;
+
+                foreach (var stream in streams.EnumerateArray())
+                {
+                    string language = null;
+                    string title = null;
+
+                    if (stream.TryGetProperty("tags", out var tags))
+                    {
+                        if (tags.TryGetProperty("language", out var languageElement))
+                            language = languageElement.GetString();
+
+                        if (tags.TryGetProperty("title", out var titleElement))
+                            title = titleElement.GetString();
+                    }
+
+                    results.Add(new AudioStreamInfo
+                    {
+                        StreamIndex = TryGetJsonInt(stream, "index"),
+                        AudioTrackNumber = audioTrackNumber,
+                        Codec = TryGetJsonString(stream, "codec_name"),
+                        CodecLongName = TryGetJsonString(stream, "codec_long_name"),
+                        Profile = TryGetJsonString(stream, "profile"),
+                        Channels = TryGetJsonInt(stream, "channels"),
+                        ChannelLayout = TryGetJsonString(stream, "channel_layout"),
+                        Language = language,
+                        Title = title,
+                        IsDolbyAtmos = IsDolbyAtmosStream(
+                            TryGetJsonString(stream, "codec_name"),
+                            TryGetJsonString(stream, "codec_long_name"),
+                            TryGetJsonString(stream, "profile"),
+                            TryGetJsonString(stream, "channel_layout"),
+                            title),
+                        SurroundLayout = DetectSurroundLayout(
+                            TryGetJsonInt(stream, "channels"),
+                            TryGetJsonString(stream, "channel_layout"),
+                            TryGetJsonString(stream, "codec_long_name"),
+                            TryGetJsonString(stream, "profile"),
+                            title)
+                    });
+
+                    audioTrackNumber++;
+                }
+            }
+            catch { }
+
+            return results;
         }
 
         private async System.Threading.Tasks.Task DetectAndPrepareVideoMetadataAsync(WStorage.StorageFile file)
@@ -936,7 +1087,6 @@ namespace Zink
 
             ApplyDisplayHdrInfo(info);
 
-            string ffprobePath = FindFfprobePath();
             if (file == null || string.IsNullOrWhiteSpace(file.Path))
             {
                 info.Notes = "No local video file path was available for metadata probing.";
@@ -944,6 +1094,7 @@ namespace Zink
                 return info;
             }
 
+            var ffprobePath = await GetBundledFfprobePathAsync();
             if (string.IsNullOrWhiteSpace(ffprobePath) || !File.Exists(ffprobePath))
             {
                 info.Notes = "ffprobe.exe was not found, so only Windows display HDR status is available.";
@@ -981,29 +1132,6 @@ namespace Zink
             return info;
         }
 
-        private static string FindFfprobePath()
-        {
-            try
-            {
-                var candidates = new[]
-                {
-                    Path.Combine(AppContext.BaseDirectory, "Tools", "ffprobe.exe"),
-                    Path.Combine(AppContext.BaseDirectory, "ffprobe.exe"),
-                    Path.Combine(Environment.CurrentDirectory, "Tools", "ffprobe.exe"),
-                    Path.Combine(Environment.CurrentDirectory, "ffprobe.exe")
-                };
-
-                foreach (var candidate in candidates)
-                {
-                    if (File.Exists(candidate))
-                        return candidate;
-                }
-            }
-            catch { }
-
-            return null;
-        }
-
         private static async System.Threading.Tasks.Task<string> RunFfprobeForVideoJsonAsync(string ffprobePath, string videoPath)
         {
             try
@@ -1025,12 +1153,17 @@ namespace Zink
                 if (!process.Start())
                     return null;
 
-                var outputTask = process.StandardOutput.ReadToEndAsync();
-                var errorTask = process.StandardError.ReadToEndAsync();
+                string output = await process.StandardOutput.ReadToEndAsync();
+                string error = await process.StandardError.ReadToEndAsync();
 
-                await process.WaitForExitAsync();
-                string output = await outputTask;
-                string error = await errorTask;
+                await System.Threading.Tasks.Task.Run(() => process.WaitForExit(8000));
+
+                if (!process.HasExited)
+                {
+                    try { process.Kill(true); } catch { }
+                    DiagnosticLogService.WriteLine("Video metadata probe failed: ffprobe timed out.");
+                    return null;
+                }
 
                 if (process.ExitCode != 0)
                 {
@@ -1274,6 +1407,7 @@ namespace Zink
                 if (info.IsDolbyVision)
                 {
                     info.DolbyAccessInstalled = await IsCodecExtensionInstalledAsync(DolbyAccessPrefix);
+                    info.DolbyVisionAccessInstalled = await IsCodecExtensionInstalledAsync(DolbyVisionAccessPrefix);
                 }
 
                 ChoosePlaybackPath(info);
@@ -1294,13 +1428,13 @@ namespace Zink
 
                 if (info.IsDolbyVision)
                 {
-                    notes.Add(info.DolbyAccessInstalled
-                        ? "Dolby Access appears installed. Dolby Vision still requires a Dolby Vision capable display, GPU driver, and Windows HDR path."
+                    notes.Add(info.DolbyVisionAccessInstalled
+                        ? "Dolby Vision Access appears installed. Dolby Vision still requires a Dolby Vision capable display, GPU driver, and Windows HDR path."
                         : "Dolby Vision metadata was detected. Zink enables the native Windows path, but full Dolby Vision rendering depends on Dolby/OEM Windows support.");
                 }
 
                 info.Notes = string.Join("\n", notes);
-                LogVideoPlaybackPath($"{GetNativeCodecPath(info)} selected. HEVC extension installed: {info.HevcExtensionInstalled}. Dolby Access installed: {info.DolbyAccessInstalled}. Dolby Vision detected: {info.IsDolbyVision}.");
+                LogVideoPlaybackPath($"{GetNativeCodecPath(info)} selected. HEVC extension installed: {info.HevcExtensionInstalled}. Dolby Access installed: {info.DolbyAccessInstalled}. Dolby Vision Access installed: {info.DolbyVisionAccessInstalled}. Dolby Vision detected: {info.IsDolbyVision}.");
 
                 await PromptForNativeVideoSupportIfNeededAsync(file, info);
             }
@@ -1320,7 +1454,7 @@ namespace Zink
                 if (!info.IsHevc && !info.IsDolbyVision)
                     return;
 
-                if (info.IsHevc && info.HevcExtensionInstalled && (!info.IsDolbyVision || info.DolbyAccessInstalled))
+                if (info.IsHevc && info.HevcExtensionInstalled && (!info.IsDolbyVision || info.DolbyVisionAccessInstalled))
                     return;
 
                 var path = file.Path ?? "";
@@ -1357,7 +1491,7 @@ namespace Zink
                     return;
 
                 string query = info.IsDolbyVision
-                    ? "Dolby Access HEVC Video Extensions"
+                    ? "Dolby Vision Access HEVC Video Extensions"
                     : "HEVC Video Extensions";
 
                 _waitingForCodecInstallReturn = true;
@@ -1441,6 +1575,7 @@ namespace Zink
             AppendInfoLine(builder, "Display advanced colour", info.DisplayAdvancedColorKind);
             AppendInfoLine(builder, "HEVC extension installed", info.HevcExtensionInstalled ? "Yes" : "No");
             AppendInfoLine(builder, "Dolby Access installed", info.DolbyAccessInstalled ? "Yes" : "No");
+            AppendInfoLine(builder, "Dolby Vision Access installed", info.DolbyVisionAccessInstalled ? "Yes" : "No");
             AppendInfoLine(builder, "Playback path", info.PlaybackPath);
             AppendInfoLine(builder, "Detection source", info.DetectionSource);
             AppendInfoLine(builder, "Notes", info.Notes);
@@ -1856,6 +1991,45 @@ namespace Zink
                 SurroundMode24110 => "Dolby Atmos 24.1.10",
                 _ => "Auto"
             };
+        }
+
+        private async System.Threading.Tasks.Task<string> GetBundledFfprobePathAsync()
+        {
+            try
+            {
+                var installed = WAppModel.Package.Current.InstalledLocation;
+
+                try
+                {
+                    var toolsFolder = await installed.GetFolderAsync(ToolsFolderName);
+                    var probeFile = await toolsFolder.GetFileAsync(FfprobeExeName);
+                    return probeFile.Path;
+                }
+                catch { }
+
+                try
+                {
+                    var rootProbeFile = await installed.GetFileAsync(FfprobeExeName);
+                    return rootProbeFile.Path;
+                }
+                catch { }
+            }
+            catch { }
+
+            try
+            {
+                var baseDirectory = AppContext.BaseDirectory;
+                var toolProbePath = Path.Combine(baseDirectory, ToolsFolderName, FfprobeExeName);
+                if (File.Exists(toolProbePath))
+                    return toolProbePath;
+
+                var rootProbePath = Path.Combine(baseDirectory, FfprobeExeName);
+                if (File.Exists(rootProbePath))
+                    return rootProbePath;
+            }
+            catch { }
+
+            return null;
         }
 
         private async System.Threading.Tasks.Task TryLaunchCodecInstallerByPrefixAsync(string filePrefix, string friendlyName)
@@ -2459,7 +2633,7 @@ namespace Zink
             SeekSlider.CapturePointer(e.Pointer);
 
             SetSliderFromPointer(e);
-            ApplySeekFromSlider(preservePlaybackState: true);
+            ApplySeekFromSlider();
         }
 
         private void SeekSlider_PointerMoved(object sender, PointerRoutedEventArgs e)
@@ -2468,7 +2642,7 @@ namespace Zink
             if (!_isUserSeeking) return;
 
             SetSliderFromPointer(e);
-            ApplySeekFromSlider(preservePlaybackState: true);
+            CurrentTimeText.Text = FormatTime(TimeSpan.FromSeconds(SeekSlider.Value));
         }
 
         private void SeekSlider_PointerReleased(object sender, PointerRoutedEventArgs e)
@@ -2478,7 +2652,7 @@ namespace Zink
             if (_isUserSeeking)
             {
                 _isUserSeeking = false;
-                ApplySeekFromSlider(preservePlaybackState: true);
+                ApplySeekFromSlider();
             }
 
             SeekSlider.ReleasePointerCaptures();
@@ -2489,7 +2663,7 @@ namespace Zink
             if (_isUserSeeking)
             {
                 _isUserSeeking = false;
-                ApplySeekFromSlider(preservePlaybackState: true);
+                ApplySeekFromSlider();
             }
         }
 
@@ -2521,7 +2695,7 @@ namespace Zink
             catch { }
         }
 
-        private void ApplySeekFromSlider(bool preservePlaybackState = false)
+        private void ApplySeekFromSlider()
         {
             try
             {
@@ -2538,10 +2712,11 @@ namespace Zink
 
                 _suppressDiscordPresenceRefresh = true;
 
+                player.Pause();
                 session.Position = TimeSpan.FromSeconds(seconds);
                 CurrentTimeText.Text = FormatTime(session.Position);
 
-                if (preservePlaybackState && wasPlaying)
+                if (wasPlaying)
                 {
                     _userPausedDiscordPresence = false;
                     player.Play();
