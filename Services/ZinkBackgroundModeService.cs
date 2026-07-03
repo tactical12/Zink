@@ -187,13 +187,9 @@ namespace Zink.Services
                 var updates = await StoreContext.GetDefault().GetAppAndOptionalStorePackageUpdatesAsync();
                 var count = updates.Count;
 
-                if (_lastUpdateCount >= 0 && count > _lastUpdateCount)
+                if (count > 0 && (_lastUpdateCount < 0 || count > _lastUpdateCount))
                 {
-                    ShowNotification(
-                        "Zink update available",
-                        count == 1
-                            ? "A Zink update is ready to install."
-                            : $"{count} Zink updates are ready to install.");
+                    NotificationService.Instance.ShowAppUpdateReady();
                 }
 
                 _lastUpdateCount = count;

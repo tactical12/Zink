@@ -7,10 +7,12 @@ using System.Diagnostics;
 using System.Threading.Tasks;
 using Windows.Storage;
 using Windows.Storage.Streams;
+using Zink.Models;
 using Zink.Services;
 using Zink.Services.NativeCalling;
 using Zink.Services.Recording;
 using Zink.Services.Streaming;
+using Zink.Windows;
 
 namespace Zink.Pages
 {
@@ -19,6 +21,8 @@ namespace Zink.Pages
         private readonly NativeTwitchStreamingService _streamingService = NativeTwitchStreamingService.Instance;
         private readonly NativeScreenShareStreamingService _obsCaptureService = NativeScreenShareStreamingService.Instance;
         private const string StreamKeySettingKey = "Zink.Streaming.TwitchStreamKey";
+        private const string EncoderFamilySettingKey = "Zink.Streaming.TwitchEncoderFamily";
+        private const string QualitySettingKey = "Zink.Streaming.TwitchQuality";
         private DateTimeOffset _lastPreviewUiUpdateUtc = DateTimeOffset.MinValue;
         private byte[]? _lastPreviewFrameData;
         private readonly object _previewFrameSync = new();
@@ -31,6 +35,8 @@ namespace Zink.Pages
         private double _maxPreviewFrameAgeMilliseconds;
         private int _lastPreviewBytes;
         private DateTimeOffset _lastPreviewPerfLogUtc = DateTimeOffset.MinValue;
+        private bool? _lastObservedStreamingState;
+        private string _activeStreamingProvider = "Twitch";
 
         public StreamingPage()
         {
@@ -51,9 +57,9 @@ namespace Zink.Pages
             StatusText.Text = _streamingService.LastStatus;
             LoadAudioDevicesAsync();
             UpdateStats(_streamingService.CurrentStats);
-            UpdateStreamingState(_streamingService.IsStreaming);
+            UpdateStreamingState(_streamingService.IsStreaming, notify: false);
             CaptureBackendText.Text = "No source selected";
-            CanvasValueText.Text = GetSelectedQualityText();
+            CanvasValueText.Text = $"{GetSelectedEncoderFamilyText()} / {GetSelectedQualityText()}";
             PreviewSubtitleText.Text = "Choose a window or screen to start the preview.";
             UpdateQualitySummary();
         }
@@ -73,16 +79,18 @@ namespace Zink.Pages
             try
             {
                 StartStreamButton.IsEnabled = false;
-                StatusText.Text = "Starting native Twitch stream...";
+                _activeStreamingProvider = GetSelectedStreamingProviderName();
+                StatusText.Text = $"Starting native stream to {_activeStreamingProvider}...";
                 SaveStreamingSettings();
+                ApplySelectedEncoderFamily();
                 await _streamingService.StartAsync(
                     StreamKeyBox.Password,
                     ServerTextBox.Text,
                     GetSelectedQualityPreset(),
-                    GetComboBoxText(DesktopAudioComboBox),
+                    GetSelectedAudioDeviceId(DesktopAudioComboBox),
                     DesktopAudioVolumeSlider.Value / 100.0,
                     MuteDesktopAudioButton.IsChecked == true,
-                    GetComboBoxText(MicrophoneComboBox),
+                    GetSelectedAudioDeviceId(MicrophoneComboBox),
                     MicrophoneVolumeSlider.Value / 100.0,
                     MuteMicrophoneButton.IsChecked == true,
                     LowLatencyToggle.IsOn);
@@ -129,7 +137,7 @@ namespace Zink.Pages
             await DispatcherQueue.EnqueueAsync(() => UpdateStats(stats));
         }
 
-        private void UpdateStreamingState(bool isStreaming)
+        private void UpdateStreamingState(bool isStreaming, bool notify = true)
         {
             LiveStateText.Text = isStreaming ? "LIVE" : "OFFLINE";
             LiveIndicator.Fill = new SolidColorBrush(isStreaming
@@ -140,10 +148,91 @@ namespace Zink.Pages
             StopStreamButton.IsEnabled = isStreaming;
             StreamKeyBox.IsEnabled = !isStreaming;
             ServerTextBox.IsEnabled = !isStreaming;
+            EncoderFamilyComboBox.IsEnabled = !isStreaming;
             StreamQualityComboBox.IsEnabled = !isStreaming;
             DesktopAudioComboBox.IsEnabled = !isStreaming;
             MicrophoneComboBox.IsEnabled = !isStreaming;
             SelectCaptureSourceButton.IsEnabled = !isStreaming;
+
+            try
+            {
+                var provider = isStreaming
+                    ? (!string.IsNullOrWhiteSpace(_activeStreamingProvider) ? _activeStreamingProvider : GetSelectedStreamingProviderName())
+                    : (!string.IsNullOrWhiteSpace(_activeStreamingProvider) ? _activeStreamingProvider : GetSelectedStreamingProviderName());
+
+                DiscordPresenceService.Instance.SetStreamingPresence(provider, isStreaming);
+
+                if (notify &&
+                    _lastObservedStreamingState.HasValue &&
+                    _lastObservedStreamingState.Value != isStreaming)
+                {
+                    if (isStreaming)
+                    {
+                        NotificationService.Instance.Show(
+                            "The stream has started",
+                            $"The stream has started and you are now live streaming on {provider}.");
+                    }
+                    else
+                    {
+                        NotificationService.Instance.Show(
+                            "Live stream ended",
+                            $"Your live stream on {provider} has ended so you are no longer live.");
+                    }
+                }
+
+                _lastObservedStreamingState = isStreaming;
+            }
+            catch
+            {
+            }
+        }
+
+        private string GetSelectedStreamingProviderName()
+        {
+            try
+            {
+                var server = ServerTextBox?.Text?.Trim() ?? "";
+                if (string.IsNullOrWhiteSpace(server))
+                    return "Twitch";
+
+                if (server.Contains("twitch", StringComparison.OrdinalIgnoreCase))
+                    return "Twitch";
+
+                if (server.Contains("youtube", StringComparison.OrdinalIgnoreCase) ||
+                    server.Contains("youtu.be", StringComparison.OrdinalIgnoreCase))
+                    return "YouTube";
+
+                if (server.Contains("facebook", StringComparison.OrdinalIgnoreCase) ||
+                    server.Contains("fbcdn", StringComparison.OrdinalIgnoreCase))
+                    return "Facebook Live";
+
+                if (server.Contains("kick", StringComparison.OrdinalIgnoreCase))
+                    return "Kick";
+
+                if (server.Contains("tiktok", StringComparison.OrdinalIgnoreCase))
+                    return "TikTok Live";
+
+                if (server.Contains("instagram", StringComparison.OrdinalIgnoreCase))
+                    return "Instagram Live";
+
+                if (server.Contains("trovo", StringComparison.OrdinalIgnoreCase))
+                    return "Trovo";
+
+                if (server.Contains("restream", StringComparison.OrdinalIgnoreCase))
+                    return "Restream";
+
+                if (server.Contains("vimeo", StringComparison.OrdinalIgnoreCase))
+                    return "Vimeo";
+
+                if (server.Contains("rumble", StringComparison.OrdinalIgnoreCase))
+                    return "Rumble";
+
+                return "custom RTMP";
+            }
+            catch
+            {
+                return "Twitch";
+            }
         }
 
         private async void SelectCaptureSourceButton_Click(object sender, RoutedEventArgs e)
@@ -283,7 +372,19 @@ namespace Zink.Pages
             UpdateQualitySummary();
             StatusText.Text = _streamingService.IsStreaming
                 ? "Stream quality changes apply when you restart the stream."
-                : $"{GetSelectedQualityText()} selected.";
+                : $"{GetSelectedEncoderFamilyText()} / {GetSelectedQualityText()} selected.";
+        }
+
+        private void EncoderFamilyComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (StatusText is null)
+                return;
+
+            ApplySelectedEncoderFamily();
+            UpdateQualitySummary();
+            StatusText.Text = _streamingService.IsStreaming
+                ? "Encoder changes apply when you restart the stream."
+                : $"{GetSelectedEncoderFamilyText()} selected.";
         }
 
         private static string GetSelectedListViewText(ListView listView, string fallback)
@@ -293,30 +394,30 @@ namespace Zink.Pages
 
         private async void LoadAudioDevicesAsync()
         {
-            var devices = await NativeTwitchStreamingService.GetDirectShowAudioDevicesAsync();
+            var renderDevices = await AudioDeviceService.GetRenderDevicesAsync();
+            var microphoneDevices = await AudioDeviceService.GetCaptureDevicesAsync();
             await DispatcherQueue.EnqueueAsync(() =>
             {
                 DesktopAudioComboBox.Items.Clear();
                 MicrophoneComboBox.Items.Clear();
 
                 DesktopAudioComboBox.Items.Add("None");
-                DesktopAudioComboBox.Items.Add(NativeTwitchStreamingService.WindowsLoopbackAudioDeviceName);
                 MicrophoneComboBox.Items.Add("None");
 
-                foreach (var device in devices)
-                {
+                foreach (var device in renderDevices)
                     DesktopAudioComboBox.Items.Add(device);
-                    MicrophoneComboBox.Items.Add(device);
-                }
 
-                DesktopAudioComboBox.SelectedIndex = 1;
-                MicrophoneComboBox.SelectedIndex = devices.Count > 0 ? 1 : 0;
-                AudioDeviceStatusText.Text = devices.Count > 0
-                    ? $"Desktop sound uses Windows loopback. Found {devices.Count} microphone or virtual audio input device(s)."
-                    : "Desktop sound uses Windows loopback. No microphone input devices were found.";
-                StatusText.Text = devices.Count > 0
-                    ? $"Loaded {devices.Count} audio input device(s)."
-                    : "No microphone audio input devices found.";
+                foreach (var device in microphoneDevices)
+                    MicrophoneComboBox.Items.Add(device);
+
+                DesktopAudioComboBox.SelectedIndex = renderDevices.Count > 0 ? 1 : 0;
+                MicrophoneComboBox.SelectedIndex = microphoneDevices.Count > 0 ? 1 : 0;
+                AudioDeviceStatusText.Text = renderDevices.Count > 0 || microphoneDevices.Count > 0
+                    ? $"Found {renderDevices.Count} desktop/system audio output device(s) and {microphoneDevices.Count} microphone input device(s)."
+                    : "No desktop/system audio or microphone devices were found.";
+                StatusText.Text = renderDevices.Count > 0 || microphoneDevices.Count > 0
+                    ? "Loaded real Windows audio devices."
+                    : "No audio devices found.";
                 RefreshSourcesButton_Click(this, new RoutedEventArgs());
             });
         }
@@ -332,15 +433,16 @@ namespace Zink.Pages
             PanelBitrateText.Text = stats.Bitrate;
             PanelEncodeMsText.Text = $"{stats.EncodeMilliseconds:0.0} ms";
             PanelStreamTimeText.Text = stats.OutputTime;
-            PanelQualityText.Text = $"{GetSelectedQualityText()} / {stats.Bitrate}";
+            var selectedProfile = $"{GetSelectedEncoderFamilyText()} / {GetSelectedQualityText()}";
+            PanelQualityText.Text = $"{selectedProfile} / {stats.Bitrate}";
             PanelHealthText.Text = $"Dropped {stats.DroppedFrames} / Repeated {stats.DuplicatedFrames} / Frames {stats.Frame}";
             PanelStreamStatusText.Text = _streamingService.IsStreaming
                 ? $"Live output sending at {stats.SendFps:0.0} fps."
                 : "Ready to stream.";
-            CanvasValueText.Text = $"{GetSelectedQualityText()} / {stats.Bitrate}";
+            CanvasValueText.Text = $"{selectedProfile} / {stats.Bitrate}";
             CaptureBackendText.Text = string.IsNullOrWhiteSpace(stats.OutputTime) || stats.OutputTime == "--"
                 ? CaptureBackendText.Text
-                : $"{NativeTwitchStreamingService.EncoderName}";
+                : $"{GetSelectedEncoderFamilyText()} / {NativeTwitchStreamingService.EncoderName}";
             SceneTransitionValueText.Text = _streamingService.IsStreaming
                 ? $"Live {stats.SendFps:0.0} fps"
                 : "Cut / Fade 300 ms";
@@ -354,6 +456,14 @@ namespace Zink.Pages
                 : text.Trim();
         }
 
+        private static string GetSelectedAudioDeviceId(ComboBox comboBox)
+        {
+            if (comboBox.SelectedItem is RecorderDeviceItem device)
+                return device.Id;
+
+            return GetComboBoxText(comboBox);
+        }
+
         private ScreenShareQualityPreset GetSelectedQualityPreset()
         {
             var selected = (StreamQualityComboBox?.SelectedItem as ComboBoxItem)?.Tag?.ToString();
@@ -362,10 +472,25 @@ namespace Zink.Pages
                 : ScreenShareQualityPreset.Hd720p;
         }
 
+        private ScreenShareH264EncoderFamily GetSelectedEncoderFamily()
+        {
+            var selected = (EncoderFamilyComboBox?.SelectedItem as ComboBoxItem)?.Tag?.ToString();
+            return string.Equals(selected, "Intel", StringComparison.OrdinalIgnoreCase)
+                ? ScreenShareH264EncoderFamily.Intel
+                : ScreenShareH264EncoderFamily.Nvidia;
+        }
+
+        private string GetSelectedEncoderFamilyText()
+        {
+            return GetSelectedEncoderFamily() == ScreenShareH264EncoderFamily.Intel
+                ? "Intel"
+                : "Nvidia";
+        }
+
         private string GetSelectedQualityText()
         {
             var profile = ScreenShareQualityProfile.FromPreset(GetSelectedQualityPreset());
-            return $"{profile.Name} / {NativeTwitchStreamingService.OutputFps} FPS";
+            return profile.Name;
         }
 
         private int GetSelectedBitrateKbps()
@@ -378,12 +503,18 @@ namespace Zink.Pages
         private void UpdateQualitySummary()
         {
             var bitrate = GetSelectedBitrateKbps();
+            var selectedProfile = $"{GetSelectedEncoderFamilyText()} / {GetSelectedQualityText()}";
             if (PanelQualityText is not null && !_streamingService.IsStreaming)
-                PanelQualityText.Text = $"{GetSelectedQualityText()} / {bitrate}k";
+                PanelQualityText.Text = $"{selectedProfile} / {bitrate}k";
             if (PanelBitrateText is not null && !_streamingService.IsStreaming)
                 PanelBitrateText.Text = $"{bitrate}k";
             if (CanvasValueText is not null && !_streamingService.IsStreaming)
-                CanvasValueText.Text = $"{GetSelectedQualityText()} / {bitrate}k";
+                CanvasValueText.Text = $"{selectedProfile} / {bitrate}k";
+        }
+
+        private void ApplySelectedEncoderFamily()
+        {
+            _obsCaptureService.PreferredH264EncoderFamily = GetSelectedEncoderFamily();
         }
 
         private void LoadStreamingSettings()
@@ -396,6 +527,22 @@ namespace Zink.Pages
                 {
                     StreamKeyBox.Password = streamKey;
                 }
+
+                if (ApplicationData.Current.LocalSettings.Values.TryGetValue(EncoderFamilySettingKey, out var encoderValue) &&
+                    encoderValue is string encoderFamily)
+                {
+                    EncoderFamilyComboBox.SelectedIndex = string.Equals(encoderFamily, "Intel", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+                }
+
+                if (ApplicationData.Current.LocalSettings.Values.TryGetValue(QualitySettingKey, out var qualityValue) &&
+                    qualityValue is string quality)
+                {
+                    StreamQualityComboBox.SelectedIndex = string.Equals(quality, "1080p", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+                }
+
+                ApplySelectedEncoderFamily();
+
+                UpdateTwitchViewerStatus();
             }
             catch
             {
@@ -411,10 +558,184 @@ namespace Zink.Pages
                     ApplicationData.Current.LocalSettings.Values.Remove(StreamKeySettingKey);
                 else
                     ApplicationData.Current.LocalSettings.Values[StreamKeySettingKey] = streamKey;
+
+                ApplicationData.Current.LocalSettings.Values[EncoderFamilySettingKey] =
+                    GetSelectedEncoderFamily() == ScreenShareH264EncoderFamily.Intel ? "Intel" : "Nvidia";
+                ApplicationData.Current.LocalSettings.Values[QualitySettingKey] =
+                    GetSelectedQualityPreset() == ScreenShareQualityPreset.FullHd1080p ? "1080p" : "720p";
             }
             catch
             {
             }
+        }
+
+        private async void ConnectTwitchButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!TwitchViewerCountService.HasConfiguredClientId)
+            {
+                StatusText.Text = "Add a Twitch Client ID to connect your streaming account.";
+                await ShowTwitchViewerSettingsAsync("Add the Twitch Client ID, then Connect account can sign in to your Twitch account.");
+                if (!TwitchViewerCountService.HasConfiguredClientId)
+                {
+                    UpdateTwitchViewerStatus();
+                    StatusText.Text = "A Twitch Client ID is needed before the account can connect.";
+                    return;
+                }
+            }
+
+            StatusText.Text = "Connecting streaming account...";
+            var result = await TwitchConnectWindow.ConnectAsync();
+            if (result.Success && !string.IsNullOrWhiteSpace(result.StreamKey))
+            {
+                StreamKeyBox.Password = result.StreamKey;
+                SaveStreamingSettings();
+            }
+
+            UpdateTwitchViewerStatus();
+            StatusText.Text = result.Status;
+            if (result.Success)
+                TwitchViewerOverlayWindow.ShowSingleton();
+        }
+
+        private void DisconnectTwitchButton_Click(object sender, RoutedEventArgs e)
+        {
+            TwitchViewerCountService.Instance.Disconnect();
+            TwitchViewerOverlayWindow.CloseSingleton();
+            UpdateTwitchViewerStatus();
+            StatusText.Text = "Streaming account disconnected.";
+        }
+
+        private void ShowTwitchViewersButton_Click(object sender, RoutedEventArgs e)
+        {
+            SaveStreamingSettings();
+            TwitchViewerOverlayWindow.ShowSingleton();
+            StatusText.Text = "Twitch viewer overlay is open.";
+        }
+
+        private void HideTwitchViewersButton_Click(object sender, RoutedEventArgs e)
+        {
+            TwitchViewerOverlayWindow.CloseSingleton();
+            StatusText.Text = "Twitch viewer overlay hidden.";
+        }
+
+        private async void ResetTwitchButton_Click(object sender, RoutedEventArgs e)
+        {
+            TwitchViewerOverlayWindow.CloseSingleton();
+            StatusText.Text = "Resetting streaming account sign-in...";
+            await TwitchConnectWindow.ResetSavedSignInAsync();
+            UpdateTwitchViewerStatus();
+            StatusText.Text = "Streaming account sign-in reset. Connect the account again.";
+        }
+
+        private async void TwitchSettingsButton_Click(object sender, RoutedEventArgs e)
+        {
+            await ShowTwitchViewerSettingsAsync();
+        }
+
+        private async Task ShowTwitchViewerSettingsAsync(string? helpText = null)
+        {
+            var channelBox = new TextBox
+            {
+                Header = "Twitch channel login",
+                PlaceholderText = "yourchannel",
+                Text = TwitchViewerCountService.ChannelLogin
+            };
+            var clientIdBox = new TextBox
+            {
+                Header = "Client ID",
+                PlaceholderText = "Twitch app Client ID",
+                Text = TwitchViewerCountService.ClientId
+            };
+            var accessTokenBox = new PasswordBox
+            {
+                Header = "Access token",
+                PlaceholderText = "Paste OAuth access token"
+            };
+            accessTokenBox.Password = TwitchViewerCountService.AccessToken;
+
+            var testStatus = new TextBlock
+            {
+                Text = helpText ?? "Use this if Connect Twitch is blocked by SMS. The token must belong to the same Client ID.",
+                TextWrapping = TextWrapping.Wrap,
+                Opacity = 0.82
+            };
+
+            var testButton = new Button
+            {
+                Content = "Test settings",
+                HorizontalAlignment = HorizontalAlignment.Left
+            };
+            testButton.Click += async (_, _) =>
+            {
+                SaveManualTwitchViewerSettings(channelBox.Text, clientIdBox.Text, accessTokenBox.Password);
+                testStatus.Text = "Testing Twitch viewer settings...";
+                var snapshot = await TwitchViewerCountService.Instance.RefreshAsync();
+                testStatus.Text = snapshot.ViewerCount.HasValue
+                    ? $"{snapshot.Status}: {snapshot.ViewerCount.Value} viewer(s)"
+                    : snapshot.Status;
+                UpdateTwitchViewerStatus();
+            };
+
+            var panel = new StackPanel
+            {
+                Spacing = 10
+            };
+            panel.Children.Add(channelBox);
+            panel.Children.Add(clientIdBox);
+            panel.Children.Add(accessTokenBox);
+            panel.Children.Add(testButton);
+            panel.Children.Add(testStatus);
+
+            var dialog = new ContentDialog
+            {
+                Title = "Twitch viewer settings",
+                Content = panel,
+                PrimaryButtonText = "Save",
+                SecondaryButtonText = "Cancel",
+                CloseButtonText = "Clear",
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = XamlRoot
+            };
+
+            var result = await dialog.ShowAsync();
+            if (result == ContentDialogResult.Primary)
+            {
+                SaveManualTwitchViewerSettings(channelBox.Text, clientIdBox.Text, accessTokenBox.Password);
+                UpdateTwitchViewerStatus();
+                StatusText.Text = "Twitch viewer settings saved.";
+            }
+            else if (result == ContentDialogResult.None)
+            {
+                TwitchViewerCountService.Instance.Disconnect();
+                TwitchViewerCountService.ClientId = string.Empty;
+                TwitchViewerOverlayWindow.CloseSingleton();
+                UpdateTwitchViewerStatus();
+                StatusText.Text = "Twitch viewer settings cleared.";
+            }
+        }
+
+        private static void SaveManualTwitchViewerSettings(string channelLogin, string clientId, string accessToken)
+        {
+            TwitchViewerCountService.ChannelLogin = channelLogin.Trim().TrimStart('@');
+            TwitchViewerCountService.ClientId = clientId.Trim();
+            TwitchViewerCountService.AccessToken = accessToken.Trim();
+        }
+
+        private void UpdateTwitchViewerStatus()
+        {
+            if (TwitchViewerStatusText is null)
+                return;
+
+            if (!TwitchViewerCountService.HasConfiguredClientId)
+            {
+                TwitchViewerStatusText.Text = "Account connect is not configured in this build.";
+                return;
+            }
+
+            var channel = TwitchViewerCountService.ChannelLogin;
+            TwitchViewerStatusText.Text = string.IsNullOrWhiteSpace(channel)
+                ? "No streaming account connected"
+                : $"Connected account: {channel}";
         }
 
         private async Task StartObsCapturePreviewAsync()
@@ -422,10 +743,13 @@ namespace Zink.Pages
             try
             {
                 _obsCaptureService.SetQuality(GetSelectedQualityPreset());
+                ApplySelectedEncoderFamily();
                 _obsCaptureService.SetBitrateOverride(GetSelectedBitrateKbps() * 1000);
                 _obsCaptureService.SetAdaptiveLatencyMode(false);
                 _obsCaptureService.EnablePreviewFrames = true;
+                _obsCaptureService.PublishPreviewOnlyFrames = true;
                 _obsCaptureService.PrioritizeStreamingPerformance = false;
+                _obsCaptureService.PreferredVideoCodec = ScreenShareVideoCodec.H264;
                 _obsCaptureService.PreferredCaptureSourceMode = NativeCaptureSourceMode.GameOrWindow;
                 _obsCaptureService.RequireHardwareEncoder = true;
                 _obsCaptureService.RequireDirectX12CapturePath = true;
@@ -437,18 +761,18 @@ namespace Zink.Pages
                 if (_obsCaptureService.IsRunning)
                 {
                     SelectCaptureSourceButton.Content = "Change Window / Screen";
-                    StatusText.Text = $"{GetSelectedQualityText()} capture preview started.";
+                    StatusText.Text = $"{GetSelectedEncoderFamilyText()} / {GetSelectedQualityText()} capture preview started.";
                 }
                 else
                 {
                     CaptureBackendText.Text = "No source selected";
-                    StatusText.Text = "No capture source selected.";
+                    StatusText.Text = _obsCaptureService.LastFailureMessage ?? "No capture source selected.";
                 }
             }
             catch (Exception ex)
             {
                 CaptureBackendText.Text = "Capture unavailable";
-                StatusText.Text = $"OBS-style capture could not start: {ex.Message}";
+                StatusText.Text = $"Capture could not start: {ex.Message}";
             }
         }
 
@@ -509,20 +833,25 @@ namespace Zink.Pages
                 var frameAgeMilliseconds = Math.Max(0, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - frame.PreviewTimestamp);
                 _maxPreviewFrameAgeMilliseconds = Math.Max(_maxPreviewFrameAgeMilliseconds, frameAgeMilliseconds);
 
+                var isPreviewOnlyFrame = string.Equals(frame.Codec, "preview", StringComparison.OrdinalIgnoreCase);
+                var previewEncodeFps = _obsCaptureService.EncodedFps > 0
+                    ? _obsCaptureService.EncodedFps
+                    : _obsCaptureService.CaptureFps;
                 CaptureBackendText.Text = _obsCaptureService.EncoderMode;
-                PreviewSubtitleText.Text = $"{frame.Width} x {frame.Height} {frame.Codec.ToUpperInvariant()} - live preview {frameAgeMilliseconds:0}ms behind";
-                CanvasValueText.Text = $"{frame.QualityName} / {_obsCaptureService.CurrentTargetFps} FPS / {_obsCaptureService.CurrentBitrate / 1000}k";
-                SceneTransitionValueText.Text = $"Preview {_obsCaptureService.EncodedFps:0.0} fps";
+                PreviewSubtitleText.Text = $"{frame.Width} x {frame.Height} {(isPreviewOnlyFrame ? "capture preview" : frame.Codec.ToUpperInvariant())} - live preview {frameAgeMilliseconds:0}ms behind";
+                var previewProfile = $"{GetSelectedEncoderFamilyText()} / {frame.QualityName}";
+                CanvasValueText.Text = $"{previewProfile} / {_obsCaptureService.CurrentTargetFps} FPS / {_obsCaptureService.CurrentBitrate / 1000}k";
+                SceneTransitionValueText.Text = $"Preview {previewEncodeFps:0.0} fps";
 
                 if (!_streamingService.IsStreaming)
                 {
                     PanelCaptureFpsText.Text = $"{_obsCaptureService.CaptureFps:0.0}";
-                    PanelEncodeFpsText.Text = $"{_obsCaptureService.EncodedFps:0.0}";
+                    PanelEncodeFpsText.Text = $"{previewEncodeFps:0.0}";
                     PanelSendFpsText.Text = "0.0";
                     PanelBitrateText.Text = $"{_obsCaptureService.CurrentBitrate / 1000}k";
                     PanelEncodeMsText.Text = $"{_obsCaptureService.LastEncodeMilliseconds:0.0} ms";
                     PanelStreamTimeText.Text = "Preview";
-                    PanelQualityText.Text = $"{frame.QualityName} / {_obsCaptureService.CurrentTargetFps} FPS";
+                    PanelQualityText.Text = $"{previewProfile} / {_obsCaptureService.CurrentTargetFps} FPS";
                     PanelHealthText.Text = $"Preview age {frameAgeMilliseconds:0} ms / Auto {_obsCaptureService.AutoDowngradeCount}";
                     PanelStreamStatusText.Text = "Live preview is running.";
                 }
@@ -566,6 +895,13 @@ namespace Zink.Pages
             {
                 CaptureBackendText.Text = "Capture warning";
                 StatusText.Text = e;
+                if (!_streamingService.IsStreaming)
+                {
+                    SelectCaptureSourceButton.IsEnabled = true;
+                    SelectCaptureSourceButton.Content = _obsCaptureService.IsRunning
+                        ? "Change Window / Screen"
+                        : "Select Window / Screen";
+                }
             });
         }
 

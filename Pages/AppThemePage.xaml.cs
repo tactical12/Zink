@@ -14,6 +14,8 @@ namespace Zink.Pages
         private readonly DispatcherTimer _glassApplyTimer;
         private global::Windows.UI.Color _pendingGlassColor;
         private static readonly global::Windows.UI.Color DefaultGlassColor =
+            global::Windows.UI.Color.FromArgb(255, 56, 255, 102);
+        private static readonly global::Windows.UI.Color LegacyDefaultGlassColor =
             global::Windows.UI.Color.FromArgb(255, 59, 117, 130);
 
         public AppThemePage()
@@ -129,7 +131,7 @@ namespace Zink.Pages
             }
             catch { }
 
-            if (!TryParseHexColor(value, out var color))
+            if (!TryParseHexColor(value, out var color) || IsLegacyDefaultGlassColor(color))
             {
                 color = DefaultGlassColor;
             }
@@ -296,6 +298,13 @@ namespace Zink.Pages
 
             color = global::Windows.UI.Color.FromArgb(255, r, g, b);
             return true;
+        }
+
+        private static bool IsLegacyDefaultGlassColor(global::Windows.UI.Color color)
+        {
+            return color.R == LegacyDefaultGlassColor.R &&
+                color.G == LegacyDefaultGlassColor.G &&
+                color.B == LegacyDefaultGlassColor.B;
         }
     }
 }

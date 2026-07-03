@@ -1,0 +1,456 @@
+<Page
+    x:Class="Zink.Pages.TikTokStreamingPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="Transparent">
+
+    <Page.Resources>
+        <SolidColorBrush x:Key="StreamPanelBrush" Color="#B3121B22"/>
+        <SolidColorBrush x:Key="StreamPanelStrokeBrush" Color="#33FFFFFF"/>
+        <SolidColorBrush x:Key="StreamMutedBrush" Color="#A6DDEAF0"/>
+        <SolidColorBrush x:Key="StreamAccentBrush" Color="#5EEAD4"/>
+
+        <Style x:Key="StreamButtonStyle" TargetType="Button">
+            <Setter Property="MinHeight" Value="38"/>
+            <Setter Property="Padding" Value="14,0"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Background" Value="#183947"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="#7CBFEFFF"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+
+        <Style x:Key="MetricPillStyle" TargetType="Border">
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Background" Value="#D0195360"/>
+            <Setter Property="BorderBrush" Value="#22FFFFFF"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+    </Page.Resources>
+
+    <Grid Padding="14" RowSpacing="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Grid>
+            <StackPanel Spacing="2">
+                <TextBlock Text="Streaming Studio"
+                           FontSize="25"
+                           FontWeight="SemiBold"
+                           Foreground="White"/>
+                <TextBlock Text="Windows Graphics Capture, audio mix, and TikTok output"
+                           Foreground="{StaticResource StreamMutedBrush}"/>
+            </StackPanel>
+        </Grid>
+
+        <Grid Grid.Row="1" ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="276"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="330"/>
+            </Grid.ColumnDefinitions>
+
+            <Grid RowSpacing="10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <Border Padding="12"
+                        CornerRadius="8"
+                        Background="{StaticResource StreamPanelBrush}"
+                        BorderBrush="{StaticResource StreamPanelStrokeBrush}"
+                        BorderThickness="1">
+                    <Grid RowSpacing="10">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Text="Live Stream"
+                                   FontSize="17"
+                                   FontWeight="SemiBold"
+                                   Foreground="White"/>
+
+                        <Grid Grid.Row="1" RowSpacing="8" ColumnSpacing="8">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Border Style="{StaticResource MetricPillStyle}">
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Capture FPS" Foreground="{StaticResource StreamMutedBrush}" FontSize="12"/>
+                                    <TextBlock x:Name="PanelCaptureFpsText" Text="0.0" Foreground="White" FontSize="20" FontWeight="SemiBold"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="1" Style="{StaticResource MetricPillStyle}">
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Encode FPS" Foreground="{StaticResource StreamMutedBrush}" FontSize="12"/>
+                                    <TextBlock x:Name="PanelEncodeFpsText" Text="0.0" Foreground="White" FontSize="20" FontWeight="SemiBold"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Row="1" Style="{StaticResource MetricPillStyle}">
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Send FPS" Foreground="{StaticResource StreamMutedBrush}" FontSize="12"/>
+                                    <TextBlock x:Name="PanelSendFpsText" Text="0.0" Foreground="White" FontSize="20" FontWeight="SemiBold"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource MetricPillStyle}">
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Bitrate" Foreground="{StaticResource StreamMutedBrush}" FontSize="12"/>
+                                    <TextBlock x:Name="PanelBitrateText" Text="--" Foreground="White" FontSize="20" FontWeight="SemiBold"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Row="2" Grid.ColumnSpan="2" Padding="10" CornerRadius="8" Background="#A9153A45" BorderBrush="#22FFFFFF" BorderThickness="1">
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="Encode Time" Foreground="{StaticResource StreamMutedBrush}" FontSize="12"/>
+                                        <TextBlock x:Name="PanelEncodeMsText" Text="0.0 ms" Foreground="White" FontWeight="SemiBold"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Spacing="2">
+                                        <TextBlock Text="Stream Time" Foreground="{StaticResource StreamMutedBrush}" FontSize="12"/>
+                                        <TextBlock x:Name="PanelStreamTimeText" Text="--" Foreground="White" FontWeight="SemiBold"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                            <Border Grid.Row="3" Grid.ColumnSpan="2" Padding="10" CornerRadius="8" Background="#A9153A45" BorderBrush="#22FFFFFF" BorderThickness="1">
+                                <StackPanel Spacing="2">
+                                    <TextBlock x:Name="PanelQualityText" Text="720p / 60 FPS / 3000k" Foreground="White" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock x:Name="PanelHealthText" Text="Dropped 0 / Repeated 0 / Frames 0" Foreground="{StaticResource StreamMutedBrush}" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+                            </Border>
+                            <ComboBox x:Name="StreamQualityComboBox"
+                                      Grid.Row="4"
+                                      Grid.ColumnSpan="2"
+                                      Header="Stream quality"
+                                      SelectedIndex="0"
+                                      SelectionChanged="StreamQualityComboBox_SelectionChanged">
+                                <ComboBoxItem Content="720p / 60 FPS" Tag="720p"/>
+                                <ComboBoxItem Content="1080p / 60 FPS" Tag="1080p"/>
+                            </ComboBox>
+                            <Border Grid.Row="5"
+                                    Grid.ColumnSpan="2"
+                                    Padding="12,8"
+                                    CornerRadius="8"
+                                    Background="{StaticResource StreamPanelBrush}"
+                                    BorderBrush="{StaticResource StreamPanelStrokeBrush}"
+                                    BorderThickness="1">
+                                <Grid ColumnSpacing="10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Ellipse x:Name="LiveIndicator"
+                                             Width="10"
+                                             Height="10"
+                                             Fill="#66737E"
+                                             VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="LiveStateText"
+                                               Grid.Column="1"
+                                               Text="OFFLINE"
+                                               FontWeight="SemiBold"
+                                               Foreground="White"
+                                               VerticalAlignment="Center"/>
+                                </Grid>
+                            </Border>
+                        </Grid>
+
+                        <TextBlock x:Name="PanelStreamStatusText"
+                                   Grid.Row="2"
+                                   Text="Ready to stream."
+                                   Foreground="{StaticResource StreamMutedBrush}"
+                                   TextWrapping="Wrap"
+                                   MaxLines="2"/>
+                    </Grid>
+                </Border>
+
+                <Border Grid.Row="1"
+                        Padding="12"
+                        CornerRadius="8"
+                        Background="{StaticResource StreamPanelBrush}"
+                        BorderBrush="{StaticResource StreamPanelStrokeBrush}"
+                        BorderThickness="1">
+                    <Grid RowSpacing="10">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Text="Source"
+                                   FontSize="17"
+                                   FontWeight="SemiBold"
+                                   Foreground="White"/>
+
+                        <ListView x:Name="SourcesListView"
+                                  Grid.Row="1"
+                                  SelectedIndex="0"
+                                  MinHeight="44"
+                                  MaxHeight="54"
+                                  Background="Transparent">
+                            <ListViewItem Content="Windows Graphics Capture"/>
+                        </ListView>
+
+                        <Grid Grid.Row="2" RowSpacing="8">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <ToggleButton x:Name="MuteDesktopAudioButton"
+                                          MinHeight="36"
+                                          CornerRadius="8"
+                                          Content="Mute the desktop sound"
+                                          Checked="MuteDesktopAudioButton_Checked"
+                                          Unchecked="MuteDesktopAudioButton_Unchecked"/>
+                            <ToggleButton x:Name="MuteMicrophoneButton"
+                                          Grid.Row="1"
+                                          MinHeight="36"
+                                          CornerRadius="8"
+                                          Content="Mute your microphone"
+                                          Checked="MuteMicrophoneButton_Checked"
+                                          Unchecked="MuteMicrophoneButton_Unchecked"/>
+                        </Grid>
+
+                        <Grid Grid.Row="3" RowSpacing="8">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Button x:Name="StartStreamButton"
+                                    Style="{StaticResource StreamButtonStyle}"
+                                    Content="Start streaming"
+                                    Click="StartStreamButton_Click"/>
+                            <Button x:Name="StopStreamButton"
+                                    Grid.Row="1"
+                                    Style="{StaticResource StreamButtonStyle}"
+                                    Content="Stop streaming"
+                                    Click="StopStreamButton_Click"/>
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <Grid Grid.Column="1" RowSpacing="10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <Border CornerRadius="8"
+                        Background="#E5080B0F"
+                        BorderBrush="{StaticResource StreamPanelStrokeBrush}"
+                        BorderThickness="1">
+                    <Grid>
+                        <Image x:Name="DesktopPreviewImage"
+                               Stretch="Uniform"/>
+
+                        <Border Width="300"
+                                Padding="10"
+                                CornerRadius="8"
+                                Background="#9C071018"
+                                BorderBrush="#38FFFFFF"
+                                BorderThickness="1"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Top"
+                                Margin="12">
+                            <StackPanel Spacing="3">
+                                <TextBlock x:Name="PreviewTitleText"
+                                           Text="Program"
+                                           FontSize="17"
+                                           FontWeight="SemiBold"
+                                           Foreground="White"/>
+                                <TextBlock x:Name="PreviewSubtitleText"
+                                           Text="Choose a window or screen to start the preview."
+                                           FontSize="12"
+                                           Foreground="#B9C9D6"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Padding="10"
+                                Background="#D10D141B"
+                                VerticalAlignment="Bottom">
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock x:Name="StatusText"
+                                           Text="Ready."
+                                           Foreground="White"
+                                           VerticalAlignment="Center"
+                                           TextWrapping="WrapWholeWords"
+                                           MaxLines="2"/>
+                                <Button x:Name="SelectCaptureSourceButton"
+                                        Grid.Column="1"
+                                        Style="{StaticResource StreamButtonStyle}"
+                                        Content="Select Window / Screen"
+                                        Click="SelectCaptureSourceButton_Click"/>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <Grid Grid.Row="1" ColumnSpacing="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Border Padding="10" CornerRadius="8" Background="{StaticResource StreamPanelBrush}">
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="Scene Transition" Foreground="{StaticResource StreamMutedBrush}"/>
+                            <TextBlock x:Name="SceneTransitionValueText" Text="Cut / Fade 300 ms" Foreground="White" FontWeight="SemiBold"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Grid.Column="1" Padding="10" CornerRadius="8" Background="{StaticResource StreamPanelBrush}">
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="Capture Engine" Foreground="{StaticResource StreamMutedBrush}"/>
+                            <TextBlock x:Name="CaptureBackendText" Text="No source selected" Foreground="White" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Grid.Column="2" Padding="10" CornerRadius="8" Background="{StaticResource StreamPanelBrush}">
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="Canvas" Foreground="{StaticResource StreamMutedBrush}"/>
+                            <TextBlock x:Name="CanvasValueText" Text="720p / 1080p" Foreground="White" FontWeight="SemiBold"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Grid>
+
+            <Grid Grid.Column="2" RowSpacing="10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <Border Padding="12"
+                        CornerRadius="8"
+                        Background="{StaticResource StreamPanelBrush}"
+                        BorderBrush="{StaticResource StreamPanelStrokeBrush}"
+                        BorderThickness="1">
+                    <Grid RowSpacing="8">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Text="TikTok"
+                                   FontSize="17"
+                                   FontWeight="SemiBold"
+                                   Foreground="White"/>
+                        <TextBox x:Name="ServerTextBox"
+                                 Grid.Row="1"
+                                 Header="Server"
+                                 Text=""/>
+                        <PasswordBox x:Name="StreamKeyBox"
+                                     Grid.Row="2"
+                                     Header="Stream key"/>
+                        <ComboBox x:Name="DesktopAudioComboBox"
+                                  Grid.Row="3"
+                                  Header="Desktop/system audio"
+                                  PlaceholderText="No desktop audio"
+                                  SelectionChanged="AudioDeviceComboBox_SelectionChanged"/>
+                        <ComboBox x:Name="MicrophoneComboBox"
+                                  Grid.Row="4"
+                                  Header="Microphone"
+                                  PlaceholderText="No microphone"
+                                  SelectionChanged="AudioDeviceComboBox_SelectionChanged"/>
+                        <StackPanel Grid.Row="5" Orientation="Horizontal" Spacing="8">
+                            <Button Style="{StaticResource StreamButtonStyle}"
+                                    Content="Refresh Audio"
+                                    Click="RefreshAudioDevicesButton_Click"/>
+                            <ToggleSwitch x:Name="LowLatencyToggle"
+                                          Header="Low latency"
+                                          IsOn="True"
+                                          Toggled="LowLatencyToggle_Toggled"/>
+                        </StackPanel>
+                        <TextBlock x:Name="AudioDeviceStatusText"
+                                   Grid.Row="6"
+                                   Text="Audio devices load from FFmpeg."
+                                   TextWrapping="Wrap"
+                                   MaxLines="3"
+                                   Foreground="{StaticResource StreamMutedBrush}"/>
+                    </Grid>
+                </Border>
+
+                <Border Grid.Row="1"
+                        Padding="12"
+                        CornerRadius="8"
+                        Background="{StaticResource StreamPanelBrush}"
+                        BorderBrush="{StaticResource StreamPanelStrokeBrush}"
+                        BorderThickness="1">
+                    <Grid RowSpacing="8">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="Audio Mixer"
+                                   FontSize="17"
+                                   FontWeight="SemiBold"
+                                   Foreground="White"/>
+                        <Grid Grid.Row="1" ColumnSpacing="10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Desktop audio" Foreground="White"/>
+                            <TextBlock x:Name="DesktopAudioLevelText" Grid.Column="1" Text="100%" Foreground="{StaticResource StreamMutedBrush}"/>
+                        </Grid>
+                        <Slider x:Name="DesktopAudioVolumeSlider"
+                                Grid.Row="2"
+                                Value="100"
+                                Minimum="0"
+                                Maximum="100"
+                                ValueChanged="DesktopAudioVolumeSlider_ValueChanged"/>
+                        <Grid Grid.Row="3" ColumnSpacing="10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Microphone" Foreground="White"/>
+                            <TextBlock x:Name="MicLevelText" Grid.Column="1" Text="70%" Foreground="{StaticResource StreamMutedBrush}"/>
+                        </Grid>
+                        <Slider x:Name="MicrophoneVolumeSlider"
+                                Grid.Row="4"
+                                Value="70"
+                                Minimum="0"
+                                Maximum="100"
+                                ValueChanged="MicrophoneVolumeSlider_ValueChanged"/>
+                    </Grid>
+                </Border>
+
+            </Grid>
+        </Grid>
+
+    </Grid>
+</Page>

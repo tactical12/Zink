@@ -2,10 +2,9 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices.WindowsRuntime;
 using System.Threading.Tasks;
-using Microsoft.Graphics.Canvas;
 using Windows.Foundation;
-using Windows.Graphics.DirectX;
 using Windows.Media;
 using Windows.Media.Core;
 using Windows.Media.MediaProperties;
@@ -18,8 +17,6 @@ namespace Zink.Services.Recording
 {
     public sealed class Mp4VideoWriter
     {
-        private static readonly CanvasDevice SharedCanvasDevice = new();
-
         public async Task WriteAsync(
             IReadOnlyList<VideoFramePacket> frames,
             string outputPath,
@@ -137,22 +134,15 @@ namespace Zink.Services.Recording
 
                 var frame = orderedFrames[sourceIndex];
 
-                using var bitmap = CanvasBitmap.CreateFromBytes(
-                    SharedCanvasDevice,
+                byte[] sampleBytes = ResizeBgraCover(
                     frame.Bgra32Bytes!,
                     frame.Width,
                     frame.Height,
-                    DirectXPixelFormat.B8G8R8A8UIntNormalized);
+                    (int)width,
+                    (int)height);
 
-                using var renderTarget = new CanvasRenderTarget(SharedCanvasDevice, (float)width, (float)height, 96);
-                using (var ds = renderTarget.CreateDrawingSession())
-                {
-                    Rect sourceRect = CreateCoverSourceRect(frame.Width, frame.Height, (double)width, (double)height);
-                    ds.DrawImage(bitmap, new Rect(0, 0, width, height), sourceRect);
-                }
-
-                var sample = MediaStreamSample.CreateFromDirect3D11Surface(
-                    renderTarget,
+                var sample = MediaStreamSample.CreateFromBuffer(
+                    sampleBytes.AsBuffer(),
                     normalizedTimestamp);
 
                 sample.Duration = fixedFrameDuration;
@@ -184,19 +174,48 @@ namespace Zink.Services.Recording
                 $"Video-only write completed. Output='{outputPath}'");
         }
 
-        private static Rect CreateCoverSourceRect(int sourceWidth, int sourceHeight, double outputWidth, double outputHeight)
+        private static byte[] ResizeBgraCover(byte[] source, int sourceWidth, int sourceHeight, int outputWidth, int outputHeight)
         {
+            if (sourceWidth == outputWidth && sourceHeight == outputHeight)
+                return source.ToArray();
+
+            byte[] output = new byte[outputWidth * outputHeight * 4];
             double sourceAspect = sourceWidth / (double)sourceHeight;
-            double outputAspect = outputWidth / outputHeight;
+            double outputAspect = outputWidth / (double)outputHeight;
+            double cropX = 0;
+            double cropY = 0;
+            double cropWidth = sourceWidth;
+            double cropHeight = sourceHeight;
 
             if (sourceAspect > outputAspect)
             {
-                double croppedWidth = sourceHeight * outputAspect;
-                return new Rect((sourceWidth - croppedWidth) / 2.0, 0, croppedWidth, sourceHeight);
+                cropWidth = sourceHeight * outputAspect;
+                cropX = (sourceWidth - cropWidth) / 2.0;
+            }
+            else
+            {
+                cropHeight = sourceWidth / outputAspect;
+                cropY = (sourceHeight - cropHeight) / 2.0;
             }
 
-            double croppedHeight = sourceWidth / outputAspect;
-            return new Rect(0, (sourceHeight - croppedHeight) / 2.0, sourceWidth, croppedHeight);
+            for (int y = 0; y < outputHeight; y++)
+            {
+                int sourceY = Math.Clamp((int)(cropY + ((y + 0.5) * cropHeight / outputHeight)), 0, sourceHeight - 1);
+
+                for (int x = 0; x < outputWidth; x++)
+                {
+                    int sourceX = Math.Clamp((int)(cropX + ((x + 0.5) * cropWidth / outputWidth)), 0, sourceWidth - 1);
+                    int sourceOffset = ((sourceY * sourceWidth) + sourceX) * 4;
+                    int outputOffset = ((y * outputWidth) + x) * 4;
+
+                    output[outputOffset] = source[sourceOffset];
+                    output[outputOffset + 1] = source[sourceOffset + 1];
+                    output[outputOffset + 2] = source[sourceOffset + 2];
+                    output[outputOffset + 3] = source[sourceOffset + 3];
+                }
+            }
+
+            return output;
         }
 
         private static uint CalculateNativeBitrate(uint width, uint height, uint fps)

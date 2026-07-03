@@ -160,6 +160,28 @@ namespace Zink.Services
             }
         }
 
+        public static void EnsureLogFile(string? reason = null)
+        {
+            InitializeFromSettings();
+
+            lock (SyncRoot)
+            {
+                if (!IsEnabled)
+                    EnableFileLogging();
+
+                if (_deviceWriter == null)
+                    OpenWriterLocked();
+
+                if (!string.IsNullOrWhiteSpace(reason))
+                    WriteLineLocked("Diagnostic log file ensured: " + reason);
+            }
+        }
+
+        public static IReadOnlyList<string> GetKnownLogDirectoryPaths()
+        {
+            return new List<string>(GetLogDirectoryCandidates());
+        }
+
         private static void EnableFileLogging()
         {
             lock (SyncRoot)

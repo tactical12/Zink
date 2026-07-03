@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using NAudio.Wave;
 using Zink.Services.NativeCalling;
@@ -186,7 +187,7 @@ namespace Zink.Services
             if (seen.Add(-1))
                 yield return -1;
 
-            for (var deviceNumber = 0; deviceNumber < WaveOut.DeviceCount; deviceNumber++)
+            for (var deviceNumber = 0; deviceNumber < WaveInterop.waveOutGetNumDevs(); deviceNumber++)
             {
                 if (seen.Add(deviceNumber))
                     yield return deviceNumber;
@@ -200,7 +201,9 @@ namespace Zink.Services
 
             try
             {
-                return WaveOut.GetCapabilities(deviceNumber).ProductName;
+                var capabilities = new WaveOutCapabilities();
+                WaveInterop.waveOutGetDevCaps((IntPtr)deviceNumber, out capabilities, Marshal.SizeOf<WaveOutCapabilities>());
+                return capabilities.ProductName;
             }
             catch
             {

@@ -1,0 +1,56 @@
+<Page
+    x:Class="Zink.Pages.WidgetHubPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="Transparent">
+
+    <ScrollViewer>
+        <StackPanel Padding="24" Spacing="16">
+            <TextBlock Text="Widget Hub" FontSize="30" FontWeight="SemiBold"/>
+            <TextBlock Text="Floating controls and compact Zink tools" Opacity="0.75"/>
+
+            <Grid ColumnSpacing="12" RowSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <Button Click="OpenRadioWidget_Click" MinHeight="92">
+                    <StackPanel Padding="14" Spacing="4">
+                        <TextBlock Text="Radio Widget" FontWeight="SemiBold"/>
+                        <TextBlock Text="Floating live radio controls" Opacity="0.7"/>
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="1" Click="OpenSpotifyWidget_Click" MinHeight="92">
+                    <StackPanel Padding="14" Spacing="4">
+                        <TextBlock Text="Spotify Widget" FontWeight="SemiBold"/>
+                        <TextBlock Text="Compact now-playing controls" Opacity="0.7"/>
+                    </StackPanel>
+                </Button>
+                <Button Grid.Row="1" Click="OpenFpsWidget_Click" MinHeight="92">
+                    <StackPanel Padding="14" Spacing="4">
+                        <TextBlock Text="FPS Widget" FontWeight="SemiBold"/>
+                        <TextBlock Text="Gaming overlay tools" Opacity="0.7"/>
+                    </StackPanel>
+                </Button>
+                <Button Grid.Row="1" Grid.Column="1" Click="OpenRecorder_Click" MinHeight="92">
+                    <StackPanel Padding="14" Spacing="4">
+                        <TextBlock Text="Recording Controls" FontWeight="SemiBold"/>
+                        <TextBlock Text="Replay clips and capture status" Opacity="0.7"/>
+                    </StackPanel>
+                </Button>
+                <Button Grid.Row="2" Click="OpenHome_Click" MinHeight="92">
+                    <StackPanel Padding="14" Spacing="4">
+                        <TextBlock Text="Dashboard Quick Actions" FontWeight="SemiBold"/>
+                        <TextBlock Text="Mode-aware shortcuts on Home" Opacity="0.7"/>
+                    </StackPanel>
+                </Button>
+            </Grid>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

@@ -182,6 +182,7 @@ namespace Zink.Pages.Social
         private MediaFoundationH264Decoder? _rtpH264Decoder;
         private int _rtpDecoderWidth;
         private int _rtpDecoderHeight;
+        private string _rtpDecoderCodec = ScreenShareCodecNames.H264;
         private readonly object _remoteGpuPlaybackSync = new();
         private readonly Queue<PendingRemoteH264Frame> _pendingRemoteGpuPlaybackFrames = new();
         private MediaPlayer? _remoteGpuMediaPlayer;
@@ -316,6 +317,7 @@ namespace Zink.Pages.Social
             _rtpH264Decoder = null;
             _rtpDecoderWidth = 0;
             _rtpDecoderHeight = 0;
+            _rtpDecoderCodec = ScreenShareCodecNames.H264;
 
             StopCallTimer();
             StopFullscreenChromeTimer();
@@ -1039,7 +1041,7 @@ namespace Zink.Pages.Social
         {
             try
             {
-                if (e.Codec.Equals("h264", StringComparison.OrdinalIgnoreCase))
+                if (ScreenShareCodecNames.IsH264(e.Codec) || ScreenShareCodecNames.IsAv1(e.Codec))
                 {
                     var sent = await TrySendScreenFrameBestAvailableAsync(participantIds, callId, e);
                     LogLocalScreenShareFlow(e, participantIds.Count, sent);
@@ -1090,7 +1092,7 @@ namespace Zink.Pages.Social
                 {
                     if (_screenSharePeers.TryGetValue(participantId, out var peer) &&
                         await TrySendWithTimeoutAsync(
-                            peer.SendEncodedVideoFrameAsync(e.FrameData),
+                            peer.SendEncodedVideoFrameAsync(e.FrameData, e.Codec),
                             $"RTP frame to participant {participantId}"))
                     {
                         sentToAnyPeer = true;
@@ -1137,12 +1139,13 @@ namespace Zink.Pages.Social
                     {
                         try
                         {
-                            if (e.Codec.Equals("h264", StringComparison.OrdinalIgnoreCase))
+                            if (ScreenShareCodecNames.IsH264(e.Codec) || ScreenShareCodecNames.IsAv1(e.Codec))
                             {
                                 await SendWithTimeoutAsync(
                                     SocialManager.Instance.Realtime.SendEncodedScreenFrameBinaryAsync(
                                         participantId,
                                         callId,
+                                        e.Codec,
                                         e.FrameData,
                                         e.Width,
                                         e.Height,
@@ -1556,6 +1559,7 @@ namespace Zink.Pages.Social
                 _rtpH264Decoder = null;
                 _rtpDecoderWidth = 0;
                 _rtpDecoderHeight = 0;
+                _rtpDecoderCodec = ScreenShareCodecNames.H264;
             }
 
             if (clearImage)
@@ -1778,10 +1782,11 @@ namespace Zink.Pages.Social
             _screenShareLastFrameAtUtc = DateTimeOffset.UtcNow;
             _remoteScreenShareSenderId = e.FromUserId;
 
-            if (e.Codec.Equals("h264", StringComparison.OrdinalIgnoreCase) && e.Width > 0 && e.Height > 0)
+            if ((ScreenShareCodecNames.IsH264(e.Codec) || ScreenShareCodecNames.IsAv1(e.Codec)) && e.Width > 0 && e.Height > 0)
             {
-                var hasIdr = ContainsH264IdrFrame(e.FrameData);
-                var isKeyFrame = hasIdr;
+                var isAv1 = ScreenShareCodecNames.IsAv1(e.Codec);
+                var hasIdr = isAv1 || ContainsH264IdrFrame(e.FrameData);
+                var isKeyFrame = isAv1 ? e.IsKeyFrame : hasIdr;
                 var now = DateTimeOffset.UtcNow;
                 _remoteFallbackLastReceivedAtUtc = now;
                 if (_remoteFallbackFirstReceivedAtUtc == DateTimeOffset.MinValue)
@@ -1792,7 +1797,7 @@ namespace Zink.Pages.Social
                 if (receivedFallbackFrames == 1 || receivedFallbackFrames % (NativeScreenShareStreamingService.TargetFps * 2) == 0)
                 {
                     Debug.WriteLine(
-                        $"[ScreenShare:FALLBACK] Received {receivedFallbackFrames} WebSocket H.264 frames from {e.FromUserId}; bytes={e.FrameData.Length}; {e.Width}x{e.Height}; keyFlag={e.IsKeyFrame}; idr={hasIdr}.");
+                        $"[ScreenShare:FALLBACK] Received {receivedFallbackFrames} WebSocket {(isAv1 ? "AV1X" : "H.264")} frames from {e.FromUserId}; bytes={e.FrameData.Length}; {e.Width}x{e.Height}; keyFlag={e.IsKeyFrame}; idr={hasIdr}.");
                 }
 
                 var noRtpFrames = Volatile.Read(ref _remoteRtpFrameCount) == 0;
@@ -1803,7 +1808,7 @@ namespace Zink.Pages.Social
                         ShouldLogFlow(ref _lastRemoteFallbackHoldLogUtc, TimeSpan.FromSeconds(1)))
                     {
                         Debug.WriteLine(
-                            $"[ScreenShare:FALLBACK] Holding WebSocket H.264 warmup frame until RTP starts; elapsedMs={fallbackWarmupElapsed.TotalMilliseconds:0}; bytes={e.FrameData.Length}; key={hasIdr}.");
+                            $"[ScreenShare:FALLBACK] Holding WebSocket {(isAv1 ? "AV1X" : "H.264")} warmup frame until RTP starts; elapsedMs={fallbackWarmupElapsed.TotalMilliseconds:0}; bytes={e.FrameData.Length}; key={hasIdr}.");
                     }
 
                     return;
@@ -1811,14 +1816,14 @@ namespace Zink.Pages.Social
 
                 if (noRtpFrames)
                 {
-                    ResetRemoteH264Decoder("receiver switched to websocket H.264 stream after RTP startup timeout");
+                    ResetRemoteH264Decoder($"receiver switched to websocket {(isAv1 ? "AV1X" : "H.264")} stream after RTP startup timeout");
                 }
                 else if (receivedFallbackFrames == 1)
                 {
-                    Debug.WriteLine("[ScreenShare:H264] WebSocket H.264 backup stream is active; keeping existing decoder to avoid resetting during RTP decode.");
+                    Debug.WriteLine($"[ScreenShare:{(isAv1 ? "AV1X" : "H264")}] WebSocket backup stream is active; keeping existing decoder to avoid resetting during RTP decode.");
                 }
 
-                QueueRemoteH264Frame(e.FrameData, e.Width, e.Height, isKeyFrame, "receiver websocket H.264 backlog");
+                QueueRemoteH264Frame(e.FrameData, e.Width, e.Height, isKeyFrame, $"receiver websocket {(isAv1 ? "AV1X" : "H.264")} backlog", e.Codec);
                 return;
             }
 
@@ -1941,7 +1946,7 @@ namespace Zink.Pages.Social
         {
             try
             {
-                await peer.SendEncodedVideoFrameAsync(frameData);
+                await peer.SendEncodedVideoFrameAsync(frameData, NativeScreenShareStreamingService.Instance.ActiveVideoCodec);
             }
             catch (Exception ex)
             {
@@ -2094,8 +2099,9 @@ namespace Zink.Pages.Social
         {
             var width = _lastRemoteBitstreamWidth;
             var height = _lastRemoteBitstreamHeight;
-            var isKeyFrame = ContainsH264IdrFrame(e.FrameData);
-            if (TryReadH264Dimensions(e.FrameData, out var bitstreamWidth, out var bitstreamHeight))
+            var isAv1 = ScreenShareCodecNames.IsAv1(e.Codec);
+            var isKeyFrame = isAv1 || ContainsH264IdrFrame(e.FrameData);
+            if (!isAv1 && TryReadH264Dimensions(e.FrameData, out var bitstreamWidth, out var bitstreamHeight))
             {
                 if (!IsPlausibleRemoteBitstreamResolution(bitstreamWidth, bitstreamHeight, width, height))
                 {
@@ -2123,12 +2129,12 @@ namespace Zink.Pages.Social
             {
                 _remoteScreenLastReceivedAtUtc = DateTimeOffset.UtcNow;
                 _screenShareDroppedReceiveFrames++;
-                _ = SendScreenShareQosIfNeededAsync("receiver waiting for H.264 SPS dimensions");
-                RequestRemoteVideoKeyFrame("receiver needs an IDR with SPS before starting GPU playback");
+                _ = SendScreenShareQosIfNeededAsync(isAv1 ? "receiver waiting for AV1X metadata dimensions" : "receiver waiting for H.264 SPS dimensions");
+                RequestRemoteVideoKeyFrame(isAv1 ? "receiver needs AV1X metadata before starting playback" : "receiver needs an IDR with SPS before starting GPU playback");
                 if (ShouldLogFlow(ref _lastRemoteGpuPlaybackDropLogUtc, TimeSpan.FromSeconds(1)))
                 {
                     Debug.WriteLine(
-                        $"[ScreenShare:H264] Dropped RTP frame before trusted bitstream dimensions were known; bytes={e.FrameData.Length}; key={isKeyFrame}. Waiting for an IDR/SPS instead of opening the hardware player with stale metadata.");
+                        $"[ScreenShare:{(isAv1 ? "AV1X" : "H264")}] Dropped RTP frame before trusted bitstream dimensions were known; bytes={e.FrameData.Length}; key={isKeyFrame}.");
                 }
                 return;
             }
@@ -2141,7 +2147,7 @@ namespace Zink.Pages.Social
             if (receivedRtpFrames == 1 || receivedRtpFrames % (NativeScreenShareStreamingService.TargetFps * 2) == 0)
             {
                 Debug.WriteLine(
-                    $"[ScreenShare:RTP] Received {receivedRtpFrames} remote RTP H.264 frames: bytes={e.FrameData.Length}, assumed={width}x{height}, key={isKeyFrame}.");
+                    $"[ScreenShare:RTP] Received {receivedRtpFrames} remote RTP {(isAv1 ? "AV1X" : "H.264")} frames: bytes={e.FrameData.Length}, assumed={width}x{height}, key={isKeyFrame}.");
             }
 
             if (DateTimeOffset.UtcNow - _remoteFallbackLastReceivedAtUtc < RemoteFallbackRtpSuppressWindow)
@@ -2152,7 +2158,7 @@ namespace Zink.Pages.Social
                 _remoteFallbackLastReceivedAtUtc = DateTimeOffset.MinValue;
             }
 
-            QueueRemoteH264Frame(e.FrameData, width, height, isKeyFrame, "receiver RTP backlog");
+            QueueRemoteH264Frame(e.FrameData, width, height, isKeyFrame, "receiver RTP backlog", e.Codec);
         }
 
         private void LogScreenShareSendSummary(int participantCount, bool sentToAnyPeer, int fallbackCount, NativeScreenFrameEventArgs e, TimeSpan sendElapsed)
@@ -2171,10 +2177,11 @@ namespace Zink.Pages.Social
             DiagnosticLogService.WriteLine(message);
         }
 
-        private void QueueRemoteH264Frame(byte[] frameData, int width, int height, bool isKeyFrame, string backlogReason)
+        private void QueueRemoteH264Frame(byte[] frameData, int width, int height, bool isKeyFrame, string backlogReason, string codec = "h264")
         {
             _remoteScreenLastReceivedAtUtc = DateTimeOffset.UtcNow;
-            var hasIdr = ContainsH264IdrFrame(frameData);
+            var isAv1 = ScreenShareCodecNames.IsAv1(codec);
+            var hasIdr = isAv1 || ContainsH264IdrFrame(frameData);
             if (isKeyFrame && !hasIdr)
             {
                 Debug.WriteLine(
@@ -2189,7 +2196,7 @@ namespace Zink.Pages.Social
                 _remoteH264FramesDroppedWaitingForKeyFrame = 0;
             }
 
-            if (QueueRemoteGpuPlaybackFrame(frameData, width, height, isKeyFrame, backlogReason))
+            if (!isAv1 && QueueRemoteGpuPlaybackFrame(frameData, width, height, isKeyFrame, backlogReason))
                 return;
 
             long sequence;
@@ -2278,7 +2285,9 @@ namespace Zink.Pages.Social
                     height,
                     isKeyFrame,
                     sequence,
-                    generation));
+                    generation,
+                    RemoteGpuFrameDuration,
+                    codec));
                 queueCount = _pendingRemoteH264Frames.Count;
             }
 
@@ -2810,12 +2819,14 @@ namespace Zink.Pages.Social
                         {
                             if (_rtpH264Decoder == null ||
                                 _rtpDecoderWidth != pendingFrame.Width ||
-                                _rtpDecoderHeight != pendingFrame.Height)
+                                _rtpDecoderHeight != pendingFrame.Height ||
+                                !string.Equals(_rtpDecoderCodec, pendingFrame.Codec, StringComparison.OrdinalIgnoreCase))
                             {
                                 _rtpH264Decoder?.Dispose();
-                                _rtpH264Decoder = new MediaFoundationH264Decoder(pendingFrame.Width, pendingFrame.Height);
+                                _rtpH264Decoder = new MediaFoundationH264Decoder(pendingFrame.Width, pendingFrame.Height, pendingFrame.Codec);
                                 _rtpDecoderWidth = pendingFrame.Width;
                                 _rtpDecoderHeight = pendingFrame.Height;
+                                _rtpDecoderCodec = pendingFrame.Codec;
                             }
 
                             bgraFrame = _rtpH264Decoder.DecodeToBgra(
@@ -2837,7 +2848,8 @@ namespace Zink.Pages.Social
                         {
                             _remoteEmptyDecodeCount++;
                             LogRemoteDecodeFlow(pendingFrame, null, queueRemaining, decodeTimer.Elapsed.TotalMilliseconds);
-                            if (_remoteEmptyDecodeCount == NativeScreenShareStreamingService.TargetFps)
+                            if (!ScreenShareCodecNames.IsAv1(pendingFrame.Codec) &&
+                                _remoteEmptyDecodeCount == NativeScreenShareStreamingService.TargetFps)
                             {
                                 var switchedInputMode = false;
                                 lock (_remoteDecoderSync)
@@ -3071,6 +3083,7 @@ namespace Zink.Pages.Social
                 _rtpH264Decoder = null;
                 _rtpDecoderWidth = 0;
                 _rtpDecoderHeight = 0;
+                _rtpDecoderCodec = ScreenShareCodecNames.H264;
             }
             lock (_rtpFrameSync)
             {
@@ -4545,6 +4558,7 @@ namespace Zink.Pages.Social
             _rtpH264Decoder = null;
             _rtpDecoderWidth = 0;
             _rtpDecoderHeight = 0;
+            _rtpDecoderCodec = ScreenShareCodecNames.H264;
             _remoteScreenBitmap = null;
         }
 
@@ -5455,6 +5469,11 @@ namespace Zink.Pages.Social
             }
 
             public PendingRemoteH264Frame(byte[] frameData, int width, int height, bool isKeyFrame, long sequence, long generation, TimeSpan sampleDuration)
+                : this(frameData, width, height, isKeyFrame, sequence, generation, sampleDuration, ScreenShareCodecNames.H264)
+            {
+            }
+
+            public PendingRemoteH264Frame(byte[] frameData, int width, int height, bool isKeyFrame, long sequence, long generation, TimeSpan sampleDuration, string codec)
             {
                 FrameData = frameData;
                 Width = width;
@@ -5463,6 +5482,7 @@ namespace Zink.Pages.Social
                 Sequence = sequence;
                 Generation = generation;
                 SampleDuration = sampleDuration;
+                Codec = string.IsNullOrWhiteSpace(codec) ? ScreenShareCodecNames.H264 : codec;
             }
 
             public byte[] FrameData { get; }
@@ -5472,6 +5492,7 @@ namespace Zink.Pages.Social
             public long Sequence { get; }
             public long Generation { get; }
             public TimeSpan SampleDuration { get; }
+            public string Codec { get; }
         }
 
         private sealed class BitReader

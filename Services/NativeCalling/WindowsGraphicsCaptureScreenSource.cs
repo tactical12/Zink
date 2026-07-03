@@ -6,6 +6,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using Windows.Graphics.Capture;
 using Windows.Graphics.DirectX;
@@ -35,6 +36,7 @@ namespace Zink.Services.NativeCalling
         private DateTimeOffset _lastGpuSampleUtc = DateTimeOffset.MinValue;
         private DateTimeOffset _lastPreviewReadbackUtc = DateTimeOffset.MinValue;
         private DateTimeOffset _lastPreviewSkipLogUtc = DateTimeOffset.MinValue;
+        private int _startAttemptId;
         private bool _started;
         private bool _disabled;
         private bool _disposed = true;
@@ -68,6 +70,15 @@ namespace Zink.Services.NativeCalling
 
                 var hwnd = App.MainWindow?.GetWindowHandle() ?? IntPtr.Zero;
                 var captureMode = NativeScreenShareStreamingService.Instance.PreferredCaptureSourceMode;
+                if (!await TryRequestProgrammaticCaptureAccessAsync())
+                {
+                    DiagnosticLogService.WriteLine("[ScreenShare:WGC] Programmatic capture access was not granted for the Zink source picker.");
+                    DiagnosticLogService.Flush();
+                    _disabled = true;
+                    return false;
+                }
+                await TryRequestBorderlessCaptureAccessAsync();
+
                 var item = captureMode == NativeCaptureSourceMode.GameOrWindow
                     ? await CaptureSourceHelper.GetOrCreateAsync(hwnd, preferCachedSelection: true)
                     : await CaptureSourceHelper.GetPrimaryScreenOrPromptAsync(hwnd);
@@ -79,10 +90,8 @@ namespace Zink.Services.NativeCalling
                     return false;
                 }
 
-                _ = TryRequestBorderlessCaptureAccessAsync();
-
                 _captureItem = item;
-                return StartCaptureSession(item, $"mode={captureMode}");
+                return await StartCaptureSessionAsync(item, $"mode={captureMode}");
             }
             catch (Exception ex)
             {
@@ -163,21 +172,25 @@ namespace Zink.Services.NativeCalling
                             gpuFrame = null;
                         }
 
-                        var streamingPerformanceMode = NativeScreenShareStreamingService.Instance.PrioritizeStreamingPerformance;
+                        var streamingService = NativeScreenShareStreamingService.Instance;
+                        var streamingPerformanceMode = streamingService.PrioritizeStreamingPerformance;
+                        var requiresRealtimeBitmapFrames = streamingService.RequiresRealtimeBitmapFrames;
                         var sample = streamingPerformanceMode
                             ? (0, null)
                             : TrySampleGpuFrame(sourceTexture, description);
                         Bitmap? previewFrame = null;
-                        var previewInterval = streamingPerformanceMode
-                            ? TimeSpan.FromMilliseconds(125)
-                            : TimeSpan.FromMilliseconds(50);
-                        if (NativeScreenShareStreamingService.Instance.EnablePreviewFrames &&
+                        var previewInterval = requiresRealtimeBitmapFrames
+                            ? TimeSpan.FromMilliseconds(Math.Max(1, 1000.0 / streamingService.CurrentTargetFps))
+                            : TimeSpan.FromMilliseconds(100);
+                        if ((!streamingPerformanceMode || requiresRealtimeBitmapFrames) &&
+                            streamingService.EnablePreviewFrames &&
                             DateTimeOffset.UtcNow - _lastPreviewReadbackUtc >= previewInterval)
                         {
                             previewFrame = TryCreatePreviewFrame(sourceTexture, description, quality);
                             _lastPreviewReadbackUtc = DateTimeOffset.UtcNow;
                         }
                         else if (streamingPerformanceMode &&
+                                 !requiresRealtimeBitmapFrames &&
                                  DateTimeOffset.UtcNow - _lastPreviewSkipLogUtc >= TimeSpan.FromSeconds(5))
                         {
                             _lastPreviewSkipLogUtc = DateTimeOffset.UtcNow;
@@ -359,45 +372,82 @@ namespace Zink.Services.NativeCalling
                 return Task.FromResult(false);
 
             DisposeCaptureSession();
-            return Task.FromResult(StartCaptureSession(item, "stale-frame recovery"));
+            return StartCaptureSessionAsync(item, "stale-frame recovery");
         }
 
-        private bool StartCaptureSession(GraphicsCaptureItem item, string reason)
+        private async Task<bool> StartCaptureSessionAsync(GraphicsCaptureItem item, string reason)
+        {
+            var attemptId = Interlocked.Increment(ref _startAttemptId);
+            var startTask = Task.Run(() => StartCaptureSessionCore(item, reason, attemptId));
+            var completedTask = await Task.WhenAny(startTask, Task.Delay(TimeSpan.FromSeconds(5)));
+            if (completedTask != startTask)
+            {
+                Interlocked.Increment(ref _startAttemptId);
+                DiagnosticLogService.WriteLine("[ScreenShare:WGC] Capture session setup timed out; Windows did not return from capture session creation/start.");
+                DiagnosticLogService.Flush();
+                return false;
+            }
+
+            return await startTask;
+        }
+
+        private bool StartCaptureSessionCore(GraphicsCaptureItem item, string reason, int attemptId)
         {
             DiagnosticLogService.WriteLine($"[ScreenShare:WGC] Capture item ready {item.Size.Width}x{item.Size.Height}; {reason}; arm64={IsArm64Process}.");
             DiagnosticLogService.Flush();
 
-            _sharpDxDevice = CreateCaptureDevice();
-            EnableMultithreadProtection(_sharpDxDevice);
+            var sharpDxDevice = CreateCaptureDevice();
+            EnableMultithreadProtection(sharpDxDevice);
 
             DiagnosticLogService.WriteLine("[ScreenShare:WGC] D3D11 capture device created.");
             DiagnosticLogService.Flush();
 
-            _winRtDevice = Direct3D11Helpers.CreateD3DDevice(_sharpDxDevice);
+            var winRtDevice = Direct3D11Helpers.CreateD3DDevice(sharpDxDevice);
 
             DiagnosticLogService.WriteLine("[ScreenShare:WGC] WinRT Direct3D device created.");
             DiagnosticLogService.Flush();
 
-            _framePool = Direct3D11CaptureFramePool.CreateFreeThreaded(
-                _winRtDevice,
+            var framePoolBufferCount = NativeScreenShareStreamingService.Instance.PrioritizeStreamingPerformance ? 8 : 4;
+            var framePool = Direct3D11CaptureFramePool.CreateFreeThreaded(
+                winRtDevice,
                 DirectXPixelFormat.B8G8R8A8UIntNormalized,
-                3,
+                framePoolBufferCount,
                 item.Size);
 
-            DiagnosticLogService.WriteLine("[ScreenShare:WGC] Free-threaded frame pool created.");
+            DiagnosticLogService.WriteLine($"[ScreenShare:WGC] Free-threaded frame pool created with {framePoolBufferCount} buffers.");
             DiagnosticLogService.Flush();
 
-            _session = _framePool.CreateCaptureSession(item);
-            TryDisableCaptureBorder(_session);
-            TryEnableCursorCapture(_session);
+            DiagnosticLogService.WriteLine("[ScreenShare:WGC] Creating capture session.");
+            DiagnosticLogService.Flush();
+            var session = framePool.CreateCaptureSession(item);
+            DiagnosticLogService.WriteLine("[ScreenShare:WGC] Capture session created.");
+            DiagnosticLogService.Flush();
+
+            TryDisableCaptureBorder(session);
+            TryEnableCursorCapture(session);
+
+            DiagnosticLogService.WriteLine("[ScreenShare:WGC] Starting capture session.");
+            DiagnosticLogService.Flush();
+            session.StartCapture();
+
             lock (_disposeSync)
             {
-                _disposed = false;
-            }
+                if (_disabled || attemptId != Volatile.Read(ref _startAttemptId))
+                {
+                    session.Dispose();
+                    framePool.Dispose();
+                    sharpDxDevice.Dispose();
+                    return false;
+                }
 
-            _framePool.FrameArrived += FramePool_FrameArrived;
-            _session.StartCapture();
-            _started = true;
+                _sharpDxDevice = sharpDxDevice;
+                _winRtDevice = winRtDevice;
+                _framePool = framePool;
+                _session = session;
+                _disposed = false;
+                _started = true;
+                _framePool.FrameArrived += FramePool_FrameArrived;
+            }
 
             Debug.WriteLine($"[ScreenShare:WGC] Windows Graphics Capture started {item.Size.Width}x{item.Size.Height} via native D3D11 GPU capture device.");
             DiagnosticLogService.WriteLine($"[ScreenShare:WGC] Windows Graphics Capture started {item.Size.Width}x{item.Size.Height} via native D3D11 GPU capture device.");
@@ -697,6 +747,21 @@ namespace Zink.Services.NativeCalling
             }
             catch
             {
+            }
+        }
+
+        private static async Task<bool> TryRequestProgrammaticCaptureAccessAsync()
+        {
+            try
+            {
+                var status = await GraphicsCaptureAccess.RequestAccessAsync(GraphicsCaptureAccessKind.Programmatic);
+                DiagnosticLogService.WriteLine($"[ScreenShare:WGC] Programmatic capture access status: {status}.");
+                return string.Equals(status.ToString(), "Allowed", StringComparison.OrdinalIgnoreCase);
+            }
+            catch (Exception ex)
+            {
+                DiagnosticLogService.WriteLine($"[ScreenShare:WGC] Programmatic capture access request failed: {ex.Message}");
+                return true;
             }
         }
 

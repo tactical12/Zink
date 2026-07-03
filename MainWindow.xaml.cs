@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Navigation;
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -25,14 +26,15 @@ using Zink.Services.Calling;
 using Zink.Services.NativeCalling;
 using Zink.Services.Recording;
 using Zink.Services.Social;
+using Zink.Services.Streaming;
 
 namespace Zink
 {
     public sealed partial class MainWindow : Window
     {
-        private const double SidebarOpenWidth = 260;
+        private const double SidebarOpenWidth = 320;
         private const double SidebarCompactWidth = 104;
-        private const double SidebarOpenPaneLength = 232;
+        private const double SidebarOpenPaneLength = 292;
         private const double SidebarCompactPaneLength = 76;
 
         private bool _isSidebarCompact;
@@ -53,6 +55,8 @@ namespace Zink
         private DesktopAcrylicController? _acrylicController;
         private SystemBackdropConfiguration? _backdropConfig;
         private static readonly global::Windows.UI.Color DefaultGlassTint =
+            global::Windows.UI.Color.FromArgb(255, 56, 255, 102);
+        private static readonly global::Windows.UI.Color LegacyDefaultGlassTint =
             global::Windows.UI.Color.FromArgb(255, 59, 117, 130);
         private global::Windows.UI.Color _currentGlassTint = DefaultGlassTint;
         private ElementTheme _currentAppTheme = ElementTheme.Dark;
@@ -65,6 +69,7 @@ namespace Zink
         private bool _startupOverlayHidden = false;
         private bool _initialNavigationStarted = false;
         private HotkeyService? _hotkeyService;
+        private readonly HashSet<WebView2> _discordPresenceWebViews = new();
 
         public MainWindow()
         {
@@ -109,6 +114,12 @@ namespace Zink
 
             try
             {
+                if (SuppressInitialNavigation || ContentFrame.Content != null || ContentFrame.CurrentSourcePageType != null)
+                {
+                    DispatcherQueue.TryEnqueue(ApplyGlassTintToCurrentPage);
+                    return;
+                }
+
                 ContentFrame.Navigate(typeof(HomeDashboardPage));
                 TrySelectHomeItem();
                 DispatcherQueue.TryEnqueue(ApplyGlassTintToCurrentPage);
@@ -672,6 +683,7 @@ namespace Zink
         public NavigationView SidebarNavReference => SidebarNav;
         public ColumnDefinition SidebarColumnReference => SidebarColumn;
         public Frame MainFrame => ContentFrame;
+        public bool SuppressInitialNavigation { get; set; }
 
         public void SaveAndHideSidebar()
         {
@@ -981,7 +993,14 @@ namespace Zink
                 "VideoPlayer" => typeof(VideoPlayerPage),
                 "VideoLibrary" => typeof(VideoLibraryPage),
                 "ScreenRecorder" => typeof(RecorderPage),
+                "RecordingsLibrary" => typeof(RecordingsLibraryPage),
                 "Streaming" => typeof(StreamingPage),
+                "YouTubeStreaming" => typeof(YouTubeStreamingPage),
+                "KickStreaming" => typeof(KickStreamingPage),
+                "InstagramStreaming" => typeof(InstagramStreamingPage),
+                "TikTokStreaming" => typeof(TikTokStreamingPage),
+                "FacebookStreaming" => typeof(FacebookStreamingPage),
+                "XStreaming" => typeof(XStreamingPage),
                 "Netflix" => typeof(NetflixPage),
                 "PrimeVideo" => typeof(PrimeVideoPage),
                 "DisneyPlus" => typeof(DisneyPlusPage),
@@ -990,6 +1009,7 @@ namespace Zink
                 "BBCiPlayer" => typeof(BBCiPlayerPage),
                 "My5" => typeof(My5Page),
                 "Radio" => typeof(RadioPage),
+                "RadioDiscovery" => typeof(RadioDiscoveryPage),
                 "Spotify" => typeof(SpotifyLoginPage),
                 "SpotifyWidget" => typeof(SpotifyWidgetPage),
                 "LikedRadioSongs" => typeof(LikedRadioSongsPage),
@@ -1025,6 +1045,8 @@ namespace Zink
                 "AmazonLuna" => typeof(AmazonLunaPage),
                 "Boosteroid" => typeof(BoosteroidPage),
                 "ShadowPC" => typeof(ShadowPCPage),
+                "FeatureTour" => typeof(FeatureTourPage),
+                "WidgetHub" => typeof(WidgetHubPage),
                 "Notifications" => typeof(NotificationsPage),
                 "PrivacyPolicy" => typeof(PrivacyPolicyPage),
                 "LeaveReview" => typeof(ReviewPage),
@@ -1170,9 +1192,14 @@ namespace Zink
             try
             {
                 var saved = ApplicationData.Current.LocalSettings.Values["Zink.GlassTint"] as string;
-                var tint = TryParseHexColor(saved, out var savedTint)
+                var tint = TryParseHexColor(saved, out var savedTint) && !IsLegacyDefaultGlassTint(savedTint)
                     ? savedTint
                     : DefaultGlassTint;
+
+                if (!string.Equals(saved, ColorToHex(tint), StringComparison.OrdinalIgnoreCase))
+                {
+                    ApplicationData.Current.LocalSettings.Values["Zink.GlassTint"] = ColorToHex(tint);
+                }
 
                 _currentGlassTint = tint;
                 ApplyGlassTintToResources(tint, true);
@@ -1183,11 +1210,11 @@ namespace Zink
         private void ApplyGlassTintToResources(global::Windows.UI.Color tint, bool tintCurrentPage)
         {
             var useLightTheme = GetEffectiveAppTheme() == ElementTheme.Light;
-            var panel = useLightTheme ? WithAlpha(MixWithWhite(tint, 210), 218) : WithAlpha(tint, 88);
-            var card = useLightTheme ? WithAlpha(MixWithWhite(tint, 230), 190) : WithAlpha(tint, 56);
-            var hover = useLightTheme ? WithAlpha(tint, 28) : WithAlpha(Lighten(tint, 55), 40);
-            var selected = useLightTheme ? WithAlpha(tint, 48) : WithAlpha(Lighten(tint, 72), 54);
-            var pressed = useLightTheme ? WithAlpha(Darken(tint, 20), 42) : WithAlpha(Lighten(tint, 48), 48);
+            var panel = useLightTheme ? WithAlpha(MixWithWhite(tint, 210), 172) : WithAlpha(tint, 52);
+            var card = useLightTheme ? WithAlpha(MixWithWhite(tint, 230), 142) : WithAlpha(tint, 36);
+            var hover = useLightTheme ? WithAlpha(tint, 24) : WithAlpha(Lighten(tint, 55), 34);
+            var selected = useLightTheme ? WithAlpha(tint, 38) : WithAlpha(Lighten(tint, 72), 44);
+            var pressed = useLightTheme ? WithAlpha(Darken(tint, 20), 34) : WithAlpha(Lighten(tint, 48), 38);
             var primaryText = GetTintedTextColor(tint, TextBrushRole.Primary, useLightTheme);
             var mutedText = GetTintedTextColor(tint, TextBrushRole.Muted, useLightTheme);
             var sidebarPrimaryText = useLightTheme
@@ -1199,7 +1226,7 @@ namespace Zink
 
             SetBrushColor("ZinkGlassPanelBrush", panel);
             SetBrushColor("ZinkGlassCardBrush", card);
-            SetBrushColor("ZinkGlassBorderBrush", useLightTheme ? WithAlpha(Darken(tint, 24), 60) : WithAlpha(Lighten(tint, 90), 72));
+            SetBrushColor("ZinkGlassBorderBrush", useLightTheme ? WithAlpha(Darken(tint, 24), 70) : WithAlpha(Lighten(tint, 90), 92));
             SetBrushColor("ZinkGlassHoverBrush", hover);
             SetBrushColor("ZinkGlassSelectedBrush", selected);
             SetBrushColor("NavigationViewItemBackgroundPointerOver", hover);
@@ -1788,6 +1815,13 @@ namespace Zink
             return true;
         }
 
+        private static bool IsLegacyDefaultGlassTint(global::Windows.UI.Color color)
+        {
+            return color.R == LegacyDefaultGlassTint.R &&
+                color.G == LegacyDefaultGlassTint.G &&
+                color.B == LegacyDefaultGlassTint.B;
+        }
+
         private void ContentFrame_Navigated(object sender, NavigationEventArgs e)
         {
             try
@@ -1838,6 +1872,7 @@ namespace Zink
                 }
 
                 UpdateDiscordPresenceForPage(t, title);
+                AttachDiscordPresenceToCurrentWebViews(t, title);
             }
             catch { }
         }
@@ -1852,53 +1887,419 @@ namespace Zink
                 var tag = GetTagForPageType(pageType);
                 var displayName = GetDiscordPresenceDisplayName(tag, fallbackTitle);
 
-                if (string.Equals(tag, "Home", StringComparison.OrdinalIgnoreCase))
+                switch (tag)
                 {
-                    DiscordPresenceService.Instance.SetAppPresence("Home dashboard");
-                    return;
+                    case "Home":
+                        DiscordPresenceService.Instance.SetAppPresence("Checking the home dashboard");
+                        break;
+
+                    case "ZinkConnect":
+                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Connect", "Connecting devices with Zink Connect");
+                        break;
+
+                    case "MusicPlayer":
+                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Music", "Choosing music on Zink Music");
+                        break;
+                    case "MusicLibrary":
+                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Music", "Browsing their music library");
+                        break;
+                    case "YouTubeMusic":
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Music", "Listening to YouTube Music");
+                        break;
+                    case "AmazonMusic":
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Music", "Listening to Amazon Music");
+                        break;
+                    case "Spotify":
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Music", "Signing in to Spotify");
+                        break;
+                    case "SpotifyWidget":
+                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Music", "Using the Spotify widget");
+                        break;
+                    case "Radio":
+                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Radio", "Choosing a radio station");
+                        break;
+                    case "RadioDiscovery":
+                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Radio", "Discovering radio stations");
+                        break;
+                    case "LikedRadioSongs":
+                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Radio", "Checking liked radio songs");
+                        break;
+                    case "RadioWidget":
+                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Radio", "Using the radio widget");
+                        break;
+                    case "Equalizer":
+                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Audio", "Tuning the equalizer");
+                        break;
+                    case "Visualizer":
+                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Music", "Watching the music visualizer");
+                        break;
+
+                    case "VideoPlayer":
+                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Video", "Watching videos on Zink");
+                        break;
+                    case "VideoLibrary":
+                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Video", "Browsing their video library");
+                        break;
+                    case "Netflix":
+                    case "PrimeVideo":
+                    case "DisneyPlus":
+                    case "ParamountPlus":
+                    case "NowTV":
+                    case "BBCiPlayer":
+                    case "My5":
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Streaming", $"Watching {displayName}");
+                        break;
+                    case "YouTube":
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Video", "Watching YouTube");
+                        break;
+                    case "Twitch":
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Streaming", "Watching Twitch");
+                        break;
+
+                    case "Streaming":
+                        DiscordPresenceService.Instance.SetStreamingPresence("Twitch", NativeTwitchStreamingService.Instance.IsStreaming);
+                        break;
+                    case "YouTubeStreaming":
+                        DiscordPresenceService.Instance.SetStreamingPresence("YouTube", NativeTwitchStreamingService.YouTubeInstance.IsStreaming);
+                        break;
+                    case "KickStreaming":
+                        DiscordPresenceService.Instance.SetStreamingPresence("Kick", NativeTwitchStreamingService.KickInstance.IsStreaming);
+                        break;
+                    case "InstagramStreaming":
+                        DiscordPresenceService.Instance.SetStreamingPresence("Instagram", NativeTwitchStreamingService.InstagramInstance.IsStreaming);
+                        break;
+                    case "TikTokStreaming":
+                        DiscordPresenceService.Instance.SetStreamingPresence("TikTok", NativeTwitchStreamingService.TikTokInstance.IsStreaming);
+                        break;
+                    case "FacebookStreaming":
+                        DiscordPresenceService.Instance.SetStreamingPresence("Facebook Live", NativeTwitchStreamingService.FacebookInstance.IsStreaming);
+                        break;
+                    case "XStreaming":
+                        DiscordPresenceService.Instance.SetStreamingPresence("X Live", NativeTwitchStreamingService.XInstance.IsStreaming);
+                        break;
+                    case "ScreenRecorder":
+                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Recording", "Setting up a screen recording");
+                        break;
+                    case "RecordingsLibrary":
+                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Recording", "Browsing saved recordings");
+                        break;
+                    case "FpsRecorder":
+                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Gaming", "Monitoring FPS and game clips");
+                        break;
+
+                    case "Discord":
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", "Chatting on Discord");
+                        break;
+                    case "TikTok":
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", "Browsing TikTok");
+                        break;
+                    case "Instagram":
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", "Browsing Instagram");
+                        break;
+                    case "X":
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", "Browsing X");
+                        break;
+                    case "Facebook":
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", "Browsing Facebook");
+                        break;
+                    case "Telegram":
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", "Messaging on Telegram");
+                        break;
+                    case "WhatsApp":
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", "Messaging on WhatsApp");
+                        break;
+                    case "Messenger":
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", "Messaging on Messenger");
+                        break;
+                    case "LinkedIn":
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", "Browsing LinkedIn");
+                        break;
+                    case "Threads":
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", "Browsing Threads");
+                        break;
+                    case "Bluesky":
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", "Browsing Bluesky");
+                        break;
+                    case "Mastodon":
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", "Browsing Mastodon");
+                        break;
+                    case "Pinterest":
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", "Browsing Pinterest");
+                        break;
+                    case "Tumblr":
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", "Browsing Tumblr");
+                        break;
+                    case "Reddit":
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", "Browsing Reddit");
+                        break;
+                    case "SocialLogin":
+                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Zink Social", "Signing in to Zink Social");
+                        break;
+                    case "SocialRegister":
+                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Zink Social", "Creating a Zink Social account");
+                        break;
+                    case "SocialDeveloperSettings":
+                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Zink Social", "Editing social developer settings");
+                        break;
+                    case "SocialFriends":
+                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Zink Social", "Checking friends");
+                        break;
+                    case "SocialMessages":
+                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Zink Social", "Reading messages");
+                        break;
+                    case "SocialFriendRequests":
+                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Zink Social", "Checking friend requests");
+                        break;
+                    case "SocialProfile":
+                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Zink Social", "Viewing a profile");
+                        break;
+                    case "SocialCall":
+                        DiscordPresenceService.Instance.SetPagePresence("Zink Call", "Calls", "Starting a Zink call");
+                        break;
+
+                    case "Xbox":
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Gaming", "Playing on Xbox");
+                        break;
+                    case "GeForceNow":
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Cloud gaming", "Playing on GeForce NOW");
+                        break;
+                    case "AmazonLuna":
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Cloud gaming", "Playing on Amazon Luna");
+                        break;
+                    case "Boosteroid":
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Cloud gaming", "Playing on Boosteroid");
+                        break;
+                    case "ShadowPC":
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Cloud gaming", "Using Shadow PC");
+                        break;
+
+                    case "FeatureTour":
+                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Zink", "Exploring Zink features");
+                        break;
+                    case "WidgetHub":
+                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Widgets", "Managing Zink widgets");
+                        break;
+                    case "Notifications":
+                        DiscordPresenceService.Instance.SetPagePresence(displayName, "App", "Checking notifications");
+                        break;
+                    case "PrivacyPolicy":
+                        DiscordPresenceService.Instance.SetPagePresence(displayName, "App", "Reading the privacy policy");
+                        break;
+                    case "LeaveReview":
+                        DiscordPresenceService.Instance.SetPagePresence(displayName, "App", "Leaving a review for Zink");
+                        break;
+                    case "AppCustomization":
+                        DiscordPresenceService.Instance.SetPagePresence(displayName, "App", "Customizing Zink");
+                        break;
+                    case "Settings":
+                        DiscordPresenceService.Instance.SetPagePresence(displayName, "App", "Changing Zink settings");
+                        break;
+                    case "About":
+                        DiscordPresenceService.Instance.SetPagePresence(displayName, "App", "Reading about Zink");
+                        break;
+                    case "Search":
+                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Search", "Searching in Zink");
+                        break;
+
+                    default:
+                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Zink", $"Using {displayName}");
+                        break;
                 }
-
-                if (IsStreamingPresenceTag(tag))
-                {
-                    DiscordPresenceService.Instance.SetWebPresence(displayName, "Streaming", $"Browsing {displayName}");
-                    return;
-                }
-
-                if (IsMusicPresenceTag(tag))
-                {
-                    DiscordPresenceService.Instance.SetPagePresence(displayName, "Music", "Browsing");
-                    return;
-                }
-
-                if (IsSocialPresenceTag(tag))
-                {
-                    DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", $"Browsing {displayName}");
-                    return;
-                }
-
-                if (IsGamingPresenceTag(tag))
-                {
-                    DiscordPresenceService.Instance.SetWebPresence(displayName, "Cloud gaming", $"Launching {displayName}");
-                    return;
-                }
-
-                if (string.Equals(tag, "SocialCall", StringComparison.OrdinalIgnoreCase))
-                {
-                    DiscordPresenceService.Instance.SetPagePresence("Zink Call", "Calls", "Opening");
-                    return;
-                }
-
-                var category = tag switch
-                {
-                    "ScreenRecorder" or "Streaming" or "FpsRecorder" or "Equalizer" or "Visualizer" => "Tools",
-                    "Search" => "Search",
-                    "Notifications" or "PrivacyPolicy" or "LeaveReview" or "AppCustomization" or "Settings" or "About" => "App",
-                    _ => "Zink"
-                };
-
-                DiscordPresenceService.Instance.SetPagePresence(displayName, category, "Using");
             }
             catch { }
+        }
+
+        private void AttachDiscordPresenceToCurrentWebViews(Type pageType, string fallbackTitle)
+        {
+            try
+            {
+                if (ContentFrame.Content is not DependencyObject root)
+                    return;
+
+                var tag = GetTagForPageType(pageType);
+                var displayName = GetDiscordPresenceDisplayName(tag, fallbackTitle);
+
+                AttachDiscordPresenceToWebViews(root, tag, displayName);
+
+                DispatcherQueue.TryEnqueue(async () =>
+                {
+                    try
+                    {
+                        await Task.Delay(650);
+                        if (ContentFrame.Content is DependencyObject delayedRoot)
+                            AttachDiscordPresenceToWebViews(delayedRoot, tag, displayName);
+                    }
+                    catch { }
+                });
+            }
+            catch { }
+        }
+
+        private void AttachDiscordPresenceToWebViews(DependencyObject root, string tag, string displayName)
+        {
+            try
+            {
+                if (root is WebView2 webView)
+                {
+                    AttachDiscordPresenceToWebView(webView, tag, displayName);
+                }
+
+                var count = VisualTreeHelper.GetChildrenCount(root);
+                for (var i = 0; i < count; i++)
+                {
+                    AttachDiscordPresenceToWebViews(VisualTreeHelper.GetChild(root, i), tag, displayName);
+                }
+            }
+            catch { }
+        }
+
+        private void AttachDiscordPresenceToWebView(WebView2 webView, string tag, string displayName)
+        {
+            try
+            {
+                if (!_discordPresenceWebViews.Add(webView))
+                    return;
+
+                webView.CoreWebView2Initialized += (_, __) => AttachDiscordPresenceToCoreWebView(webView, tag, displayName);
+                AttachDiscordPresenceToCoreWebView(webView, tag, displayName);
+            }
+            catch { }
+        }
+
+        private void AttachDiscordPresenceToCoreWebView(WebView2 webView, string tag, string displayName)
+        {
+            try
+            {
+                var core = webView.CoreWebView2;
+                if (core == null)
+                    return;
+
+                core.NavigationCompleted += (_, __) => UpdateDiscordPresenceFromWebView(webView, tag, displayName);
+                core.DocumentTitleChanged += (_, __) => UpdateDiscordPresenceFromWebView(webView, tag, displayName);
+                UpdateDiscordPresenceFromWebView(webView, tag, displayName);
+            }
+            catch { }
+        }
+
+        private void UpdateDiscordPresenceFromWebView(WebView2 webView, string tag, string displayName)
+        {
+            try
+            {
+                if (IsActiveCallState(NativeCallCoordinator.Instance.CurrentSession.State))
+                    return;
+
+                var core = webView.CoreWebView2;
+                if (core == null)
+                    return;
+
+                var title = CleanDiscordWebTitle(core.DocumentTitle, displayName);
+                if (string.IsNullOrWhiteSpace(title) || string.Equals(title, displayName, StringComparison.OrdinalIgnoreCase))
+                    return;
+
+                switch (tag)
+                {
+                    case "YouTube":
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Video", $"Watching {title}");
+                        break;
+                    case "Twitch":
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Streaming", $"Watching {title}");
+                        break;
+                    case "YouTubeMusic":
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Music", $"Listening to {title}");
+                        break;
+                    case "AmazonMusic":
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Music", $"Listening to {title}");
+                        break;
+                    case "Spotify":
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Music", $"Listening to {title}");
+                        break;
+                    case "Netflix":
+                    case "PrimeVideo":
+                    case "DisneyPlus":
+                    case "ParamountPlus":
+                    case "NowTV":
+                    case "BBCiPlayer":
+                    case "My5":
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Streaming", $"Watching {title}");
+                        break;
+                    case "Xbox":
+                    case "GeForceNow":
+                    case "AmazonLuna":
+                    case "Boosteroid":
+                    case "ShadowPC":
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Gaming", $"Playing {title}");
+                        break;
+                    case "Discord":
+                    case "Telegram":
+                    case "WhatsApp":
+                    case "Messenger":
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", $"Messaging on {title}");
+                        break;
+                    case "TikTok":
+                    case "Instagram":
+                    case "X":
+                    case "Facebook":
+                    case "LinkedIn":
+                    case "Threads":
+                    case "Bluesky":
+                    case "Mastodon":
+                    case "Pinterest":
+                    case "Tumblr":
+                    case "Reddit":
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", $"Viewing {title}");
+                        break;
+                    default:
+                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Web", $"Viewing {title}");
+                        break;
+                }
+            }
+            catch { }
+        }
+
+        private static string CleanDiscordWebTitle(string? title, string fallback)
+        {
+            if (string.IsNullOrWhiteSpace(title))
+                return "";
+
+            var clean = title.Trim();
+            var suffixes = new[]
+            {
+                " - YouTube",
+                " - YouTube Music",
+                " | Netflix",
+                " - Netflix",
+                " | Prime Video",
+                " - Prime Video",
+                " | Disney+",
+                " - Disney+",
+                " | Twitch",
+                " - Twitch",
+                " / X",
+                " | X",
+                " | Facebook",
+                " - Facebook",
+                " | Instagram",
+                " - Instagram",
+                " | TikTok",
+                " - TikTok"
+            };
+
+            foreach (var suffix in suffixes)
+            {
+                if (clean.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                {
+                    clean = clean.Substring(0, clean.Length - suffix.Length).Trim();
+                    break;
+                }
+            }
+
+            if (string.Equals(clean, fallback, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(clean, "about:blank", StringComparison.OrdinalIgnoreCase))
+            {
+                return "";
+            }
+
+            return clean.Length <= 110 ? clean : clean.Substring(0, 110);
         }
 
         private static bool IsActiveCallState(NativeCallState state)
@@ -1946,6 +2347,12 @@ namespace Zink
                 "VideoLibrary" => "Video library",
                 "ScreenRecorder" => "Screen recorder",
                 "Streaming" => "Streaming",
+                "YouTubeStreaming" => "YouTube streaming",
+                "KickStreaming" => "Kick streaming",
+                "InstagramStreaming" => "Instagram streaming",
+                "TikTokStreaming" => "TikTok streaming",
+                "FacebookStreaming" => "Facebook Live streaming",
+                "XStreaming" => "X Live streaming",
                 "FpsRecorder" => "FPS recorder",
                 "PrimeVideo" => "Prime Video",
                 "DisneyPlus" => "Disney+",
@@ -2016,7 +2423,14 @@ namespace Zink
                 if (t == typeof(VideoPlayerPage)) return "VideoPlayer";
                 if (t == typeof(VideoLibraryPage)) return "VideoLibrary";
                 if (t == typeof(RecorderPage)) return "ScreenRecorder";
+                if (t == typeof(RecordingsLibraryPage)) return "RecordingsLibrary";
                 if (t == typeof(StreamingPage)) return "Streaming";
+                if (t == typeof(YouTubeStreamingPage)) return "YouTubeStreaming";
+                if (t == typeof(KickStreamingPage)) return "KickStreaming";
+                if (t == typeof(InstagramStreamingPage)) return "InstagramStreaming";
+                if (t == typeof(TikTokStreamingPage)) return "TikTokStreaming";
+                if (t == typeof(FacebookStreamingPage)) return "FacebookStreaming";
+                if (t == typeof(XStreamingPage)) return "XStreaming";
                 if (t == typeof(NetflixPage)) return "Netflix";
                 if (t == typeof(PrimeVideoPage)) return "PrimeVideo";
                 if (t == typeof(DisneyPlusPage)) return "DisneyPlus";
@@ -2025,6 +2439,7 @@ namespace Zink
                 if (t == typeof(BBCiPlayerPage)) return "BBCiPlayer";
                 if (t == typeof(My5Page)) return "My5";
                 if (t == typeof(RadioPage)) return "Radio";
+                if (t == typeof(RadioDiscoveryPage)) return "RadioDiscovery";
                 if (t == typeof(SpotifyLoginPage)) return "Spotify";
                 if (t == typeof(SpotifyWidgetPage)) return "SpotifyWidget";
                 if (t == typeof(LikedRadioSongsPage)) return "LikedRadioSongs";
@@ -2060,6 +2475,8 @@ namespace Zink
                 if (t == typeof(AmazonLunaPage)) return "AmazonLuna";
                 if (t == typeof(BoosteroidPage)) return "Boosteroid";
                 if (t == typeof(ShadowPCPage)) return "ShadowPC";
+                if (t == typeof(FeatureTourPage)) return "FeatureTour";
+                if (t == typeof(WidgetHubPage)) return "WidgetHub";
                 if (t == typeof(NotificationsPage)) return "Notifications";
                 if (t == typeof(PrivacyPolicyPage)) return "PrivacyPolicy";
                 if (t == typeof(ReviewPage)) return "LeaveReview";

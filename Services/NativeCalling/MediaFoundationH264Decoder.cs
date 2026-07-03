@@ -19,6 +19,8 @@ namespace Zink.Services.NativeCalling
         private const long FrameDuration100Ns = 10_000_000L / NativeScreenShareStreamingService.TargetFps;
 
         private readonly Transform _decoder;
+        private readonly string _codec;
+        private readonly Guid _inputSubtype;
         private int _width;
         private int _height;
         private long _sampleTime;
@@ -41,10 +43,19 @@ namespace Zink.Services.NativeCalling
         }
 
         public MediaFoundationH264Decoder(int width, int height)
+            : this(width, height, ScreenShareCodecNames.H264)
+        {
+        }
+
+        public MediaFoundationH264Decoder(int width, int height, string codec)
         {
             _width = width;
             _height = height;
-            _decoder = new Transform(CmsH264DecoderMft);
+            _codec = ScreenShareCodecNames.IsAv1(codec) ? ScreenShareCodecNames.Av1 : ScreenShareCodecNames.H264;
+            _inputSubtype = ScreenShareCodecNames.IsAv1(_codec) ? MediaFoundationAv1Encoder.Av1Subtype : VideoFormatGuids.H264;
+            _decoder = ScreenShareCodecNames.IsAv1(_codec)
+                ? CreateAv1DecoderTransform()
+                : new Transform(CmsH264DecoderMft);
             ConfigureTypes(width, height);
         }
 
@@ -62,8 +73,11 @@ namespace Zink.Services.NativeCalling
         public byte[]? DecodeToBgra(byte[] h264Frame, int width, int height)
         {
             Reconfigure(width, height);
-            var inputFrame = NormalizeH264Input(h264Frame);
-            if (_preferLengthPrefixedInput &&
+            var inputFrame = ScreenShareCodecNames.IsAv1(_codec)
+                ? h264Frame
+                : NormalizeH264Input(h264Frame);
+            if (!ScreenShareCodecNames.IsAv1(_codec) &&
+                _preferLengthPrefixedInput &&
                 HasStartCode(inputFrame) &&
                 TryConvertAnnexBToLengthPrefixedNalUnits(inputFrame, out var lengthPrefixed))
             {
@@ -72,10 +86,10 @@ namespace Zink.Services.NativeCalling
 
             var inputIndex = ++_inputSamples;
 
-            if (inputIndex == 1 || inputIndex % 120 == 0 || ContainsNalUnitType(inputFrame, 5))
+            if (inputIndex == 1 || inputIndex % 120 == 0 || (!ScreenShareCodecNames.IsAv1(_codec) && ContainsNalUnitType(inputFrame, 5)))
             {
                 Debug.WriteLine(
-                    $"[ScreenShare:H264:DECODER] Input sample {inputIndex}: bytes={h264Frame.Length}->{inputFrame.Length}; format={(HasStartCode(inputFrame) ? "AnnexB" : "LengthPrefixed")}; nals={DescribeNalUnits(inputFrame)}.");
+                    $"[ScreenShare:{GetLogCodecName()}:DECODER] Input sample {inputIndex}: bytes={h264Frame.Length}->{inputFrame.Length}.");
             }
 
             using var inputBuffer = MediaFactory.CreateMemoryBuffer(inputFrame.Length);
@@ -97,7 +111,7 @@ namespace Zink.Services.NativeCalling
             sample.AddBuffer(inputBuffer);
             sample.SampleTime = _sampleTime;
             sample.SampleDuration = FrameDuration100Ns;
-            if (ContainsNalUnitType(inputFrame, 5))
+            if (ScreenShareCodecNames.IsAv1(_codec) || ContainsNalUnitType(inputFrame, 5))
                 sample.Set(SampleAttributeKeys.CleanPoint, true);
             if (inputIndex == 1)
                 sample.Set(SampleAttributeKeys.Discontinuity, true);
@@ -249,7 +263,7 @@ namespace Zink.Services.NativeCalling
         {
             using var inputType = new MediaType();
             inputType.Set(MediaTypeAttributeKeys.MajorType, MediaTypeGuids.Video);
-            inputType.Set(MediaTypeAttributeKeys.Subtype, VideoFormatGuids.H264);
+            inputType.Set(MediaTypeAttributeKeys.Subtype, _inputSubtype);
             inputType.Set(MediaTypeAttributeKeys.FrameSize, PackRatio(width, height));
             inputType.Set(MediaTypeAttributeKeys.FrameRate, PackRatio(NativeScreenShareStreamingService.TargetFps, 1));
             inputType.Set(MediaTypeAttributeKeys.PixelAspectRatio, PackRatio(1, 1));
@@ -268,6 +282,36 @@ namespace Zink.Services.NativeCalling
             _loggedFirstOutputSample = false;
             _decoder.ProcessMessage(TMessageType.NotifyBeginStreaming, IntPtr.Zero);
             _decoder.ProcessMessage(TMessageType.NotifyStartOfStream, IntPtr.Zero);
+        }
+
+        private static Transform CreateAv1DecoderTransform()
+        {
+            var inputInfo = new TRegisterTypeInformation
+            {
+                GuidMajorType = MediaTypeGuids.Video,
+                GuidSubtype = MediaFoundationAv1Encoder.Av1Subtype
+            };
+            var outputInfo = new TRegisterTypeInformation
+            {
+                GuidMajorType = MediaTypeGuids.Video,
+                GuidSubtype = VideoFormatGuids.NV12
+            };
+
+            foreach (var activation in EnumerateDecoderActivations(inputInfo, outputInfo))
+            {
+                try
+                {
+                    var name = GetActivationString(activation, TransformAttributeKeys.MftFriendlyNameAttribute, "Windows AV1 decoder");
+                    Debug.WriteLine($"[ScreenShare:AV1X:DECODER] Using {name}.");
+                    return activation.ActivateObject<Transform>();
+                }
+                finally
+                {
+                    activation.Dispose();
+                }
+            }
+
+            throw new InvalidOperationException("Windows Media Foundation did not expose an AV1 decoder MFT.");
         }
 
         private byte[]? TryDrainFrame(bool handledStreamChange = false, int emptyRetryCount = 0)
@@ -695,6 +739,89 @@ namespace Zink.Services.NativeCalling
         private static long PackRatio(int high, int low)
         {
             return ((long)high << 32) | (uint)low;
+        }
+
+        private string GetLogCodecName()
+        {
+            return ScreenShareCodecNames.IsAv1(_codec) ? ScreenShareCodecNames.AV1XDisplayName : "H264";
+        }
+
+        private static IEnumerable<Activate> EnumerateDecoderActivations(TRegisterTypeInformation inputInfo, TRegisterTypeInformation outputInfo)
+        {
+            var category = TransformCategoryGuids.VideoDecoder;
+            var activationArrayPtr = IntPtr.Zero;
+            var inputInfoPtr = AllocateNativeTypeInfo(inputInfo);
+            var outputInfoPtr = AllocateNativeTypeInfo(outputInfo);
+
+            try
+            {
+                var hr = MFTEnumEx(
+                    ref category,
+                    (int)(TransformEnumFlag.Hardware | TransformEnumFlag.Asyncmft | TransformEnumFlag.SortAndFilter),
+                    inputInfoPtr,
+                    outputInfoPtr,
+                    out activationArrayPtr,
+                    out var activationCount);
+
+                if (hr < 0)
+                    Marshal.ThrowExceptionForHR(hr);
+
+                for (var i = 0; i < activationCount; i++)
+                {
+                    var activationPtr = Marshal.ReadIntPtr(activationArrayPtr, i * IntPtr.Size);
+                    if (activationPtr != IntPtr.Zero)
+                        yield return new Activate(activationPtr);
+                }
+            }
+            finally
+            {
+                if (activationArrayPtr != IntPtr.Zero)
+                    CoTaskMemFree(activationArrayPtr);
+                Marshal.FreeHGlobal(inputInfoPtr);
+                Marshal.FreeHGlobal(outputInfoPtr);
+            }
+        }
+
+        private static IntPtr AllocateNativeTypeInfo(TRegisterTypeInformation typeInfo)
+        {
+            var ptr = Marshal.AllocHGlobal(Marshal.SizeOf<NativeMftRegisterTypeInfo>());
+            Marshal.StructureToPtr(
+                new NativeMftRegisterTypeInfo { GuidMajorType = typeInfo.GuidMajorType, GuidSubtype = typeInfo.GuidSubtype },
+                ptr,
+                false);
+            return ptr;
+        }
+
+        private static string GetActivationString(Activate activation, MediaAttributeKey<string> key, string fallback)
+        {
+            try
+            {
+                var value = activation.Get<string>(key);
+                return string.IsNullOrWhiteSpace(value) ? fallback : value;
+            }
+            catch
+            {
+                return fallback;
+            }
+        }
+
+        [DllImport("mfplat.dll", ExactSpelling = true)]
+        private static extern int MFTEnumEx(
+            ref Guid guidCategory,
+            int flags,
+            IntPtr inputTypeRef,
+            IntPtr outputTypeRef,
+            out IntPtr activateArrayOut,
+            out int activateCountRef);
+
+        [DllImport("ole32.dll", ExactSpelling = true)]
+        private static extern void CoTaskMemFree(IntPtr ptr);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct NativeMftRegisterTypeInfo
+        {
+            public Guid GuidMajorType;
+            public Guid GuidSubtype;
         }
 
         private static byte ClampToByte(int value)

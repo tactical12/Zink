@@ -4,13 +4,59 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:services="using:Zink.Services">
 
-    <StackPanel Padding="20" Spacing="12">
+    <Grid Padding="20" RowSpacing="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
         <TextBlock Text="Notification Center" 
                    FontSize="24" 
                    FontWeight="SemiBold"/>
 
         <!-- example button to fire a toast -->
-        <Button Content="Send Test Notification"
-                Click="OnSendTestNotificationClicked"/>
-    </StackPanel>
+        <StackPanel Grid.Row="1"
+                    Orientation="Horizontal"
+                    Spacing="8">
+            <Button Content="Send Test Notification"
+                    Click="OnSendTestNotificationClicked"/>
+            <Button Content="Delete all notifications"
+                    Click="OnDeleteAllNotificationsClicked"/>
+        </StackPanel>
+
+        <ListView x:Name="NotificationsList"
+                  Grid.Row="2">
+            <ListView.ItemTemplate>
+                <DataTemplate>
+                    <Grid Padding="0,8" ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="{Binding Title}"
+                                       FontWeight="SemiBold"
+                                       TextWrapping="Wrap"/>
+                            <TextBlock Text="{Binding Message}"
+                                       TextWrapping="Wrap"/>
+                            <Button Content="{Binding ActionLabel}"
+                                    HorizontalAlignment="Left"
+                                    Visibility="{Binding HasAction, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                    Click="OnNotificationActionClicked"/>
+                            <TextBlock Text="{Binding FormattedTimestamp}"
+                                       FontSize="12"
+                                       Opacity="0.72"/>
+                        </StackPanel>
+
+                        <Button Grid.Column="1"
+                                Content="Delete this notification"
+                                VerticalAlignment="Center"
+                                Click="OnDeleteNotificationClicked"/>
+                    </Grid>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+    </Grid>
 </Page>

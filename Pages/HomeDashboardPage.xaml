@@ -74,6 +74,13 @@
             </Setter>
         </Style>
 
+        <Style x:Key="GlassTileIconStyle" TargetType="FontIcon">
+            <Setter Property="Width" Value="34"/>
+            <Setter Property="Height" Value="34"/>
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
         <Style x:Key="PillButtonStyle" TargetType="Button">
             <Setter Property="MinHeight" Value="44"/>
             <Setter Property="Padding" Value="16,0"/>
@@ -202,17 +209,6 @@
                         </StackPanel>
 
                     </StackPanel>
-
-                    <AutoSuggestBox x:Name="HomeSearchBox"
-                                    Grid.ColumnSpan="2"
-                                    Width="1040"
-                                    MaxWidth="1040"
-                                    MinHeight="46"
-                                    PlaceholderText="Search Zink"
-                                    QuerySubmitted="HomeSearchBox_QuerySubmitted"
-                                    HorizontalAlignment="Center"
-                                    VerticalAlignment="Center"
-                                    Margin="260,0,130,0"/>
 
                     <Button x:Name="NotificationsButton"
                             Grid.Column="1"
@@ -470,14 +466,126 @@
                         </Grid>
                     </Border>
 
-                    <StackPanel x:Name="PowerToolsSection"
-                                Spacing="10">
+                    <Border x:Name="QuickStartSection"
+                            Style="{StaticResource GlassPanelStyle}"
+                            Padding="18"
+                            Background="#64131D28">
+                        <Grid ColumnSpacing="16" RowSpacing="14">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Spacing="4">
+                                <TextBlock x:Name="QuickStartTitle"
+                                           Text="Try this next"
+                                           FontSize="22"
+                                           FontWeight="SemiBold"
+                                           Foreground="White"/>
+                                <TextBlock x:Name="QuickStartSubtitle"
+                                           Text="Pick a path that shows what makes Zink worth installing."
+                                           FontSize="13"
+                                           Foreground="{StaticResource MutedTextBrush}"
+                                           TextWrapping="WrapWholeWords"/>
+                            </StackPanel>
+
+                            <Button Grid.Column="1"
+                                    Style="{StaticResource PillButtonStyle}"
+                                    MinHeight="38"
+                                    Padding="12,0"
+                                    Click="ChangeQuickStartMode_Click">
+                                <StackPanel Orientation="Horizontal" Spacing="7">
+                                    <FontIcon Glyph="&#xE790;" FontFamily="Segoe Fluent Icons" FontSize="13"/>
+                                    <TextBlock Text="Change mode"/>
+                                </StackPanel>
+                            </Button>
+
+                            <StackPanel Grid.Row="1"
+                                        Grid.ColumnSpan="2"
+                                        Orientation="Horizontal"
+                                        Spacing="10">
+                                <Button x:Name="QuickStartPrimaryButton"
+                                        Style="{StaticResource PulseButtonStyle}"
+                                        Width="170"
+                                        Click="QuickStartPrimary_Click">
+                                    <StackPanel Padding="15" Spacing="6">
+                                        <FontIcon x:Name="QuickStartPrimaryIcon"
+                                                  Glyph="&#xE7F6;"
+                                                  FontFamily="Segoe Fluent Icons"
+                                                  Foreground="{StaticResource YellowBrush}"
+                                                  FontSize="20"/>
+                                        <TextBlock x:Name="QuickStartPrimaryTitle"
+                                                   Text="Listen live"
+                                                   Foreground="White"
+                                                   FontWeight="SemiBold"/>
+                                        <TextBlock x:Name="QuickStartPrimarySubtitle"
+                                                   Text="Open radio"
+                                                   Style="{StaticResource ZinkSubText}"/>
+                                    </StackPanel>
+                                </Button>
+
+                                <Button x:Name="QuickStartSecondaryButton"
+                                        Style="{StaticResource PulseButtonStyle}"
+                                        Width="170"
+                                        Click="QuickStartSecondary_Click">
+                                    <StackPanel Padding="15" Spacing="6">
+                                        <FontIcon x:Name="QuickStartSecondaryIcon"
+                                                  Glyph="&#xE722;"
+                                                  FontFamily="Segoe Fluent Icons"
+                                                  Foreground="{StaticResource BlueBrush}"
+                                                  FontSize="20"/>
+                                        <TextBlock x:Name="QuickStartSecondaryTitle"
+                                                   Text="Record"
+                                                   Foreground="White"
+                                                   FontWeight="SemiBold"/>
+                                        <TextBlock x:Name="QuickStartSecondarySubtitle"
+                                                   Text="Capture a clip"
+                                                   Style="{StaticResource ZinkSubText}"/>
+                                    </StackPanel>
+                                </Button>
+
+                                <Button x:Name="QuickStartThirdButton"
+                                        Style="{StaticResource PulseButtonStyle}"
+                                        Width="170"
+                                        Click="QuickStartThird_Click">
+                                    <StackPanel Padding="15" Spacing="6">
+                                        <FontIcon x:Name="QuickStartThirdIcon"
+                                                  Glyph="&#xE774;"
+                                                  FontFamily="Segoe Fluent Icons"
+                                                  Foreground="{StaticResource CyanBrush}"
+                                                  FontSize="20"/>
+                                        <TextBlock x:Name="QuickStartThirdTitle"
+                                                   Text="Connect"
+                                                   Foreground="White"
+                                                   FontWeight="SemiBold"/>
+                                        <TextBlock x:Name="QuickStartThirdSubtitle"
+                                                   Text="Call or share"
+                                                   Style="{StaticResource ZinkSubText}"/>
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <Grid x:Name="PowerToolsSection"
+                          ColumnSpacing="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Spacing="10">
                     <StackPanel Orientation="Horizontal" Spacing="10">
 
                         <Button x:Name="TileBtn_MusicPlayer" Style="{StaticResource GlassTileButtonStyle}" Click="MusicPlayer_Click">
                             <Grid Padding="16" RowSpacing="10">
                                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                                <FontIcon Glyph="&#xEC4F;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource CyanBrush}"/>
+                                <FontIcon Style="{StaticResource GlassTileIconStyle}" Glyph="&#xEC4F;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource CyanBrush}"/>
                                 <StackPanel Grid.Row="1" Spacing="3">
                                     <TextBlock Text="Music" Foreground="White" FontWeight="SemiBold"/>
                                     <TextBlock Text="Player" Style="{StaticResource ZinkSubText}"/>
@@ -488,7 +596,7 @@
                         <Button x:Name="TileBtn_VideoPlayer" Grid.Column="1" Style="{StaticResource GlassTileButtonStyle}" Click="VideoPlayer_Click">
                             <Grid Padding="16" RowSpacing="10">
                                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                                <FontIcon Glyph="&#xE714;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource BlueBrush}"/>
+                                <FontIcon Style="{StaticResource GlassTileIconStyle}" Glyph="&#xE714;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource BlueBrush}"/>
                                 <StackPanel Grid.Row="1" Spacing="3">
                                     <TextBlock Text="Video" Foreground="White" FontWeight="SemiBold"/>
                                     <TextBlock Text="Player" Style="{StaticResource ZinkSubText}"/>
@@ -499,7 +607,7 @@
                         <Button x:Name="TileBtn_Radio" Grid.Column="2" Style="{StaticResource GlassTileButtonStyle}" Click="Radio_Click">
                             <Grid Padding="16" RowSpacing="10">
                                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                                <FontIcon Glyph="&#xE7F6;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource YellowBrush}"/>
+                                <FontIcon Style="{StaticResource GlassTileIconStyle}" Glyph="&#xE7F6;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource YellowBrush}"/>
                                 <StackPanel Grid.Row="1" Spacing="3">
                                     <TextBlock Text="Radio" Foreground="White" FontWeight="SemiBold"/>
                                     <TextBlock Text="Live stations" Style="{StaticResource ZinkSubText}"/>
@@ -510,7 +618,7 @@
                         <Button x:Name="TileBtn_Spotify" Grid.Column="3" Style="{StaticResource GlassTileButtonStyle}" Click="Spotify_Click">
                             <Grid Padding="16" RowSpacing="10">
                                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                                <FontIcon Glyph="&#xE768;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource GreenBrush}"/>
+                                <FontIcon Style="{StaticResource GlassTileIconStyle}" Glyph="&#xE768;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource GreenBrush}"/>
                                 <StackPanel Grid.Row="1" Spacing="3">
                                     <TextBlock Text="Spotify" Foreground="White" FontWeight="SemiBold"/>
                                     <TextBlock Text="Now playing" Style="{StaticResource ZinkSubText}"/>
@@ -524,7 +632,7 @@
                         <Button x:Name="TileBtn_MusicLibrary" Style="{StaticResource GlassTileButtonStyle}" Click="MusicLibrary_Click">
                             <Grid Padding="16" RowSpacing="10">
                                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                                <FontIcon Glyph="&#xE8F1;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource CyanBrush}"/>
+                                <FontIcon Style="{StaticResource GlassTileIconStyle}" Glyph="&#xE8F1;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource CyanBrush}"/>
                                 <StackPanel Grid.Row="1" Spacing="3">
                                     <TextBlock Text="Music Library" Foreground="White" FontWeight="SemiBold"/>
                                     <TextBlock Text="Files and albums" Style="{StaticResource ZinkSubText}"/>
@@ -535,7 +643,7 @@
                         <Button x:Name="TileBtn_VideoLibrary" Grid.Column="1" Style="{StaticResource GlassTileButtonStyle}" Click="VideoLibrary_Click">
                             <Grid Padding="16" RowSpacing="10">
                                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                                <FontIcon Glyph="&#xE8B7;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource BlueBrush}"/>
+                                <FontIcon Style="{StaticResource GlassTileIconStyle}" Glyph="&#xE8B7;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource BlueBrush}"/>
                                 <StackPanel Grid.Row="1" Spacing="3">
                                     <TextBlock Text="Video Library" Foreground="White" FontWeight="SemiBold"/>
                                     <TextBlock Text="Folders" Style="{StaticResource ZinkSubText}"/>
@@ -546,7 +654,7 @@
                         <Button x:Name="TileBtn_Equalizer" Grid.Column="2" Style="{StaticResource GlassTileButtonStyle}" Click="Equalizer_Click">
                             <Grid Padding="16" RowSpacing="10">
                                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                                <FontIcon Glyph="&#xE9E9;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource YellowBrush}"/>
+                                <FontIcon Style="{StaticResource GlassTileIconStyle}" Glyph="&#xE9E9;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource YellowBrush}"/>
                                 <StackPanel Grid.Row="1" Spacing="3">
                                     <TextBlock Text="Equalizer" Foreground="White" FontWeight="SemiBold"/>
                                     <TextBlock Text="Audio tuning" Style="{StaticResource ZinkSubText}"/>
@@ -557,7 +665,7 @@
                         <Button x:Name="TileBtn_Visualizer" Grid.Column="3" Style="{StaticResource GlassTileButtonStyle}" Click="Visualizer_Click">
                             <Grid Padding="16" RowSpacing="10">
                                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                                <FontIcon Glyph="&#xE9D9;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource GreenBrush}"/>
+                                <FontIcon Style="{StaticResource GlassTileIconStyle}" Glyph="&#xE9D9;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource GreenBrush}"/>
                                 <StackPanel Grid.Row="1" Spacing="3">
                                     <TextBlock Text="Visualizer" Foreground="White" FontWeight="SemiBold"/>
                                     <TextBlock Text="Reactive playback" Style="{StaticResource ZinkSubText}"/>
@@ -571,7 +679,7 @@
                         <Button x:Name="TileBtn_Twitch" Style="{StaticResource GlassTileButtonStyle}" Click="Twitch_Click">
                             <Grid Padding="16" RowSpacing="10">
                                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                                <FontIcon Glyph="&#xE8A7;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource RedBrush}"/>
+                                <FontIcon Style="{StaticResource GlassTileIconStyle}" Glyph="&#xE8A7;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource RedBrush}"/>
                                 <StackPanel Grid.Row="1" Spacing="3">
                                     <TextBlock Text="Twitch" Foreground="White" FontWeight="SemiBold"/>
                                     <TextBlock Text="Streams" Style="{StaticResource ZinkSubText}"/>
@@ -582,7 +690,7 @@
                         <Button x:Name="TileBtn_Xbox" Grid.Column="1" Style="{StaticResource GlassTileButtonStyle}" Click="Xbox_Click">
                             <Grid Padding="16" RowSpacing="10">
                                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                                <FontIcon Glyph="&#xE7FC;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource GreenBrush}"/>
+                                <FontIcon Style="{StaticResource GlassTileIconStyle}" Glyph="&#xE7FC;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource GreenBrush}"/>
                                 <StackPanel Grid.Row="1" Spacing="3">
                                     <TextBlock Text="Xbox" Foreground="White" FontWeight="SemiBold"/>
                                     <TextBlock Text="Gaming" Style="{StaticResource ZinkSubText}"/>
@@ -593,7 +701,7 @@
                         <Button x:Name="TileBtn_Discord" Grid.Column="2" Style="{StaticResource GlassTileButtonStyle}" Click="Discord_Click">
                             <Grid Padding="16" RowSpacing="10">
                                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                                <FontIcon Glyph="&#xE13D;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource BlueBrush}"/>
+                                <FontIcon Style="{StaticResource GlassTileIconStyle}" Glyph="&#xE13D;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource BlueBrush}"/>
                                 <StackPanel Grid.Row="1" Spacing="3">
                                     <TextBlock Text="Discord" Foreground="White" FontWeight="SemiBold"/>
                                     <TextBlock Text="Presence" Style="{StaticResource ZinkSubText}"/>
@@ -604,7 +712,7 @@
                         <Button x:Name="TileBtn_YouTube" Grid.Column="3" Style="{StaticResource GlassTileButtonStyle}" Click="YouTube_Click">
                             <Grid Padding="16" RowSpacing="10">
                                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                                <FontIcon Glyph="&#xE714;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource RedBrush}"/>
+                                <FontIcon Style="{StaticResource GlassTileIconStyle}" Glyph="&#xE714;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource RedBrush}"/>
                                 <StackPanel Grid.Row="1" Spacing="3">
                                     <TextBlock Text="YouTube" Foreground="White" FontWeight="SemiBold"/>
                                     <TextBlock Text="Watch" Style="{StaticResource ZinkSubText}"/>
@@ -613,12 +721,17 @@
                         </Button>
                     </StackPanel>
 
-                    <StackPanel Orientation="Horizontal" Spacing="10">
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1"
+                                Orientation="Vertical"
+                                Spacing="10"
+                                VerticalAlignment="Top">
 
                         <Button x:Name="TileBtn_Settings" Style="{StaticResource GlassTileButtonStyle}" Click="Settings_Click">
                             <Grid Padding="16" RowSpacing="10">
                                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                                <FontIcon Glyph="&#xE713;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="White"/>
+                                <FontIcon Style="{StaticResource GlassTileIconStyle}" Glyph="&#xE713;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="White"/>
                                 <StackPanel Grid.Row="1" Spacing="3">
                                     <TextBlock Text="Settings" Foreground="White" FontWeight="SemiBold"/>
                                     <TextBlock Text="Control" Style="{StaticResource ZinkSubText}"/>
@@ -629,7 +742,7 @@
                         <Button x:Name="TileBtn_Customise" Grid.Column="1" Style="{StaticResource GlassTileButtonStyle}" Click="Customise_Click">
                             <Grid Padding="16" RowSpacing="10">
                                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                                <FontIcon Glyph="&#xE790;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource CyanBrush}"/>
+                                <FontIcon Style="{StaticResource GlassTileIconStyle}" Glyph="&#xE790;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource CyanBrush}"/>
                                 <StackPanel Grid.Row="1" Spacing="3">
                                     <TextBlock Text="Customise" Foreground="White" FontWeight="SemiBold"/>
                                     <TextBlock Text="Glass and layout" Style="{StaticResource ZinkSubText}"/>
@@ -640,7 +753,7 @@
                         <Button x:Name="TileBtn_VersionHistory" Grid.Column="2" Style="{StaticResource GlassTileButtonStyle}" Click="VersionHistory_Click">
                             <Grid Padding="16" RowSpacing="10">
                                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                                <FontIcon Glyph="&#xE81C;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource YellowBrush}"/>
+                                <FontIcon Style="{StaticResource GlassTileIconStyle}" Glyph="&#xE81C;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource YellowBrush}"/>
                                 <StackPanel Grid.Row="1" Spacing="3">
                                     <TextBlock Text="Updates" Foreground="White" FontWeight="SemiBold"/>
                                     <TextBlock Text="Version history" Style="{StaticResource ZinkSubText}"/>
@@ -648,7 +761,46 @@
                             </Grid>
                         </Button>
                     </StackPanel>
-                </StackPanel>
+
+                    <StackPanel Grid.Column="2"
+                                Orientation="Vertical"
+                                Spacing="10"
+                                VerticalAlignment="Top">
+
+                        <Button x:Name="TileBtn_ZinkConnect" Style="{StaticResource GlassTileButtonStyle}" Click="ZinkConnect_Click">
+                            <Grid Padding="16" RowSpacing="10">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <FontIcon Style="{StaticResource GlassTileIconStyle}" Glyph="&#xE774;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource CyanBrush}"/>
+                                <StackPanel Grid.Row="1" Spacing="3">
+                                    <TextBlock Text="Zink Connect" Foreground="White" FontWeight="SemiBold"/>
+                                    <TextBlock Text="Browser hub" Style="{StaticResource ZinkSubText}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+
+                        <Button x:Name="TileBtn_Streaming" Style="{StaticResource GlassTileButtonStyle}" Click="Streaming_Click">
+                            <Grid Padding="16" RowSpacing="10">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <FontIcon Style="{StaticResource GlassTileIconStyle}" Glyph="&#xE8D4;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource BlueBrush}"/>
+                                <StackPanel Grid.Row="1" Spacing="3">
+                                    <TextBlock Text="Streaming" Foreground="White" FontWeight="SemiBold"/>
+                                    <TextBlock Text="Live studio" Style="{StaticResource ZinkSubText}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+
+                        <Button x:Name="TileBtn_LeaveReview" Style="{StaticResource GlassTileButtonStyle}" Click="LeaveReview_Click">
+                            <Grid Padding="16" RowSpacing="10">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <FontIcon Style="{StaticResource GlassTileIconStyle}" Glyph="&#xE735;" FontFamily="Segoe Fluent Icons" FontSize="26" Foreground="{StaticResource YellowBrush}"/>
+                                <StackPanel Grid.Row="1" Spacing="3">
+                                    <TextBlock Text="Review" Foreground="White" FontWeight="SemiBold"/>
+                                    <TextBlock Text="Leave feedback" Style="{StaticResource ZinkSubText}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+                    </StackPanel>
+                </Grid>
                     </StackPanel>
 
                     <StackPanel Grid.Column="1"

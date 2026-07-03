@@ -3,21 +3,14 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:Zink"
-    Background="#00080B">
-
-    <Page.Resources>
-        <SolidColorBrush x:Key="AccentBrush" Color="#32FF7E"/>
-        <SolidColorBrush x:Key="TextBrush" Color="White"/>
-        <SolidColorBrush x:Key="SubtleTextBrush" Color="#88FFFFFF"/>
-        <SolidColorBrush x:Key="BoxBrush" Color="#1C1C1C"/>
-    </Page.Resources>
+    Background="{StaticResource ZinkThemeBackgroundBrush}">
 
     <Grid Padding="40">
         <Grid.Background>
             <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                <GradientStop Color="#70062D38" Offset="0"/>
-                <GradientStop Color="#780B4450" Offset="0.48"/>
-                <GradientStop Color="#9000080B" Offset="1"/>
+                <GradientStop Color="{StaticResource ZinkThemeShellStartColor}" Offset="0"/>
+                <GradientStop Color="{StaticResource ZinkThemeShellMiddleColor}" Offset="0.55"/>
+                <GradientStop Color="{StaticResource ZinkThemeShellEndColor}" Offset="1"/>
             </LinearGradientBrush>
         </Grid.Background>
         <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -42,7 +35,7 @@
                            Margin="0,0,0,10"/>
 
                 <Border Background="{StaticResource BoxBrush}"
-                        BorderBrush="#35403A"
+                        BorderBrush="{StaticResource ZinkThemeStrokeBrush}"
                         BorderThickness="1"
                         CornerRadius="8"
                         Padding="18"
@@ -56,9 +49,9 @@
 
                         <Border Width="86"
                                 Height="86"
-                                Background="#222222"
+                                Background="{StaticResource ZinkThemeCardBrush}"
                                 CornerRadius="8"
-                                BorderBrush="#33443A"
+                                BorderBrush="{StaticResource ZinkThemeStrokeSubtleBrush}"
                                 BorderThickness="1">
                             <Grid>
                                 <Image x:Name="SpotifyNowPlayingArt" Stretch="UniformToFill"/>
@@ -96,7 +89,7 @@
 
                             <TextBlock x:Name="SpotifyNowPlayingAlbum"
                                        Text=""
-                                       Foreground="#66FFFFFF"
+                                       Foreground="{StaticResource ZinkThemeMutedTextBrush}"
                                        FontSize="12"
                                        TextTrimming="CharacterEllipsis"/>
 
@@ -106,11 +99,11 @@
                                          Maximum="100"
                                          Value="0"
                                          Foreground="{StaticResource AccentBrush}"
-                                         Background="#303030"/>
+                                         Background="{StaticResource ZinkThemeSurfaceBrush}"/>
                         </StackPanel>
 
                         <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Spacing="8">
-                            <Border Background="#24362A" CornerRadius="12" Padding="10,4" HorizontalAlignment="Right">
+                            <Border Background="{StaticResource ZinkThemeAccentSoftBrush}" CornerRadius="12" Padding="10,4" HorizontalAlignment="Right">
                                 <TextBlock x:Name="SpotifyNowPlayingStatus"
                                            Text="Checking"
                                            Foreground="{StaticResource AccentBrush}"

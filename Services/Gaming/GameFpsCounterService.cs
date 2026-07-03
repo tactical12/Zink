@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.IO.MemoryMappedFiles;
 using System.Text;
@@ -97,16 +96,8 @@ namespace Zink.Services.Gaming
             }
             catch (FileNotFoundException)
             {
-                if (!_triedStartRtss && TryStartRtss())
-                {
-                    _triedStartRtss = true;
-                    WriteMissingLog("RTSS was started. Waiting for RTSS shared memory and game detection.");
-                }
-                else
-                {
-                    _triedStartRtss = true;
-                    WriteMissingLog("RTSS shared memory was not found and RTSS.exe is not installed in a known location. Install/start RivaTuner Statistics Server and enable application detection for the game.");
-                }
+                _triedStartRtss = true;
+                WriteMissingLog("RTSS shared memory was not found. Start RivaTuner Statistics Server outside Zink and enable application detection for the game.");
             }
             catch (Exception ex)
             {
@@ -129,48 +120,6 @@ namespace Zink.Services.Gaming
             _triedStartRtss = false;
             _lastLogAt = DateTimeOffset.MinValue;
             _lastMissingLogAt = DateTimeOffset.MinValue;
-        }
-
-        private bool TryStartRtss()
-        {
-            foreach (var path in GetRtssCandidatePaths())
-            {
-                try
-                {
-                    if (!File.Exists(path))
-                        continue;
-
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = path,
-                        UseShellExecute = true,
-                        WindowStyle = ProcessWindowStyle.Minimized
-                    });
-                    WriteLog($"Started RTSS from {path}.");
-                    return true;
-                }
-                catch (Exception ex)
-                {
-                    WriteLog($"Failed to start RTSS from {path}: {ex.Message}");
-                }
-            }
-
-            return false;
-        }
-
-        private static string[] GetRtssCandidatePaths()
-        {
-            var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-            var programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
-            return new[]
-            {
-                Path.Combine(programFiles, "RivaTuner Statistics Server", "RTSS.exe"),
-                Path.Combine(programFilesX86, "RivaTuner Statistics Server", "RTSS.exe"),
-                Path.Combine(programFiles, "MSI Afterburner", "RTSS.exe"),
-                Path.Combine(programFilesX86, "MSI Afterburner", "RTSS.exe"),
-                Path.Combine(programFiles, "MSI Afterburner", "Bundle", "OSDServer", "RTSS.exe"),
-                Path.Combine(programFilesX86, "MSI Afterburner", "Bundle", "OSDServer", "RTSS.exe")
-            };
         }
 
         public void Dispose()
@@ -294,7 +243,7 @@ namespace Zink.Services.Gaming
             }
             catch
             {
-                Debug.WriteLine($"[FPS] {message}");
+                System.Diagnostics.Debug.WriteLine($"[FPS] {message}");
             }
         }
     }

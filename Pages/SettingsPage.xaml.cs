@@ -20,6 +20,7 @@ namespace Zink.Pages
         private readonly StoreContext _store;
         private bool _isLoadingStartupState;
         private bool _isLoadingReplayState;
+        private bool _isLoadingHotkeyClipRecordingState;
         private bool _isLoadingDiagnosticLogState;
         private string? _latestHealthReportPath;
         private string? _latestSupportBundlePath;
@@ -58,6 +59,7 @@ namespace Zink.Pages
             base.OnNavigatedTo(e);
             LoadBackgroundSettingState();
             LoadReplaySettingState();
+            LoadHotkeyClipRecordingSettingState();
             LoadDiagnosticLogSettingState();
             _ = LoadStartupTaskStateAsync();
         }
@@ -231,6 +233,25 @@ namespace Zink.Pages
                 : "Zink will use normal background resource behavior.";
         }
 
+        private void LoadHotkeyClipRecordingSettingState()
+        {
+            _isLoadingHotkeyClipRecordingState = true;
+
+            try
+            {
+                bool enabled = RecordingPreferences.IsHotkeyGameClipRecordingEnabled;
+                HotkeyClipRecordingToggle.IsChecked = enabled;
+                UpdateHotkeyClipRecordingToggleVisual(enabled, false);
+                HotkeyClipRecordingStatusText.Text = enabled
+                    ? "The clip hotkey can save the last 45 seconds."
+                    : "The clip hotkey is off and will not save game clips.";
+            }
+            finally
+            {
+                _isLoadingHotkeyClipRecordingState = false;
+            }
+        }
+
 
         private void BackgroundNotificationsToggle_Toggled(object sender, RoutedEventArgs e)
         {
@@ -274,6 +295,20 @@ namespace Zink.Pages
                 : "Background replay buffer is off and will not start automatically.";
             StatusText.Text = "Background replay setting saved.";
             _ = ApplyBackgroundReplayToggleAsync(enabled);
+        }
+
+        private void HotkeyClipRecordingToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (_isLoadingHotkeyClipRecordingState)
+                return;
+
+            bool enabled = HotkeyClipRecordingToggle.IsChecked == true;
+            UpdateHotkeyClipRecordingToggleVisual(enabled, true);
+            HotkeyClipRecordingStatusText.Text = enabled
+                ? "The clip hotkey can save the last 45 seconds."
+                : "The clip hotkey is off and will not save game clips.";
+            RecordingPreferences.SetHotkeyGameClipRecordingEnabled(enabled);
+            StatusText.Text = "Game clip hotkey setting saved.";
         }
 
         private async System.Threading.Tasks.Task ApplyBackgroundReplayToggleAsync(bool enabled)
@@ -326,8 +361,10 @@ namespace Zink.Pages
 
                 SetBackgroundRunEnabledSetting(true);
                 RecordingPreferences.SetGamingBackgroundReplayEnabled(false);
+                RecordingPreferences.SetHotkeyGameClipRecordingEnabled(true);
                 DiagnosticLogService.SetEnabled(true);
                 LoadReplaySettingState();
+                LoadHotkeyClipRecordingSettingState();
                 LoadDiagnosticLogSettingState();
 
                 var startupTask = await StartupTask.GetAsync("ZinkStartupTask");
@@ -478,6 +515,15 @@ namespace Zink.Pages
                 BackgroundReplayToggleKnobTransform,
                 BackgroundReplayToggleOnLabel,
                 BackgroundReplayToggleOffLabel,
+                enabled,
+                animate);
+
+        private void UpdateHotkeyClipRecordingToggleVisual(bool enabled, bool animate) =>
+            UpdateSlidingToggleVisual(
+                HotkeyClipRecordingToggleTrack,
+                HotkeyClipRecordingToggleKnobTransform,
+                HotkeyClipRecordingToggleOnLabel,
+                HotkeyClipRecordingToggleOffLabel,
                 enabled,
                 animate);
 
@@ -709,6 +755,7 @@ namespace Zink.Pages
                 }
                 else
                 {
+                    NotificationService.Instance.ShowAppUpdateReady();
                     StatusText.Text = $"{updates.Count} update(s) available. Downloading…";
 
                     // 2) download & install them

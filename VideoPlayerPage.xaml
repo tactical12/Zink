@@ -65,6 +65,77 @@
         </Grid>
 
         <Border
+            x:Name="VideoFormatBadge"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Top"
+            Margin="0,28,28,0"
+            Background="#CC101820"
+            BorderBrush="{StaticResource GlassPanelBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="16"
+            Padding="14,8"
+            Visibility="Collapsed">
+            <TextBlock
+                x:Name="VideoFormatBadgeText"
+                Text="SDR"
+                Foreground="{StaticResource GlassTextBrush}"
+                FontSize="14"
+                FontWeight="SemiBold" />
+        </Border>
+
+        <Border
+            x:Name="VideoInfoPanel"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Stretch"
+            Width="360"
+            Margin="0,24,24,118"
+            Background="#F0101820"
+            BorderBrush="{StaticResource GlassPanelBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="22"
+            Padding="18"
+            Visibility="Collapsed">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="12" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock
+                        Text="Video info"
+                        Foreground="{StaticResource GlassTextBrush}"
+                        FontSize="20"
+                        FontWeight="SemiBold"
+                        VerticalAlignment="Center" />
+
+                    <Button
+                        Grid.Column="1"
+                        Click="CloseVideoInfoButton_Click"
+                        Content="Close"
+                        Style="{StaticResource GlassControlButtonStyle}"
+                        MinWidth="72"
+                        Padding="12,6" />
+                </Grid>
+
+                <ScrollViewer Grid.Row="2">
+                    <TextBlock
+                        x:Name="VideoInfoTextBlock"
+                        Text="No video metadata detected yet."
+                        Foreground="{StaticResource GlassTextBrush}"
+                        TextWrapping="Wrap"
+                        IsTextSelectionEnabled="True" />
+                </ScrollViewer>
+            </Grid>
+        </Border>
+
+        <Border
             x:Name="SubtitleOverlay"
             HorizontalAlignment="Center"
             VerticalAlignment="Bottom"
@@ -226,6 +297,12 @@
                             x:Name="AudioInfoButton"
                             Click="AudioInfoButton_Click"
                             Content="Info"
+                            Style="{StaticResource GlassControlButtonStyle}" />
+
+                        <Button
+                            x:Name="VideoInfoButton"
+                            Click="VideoInfoButton_Click"
+                            Content="Video info"
                             Style="{StaticResource GlassControlButtonStyle}" />
                     </StackPanel>
                 </Grid>

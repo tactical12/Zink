@@ -54,7 +54,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Av1xSmokeTest\**\*.cs" />
+    <Compile Remove="bin\**\*.cs" />
+    <Compile Remove="obj\**\*.cs" />
     <Compile Remove="Pages\FeedbackPage.xaml.cs" />
+    <Page Remove="Av1xSmokeTest\**\*.xaml" />
+    <Page Remove="bin\**\*.xaml" />
+    <Page Remove="obj\**\*.xaml" />
     <Content Remove="Assets\BadgeLogo.scale-100.png" />
     <Content Remove="Assets\BadgeLogo.scale-125.png" />
     <Content Remove="Assets\BadgeLogo.scale-150.png" />
@@ -84,36 +90,65 @@
     <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="Concentus" Version="2.2.2" />
-    <PackageReference Include="DiscordRichPresence" Version="1.6.1.70" />
     <PackageReference Include="fdk-aac" Version="2.0.3" />
-    <PackageReference Include="Microsoft.AspNetCore.WebSockets" Version="2.3.9" />
-    <PackageReference Include="Microsoft.Graphics.Win2D" Version="1.4.0" />
-    <PackageReference Include="Microsoft.Identity.Client" Version="4.84.0" />
-    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3967.48" />
+    <PackageReference Include="Microsoft.AspNetCore.WebSockets" Version="2.3.11" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4022.49" />
     <PackageReference Include="Microsoft.Windows.CsWinRT" Version="2.2.0" />
-    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.0.1" />
-    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.1839" />
-    <PackageReference Include="NAudio" Version="2.3.0" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.2.0" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2270" />
     <PackageReference Include="NAudio.Core" Version="2.3.0" />
     <PackageReference Include="NAudio.WinMM" Version="2.3.0" />
     <PackageReference Include="SharpDX" Version="4.2.0" />
     <PackageReference Include="SharpDX.Direct3D11" Version="4.2.0" />
     <PackageReference Include="SharpDX.DXGI" Version="4.2.0" />
     <PackageReference Include="SharpDX.MediaFoundation" Version="4.2.0" />
-    <PackageReference Include="SIPSorcery" Version="10.0.6" />
-    <PackageReference Include="SIPSorceryMedia.Encoders" Version="10.0.4" />
-    <PackageReference Include="SIPSorceryMedia.Windows" Version="8.0.14" />
-    <PackageReference Include="System.Drawing.Common" Version="10.0.7" />
+    <PackageReference Include="SIPSorcery" Version="10.0.11" />
+    <PackageReference Include="System.Drawing.Common" Version="10.0.9" />
     <PackageReference Include="TagLibSharp" Version="2.3.0" />
     <PackageReference Include="Vortice.Direct3D12" Version="3.8.3" />
   </ItemGroup>
+
+  <Target Name="ExcludeStoreRejectedDebugLoggingBinaries" AfterTargets="_ComputeAppxPackagePayload" BeforeTargets="_GenerateAppxPackageRecipe;_GenerateAppxPackageFile;_CreatePackageLayout">
+    <ItemGroup>
+      <AppxPackagePayload Remove="@(AppxPackagePayload)" Condition="'%(AppxPackagePayload.TargetPath)' == 'Common.Logging.dll' Or '%(AppxPackagePayload.TargetPath)' == 'Common.Logging.Core.dll'" />
+      <AppxUploadPackagePayload Remove="@(AppxUploadPackagePayload)" Condition="'%(AppxUploadPackagePayload.TargetPath)' == 'Common.Logging.dll' Or '%(AppxUploadPackagePayload.TargetPath)' == 'Common.Logging.Core.dll'" />
+    </ItemGroup>
+  </Target>
 
   <ItemGroup Condition="'$(Platform)'=='x64'">
     <Content Include="$(SolutionDir)x64\$(Configuration)\ZinkRecorderMux.dll" Condition="Exists('$(SolutionDir)x64\$(Configuration)\ZinkRecorderMux.dll')">
       <Link>ZinkRecorderMux.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="$(SolutionDir)x64\$(Configuration)\ZinkIntelVplEncoder.dll" Condition="Exists('$(SolutionDir)x64\$(Configuration)\ZinkIntelVplEncoder.dll')">
+      <Link>ZinkIntelVplEncoder.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
+
+  <PropertyGroup Condition="'$(Platform)'=='x64'">
+    <IntelVplVersion>2023.1.0.43419</IntelVplVersion>
+    <IntelVplPackageDir>$(SolutionDir)Native\IntelVplEncoder\packages\</IntelVplPackageDir>
+    <IntelVplDevelDir>$(IntelVplPackageDir)onevpl.devel.win-x64.$(IntelVplVersion)\</IntelVplDevelDir>
+    <IntelVplRuntimeDir>$(IntelVplPackageDir)onevpl.runtime.win-x64.$(IntelVplVersion)\</IntelVplRuntimeDir>
+  </PropertyGroup>
+
+  <Target Name="EnsureIntelVplPackages" BeforeTargets="BuildZinkIntelVplEncoder" Condition="'$(Platform)'=='x64' And !Exists('$(IntelVplDevelDir)lib\native\include\vpl\mfxvideo.h')">
+    <MakeDir Directories="$(IntelVplPackageDir)" />
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;$ErrorActionPreference='Stop'; $base='$(IntelVplPackageDir)'; $ver='$(IntelVplVersion)'; $items=@('onevpl.devel.win-x64','onevpl.runtime.win-x64'); foreach($name in $items){ $dir=Join-Path $base ($name + '.' + $ver); if(Test-Path $dir){ continue }; $nupkg=Join-Path $base ($name + '.' + $ver + '.nupkg'); $zip=Join-Path $base ($name + '.' + $ver + '.zip'); Invoke-WebRequest -Uri ('https://www.nuget.org/api/v2/package/' + $name + '/' + $ver) -OutFile $nupkg; Copy-Item $nupkg $zip -Force; Expand-Archive -Path $zip -DestinationPath $dir -Force }&quot;" />
+  </Target>
+
+  <Target Name="BuildZinkIntelVplEncoder" BeforeTargets="Build" DependsOnTargets="EnsureIntelVplPackages" Condition="'$(Platform)'=='x64'">
+    <MakeDir Directories="$(SolutionDir)x64\$(Configuration)" />
+    <MakeDir Directories="$(SolutionDir)obj\Native\IntelVplEncoder\$(Configuration)" />
+    <Exec Command="&quot;$(MSBuildProjectDirectory)\Native\IntelVplEncoder\build.cmd&quot; &quot;$(MSBuildProjectDirectory)&quot; &quot;$(Configuration)&quot; &quot;$(MSBuildProjectDirectory)\Native\IntelVplEncoder\packages\onevpl.devel.win-x64.$(IntelVplVersion)&quot;" />
+    <ItemGroup>
+      <_IntelVplOutput Include="$(SolutionDir)x64\$(Configuration)\ZinkIntelVplEncoder.dll" />
+      <_IntelVplOutput Include="$(IntelVplRuntimeDir)runtimes\win-x64\native\libvpl.dll" />
+      <_IntelVplOutput Include="$(IntelVplRuntimeDir)runtimes\win-x64\native\libvplswref64.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_IntelVplOutput)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" Condition="'@(_IntelVplOutput)'!=''" />
+  </Target>
 
   <!-- everything below unchanged from your file -->
   <ItemGroup>
@@ -166,6 +201,12 @@
     <None Remove="Pages\ReviewPage.xaml" />
     <None Remove="Pages\ScreenRecorderPage.xaml" />
     <None Remove="Pages\StreamingPage.xaml" />
+    <None Remove="Pages\YouTubeStreamingPage.xaml" />
+    <None Remove="Pages\KickStreamingPage.xaml" />
+    <None Remove="Pages\InstagramStreamingPage.xaml" />
+    <None Remove="Pages\TikTokStreamingPage.xaml" />
+    <None Remove="Pages\FacebookStreamingPage.xaml" />
+    <None Remove="Pages\XStreamingPage.xaml" />
     <None Remove="Pages\SearchResultsPage.xaml" />
     <None Remove="Pages\SettingsPage.xaml" />
     <None Remove="Pages\ShadowPCPage.xaml" />
@@ -218,19 +259,12 @@
     <Content Include="WebRTC\index.html">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="Tools\RTSS\RTSSSetup.exe">
-      <Link>RTSSSetup.exe</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Tools\ffprobe.exe">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Tools\ffmpeg.exe" Condition="Exists('Tools\ffmpeg.exe')">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
     <Content Include="Extensions\uBlockOrigin\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <ExcludeFromPRIResource>true</ExcludeFromPRIResource>
+    </Content>
+    <Content Include="Tools\ffprobe.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <PRIResource Remove="Extensions\uBlockOrigin\**\*" />
   </ItemGroup>
@@ -243,6 +277,12 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Update="Assets\splashScreen.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Update="Assets\ZinkThemeSplash.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Update="Assets\ZinkGeneratedThemeBackground.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Update="Assets\ZinkLogo.png">
@@ -300,6 +340,24 @@
       <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Update="Pages\StreamingPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Update="Pages\YouTubeStreamingPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Update="Pages\KickStreamingPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Update="Pages\InstagramStreamingPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Update="Pages\TikTokStreamingPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Update="Pages\FacebookStreamingPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Update="Pages\XStreamingPage.xaml">
       <Generator>MSBuild:Compile</Generator>
     </Page>
   </ItemGroup>
@@ -361,11 +419,11 @@
 
     <!-- Store: ALWAYS create a bundle for upload -->
     <AppxBundle>Always</AppxBundle>
-    <AppxBundlePlatforms>x64</AppxBundlePlatforms>
+    <AppxBundlePlatforms>x86|x64|arm64</AppxBundlePlatforms>
 
     <AppxPackageSigningTimestampDigestAlgorithm>SHA256</AppxPackageSigningTimestampDigestAlgorithm>
     <AppxAutoIncrementPackageRevision>True</AppxAutoIncrementPackageRevision>
-    <AppxSymbolPackageEnabled>True</AppxSymbolPackageEnabled>
+    <AppxSymbolPackageEnabled>False</AppxSymbolPackageEnabled>
     <GenerateTestArtifacts>True</GenerateTestArtifacts>
 
     <!-- IMPORTANT: Do NOT generate/use temporary store certs for Release outputs. -->
@@ -374,7 +432,7 @@
     <HoursBetweenUpdateChecks>0</HoursBetweenUpdateChecks>
 
     <!-- Keep package outputs outside OneDrive so packaging does not sync generated installers. -->
-    <AppxPackageDir>$(LOCALAPPDATA)\Zink\PackageOutput\AppPackages\</AppxPackageDir>
+    <AppxPackageDir>$(LOCALAPPDATA)\Zink\PackageOutput\</AppxPackageDir>
     <ZinkPackageArtifactDir>$(LOCALAPPDATA)\Zink\PackageOutput\BundleArtifacts\</ZinkPackageArtifactDir>
 
     <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
@@ -397,6 +455,17 @@
 
     <MakeDir Directories="$(OutDir)AppX" Condition="!Exists('$(OutDir)AppX')" />
     <Copy SourceFiles="$(_MuxSource)" DestinationFiles="$(_AppXPath)" SkipUnchangedFiles="true" Condition="Exists('$(_MuxSource)')" />
+  </Target>
+
+  <Target Name="CopyIntelVplToAppX" AfterTargets="Build" Condition="'$(Platform)'=='x64'">
+    <ItemGroup>
+      <_IntelVplRuntime Include="$(OutDir)ZinkIntelVplEncoder.dll" Condition="Exists('$(OutDir)ZinkIntelVplEncoder.dll')" />
+      <_IntelVplRuntime Include="$(OutDir)libvpl.dll" Condition="Exists('$(OutDir)libvpl.dll')" />
+      <_IntelVplRuntime Include="$(OutDir)libvplswref64.dll" Condition="Exists('$(OutDir)libvplswref64.dll')" />
+    </ItemGroup>
+
+    <MakeDir Directories="$(OutDir)AppX" Condition="'@(_IntelVplRuntime)'!='' And !Exists('$(OutDir)AppX')" />
+    <Copy SourceFiles="@(_IntelVplRuntime)" DestinationFiles="@(_IntelVplRuntime->'$(OutDir)AppX\%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="'@(_IntelVplRuntime)'!='' And Exists('$(OutDir)AppX')" />
   </Target>
 
   <Target Name="CopyBouncyCastleToAppXLayouts" AfterTargets="Build;_CreatePackageLayout">

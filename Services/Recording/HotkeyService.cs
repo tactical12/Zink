@@ -53,6 +53,9 @@ namespace Zink.Services.Recording
         {
             try
             {
+                if (!RecordingPreferences.IsHotkeyGameClipRecordingEnabled)
+                    return;
+
                 ShowPopup("Zink Replay", "Recording the last 45 seconds.");
 
                 string? savedPath = await RecordingManager.Instance.SaveLast45SecondsAsync();

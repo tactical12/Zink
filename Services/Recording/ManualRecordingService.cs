@@ -258,9 +258,15 @@ namespace Zink.Services.Recording
                     InitializeActiveSegmentBuffersNoLock();
                 }
 
+                bool packetAccepted = _activeVideoBuffer is not null;
                 long beforeBytes = _activeVideoBuffer?.TotalBufferedBytes ?? 0;
                 _activeVideoBuffer?.Add(packet);
                 long afterBytes = _activeVideoBuffer?.TotalBufferedBytes ?? 0;
+
+                if (!packetAccepted)
+                {
+                    packet.Dispose();
+                }
 
                 if (afterBytes < beforeBytes)
                 {
@@ -317,6 +323,9 @@ namespace Zink.Services.Recording
         }
 
         public async Task<string> SaveReplayAsync()
+            => await SaveReplayAsync(_replayBufferDuration);
+
+        public async Task<string> SaveReplayAsync(TimeSpan requestedDuration)
         {
             if (!IsReplayBufferRunning)
                 throw new InvalidOperationException("Replay buffer is not running yet.");
@@ -349,7 +358,7 @@ namespace Zink.Services.Recording
                 List<string> segments;
                 lock (_gate)
                 {
-                    segments = _segmentPaths.ToList();
+                    segments = SelectReplaySegmentsNoLock(requestedDuration);
                 }
 
                 if (segments.Count == 0)
@@ -375,7 +384,7 @@ namespace Zink.Services.Recording
                     throw new InvalidOperationException("Replay save finished but the output file is empty.");
 
                 await RecorderLog.InfoAsync(nameof(ManualRecordingService),
-                    $"Replay clip saved successfully. Output='{outputPath}', Bytes={outputInfo.Length}");
+                    $"Replay clip saved successfully. Output='{outputPath}', RequestedDuration={requestedDuration}, Segments={segments.Count}, Bytes={outputInfo.Length}");
 
                 StatusChanged?.Invoke(this, $"Replay clip saved: {outputPath}");
                 return outputPath;
@@ -993,6 +1002,24 @@ namespace Zink.Services.Recording
         private bool ShouldRotateSegmentNoLock()
         {
             return (DateTimeOffset.UtcNow - _currentSegmentStartedUtc) >= _segmentDuration;
+        }
+
+        private List<string> SelectReplaySegmentsNoLock(TimeSpan requestedDuration)
+        {
+            TimeSpan duration = requestedDuration <= TimeSpan.Zero
+                ? _replayBufferDuration
+                : requestedDuration;
+
+            duration = duration > _replayBufferDuration
+                ? _replayBufferDuration
+                : duration;
+
+            int maxSegments = Math.Max(1, (int)Math.Ceiling(duration.TotalSeconds / _segmentDuration.TotalSeconds));
+            int skip = Math.Max(0, _segmentPaths.Count - maxSegments);
+
+            return _segmentPaths
+                .Skip(skip)
+                .ToList();
         }
 
         private SegmentBatch? CreateSegmentBatchNoLock()
