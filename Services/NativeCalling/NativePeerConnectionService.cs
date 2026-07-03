@@ -12,7 +12,6 @@ namespace Zink.Services.NativeCalling
     public sealed class NativePeerConnectionService
     {
         private const int H264PayloadType = 102;
-        private const int Av1PayloadType = 103;
         private const uint H264ClockRate = 90000;
         private const uint VideoFrameDuration = H264ClockRate / NativeScreenShareStreamingService.TargetFps;
         private const string H264FormatParameters = "packetization-mode=1;profile-level-id=42e034;level-asymmetry-allowed=1";
@@ -25,7 +24,6 @@ namespace Zink.Services.NativeCalling
         private long _receivedVideoFrames;
         private uint _lastRemoteVideoSsrc;
         private ushort? _lastRemoteVideoSequence;
-        private string _lastRemoteVideoCodec = ScreenShareCodecNames.H264;
         private DateTimeOffset _lastPliSentUtc = DateTimeOffset.MinValue;
         private DateTimeOffset _lastNackSentUtc = DateTimeOffset.MinValue;
         private DateTimeOffset _lastSendDiagnosticUtc = DateTimeOffset.MinValue;
@@ -63,8 +61,8 @@ namespace Zink.Services.NativeCalling
             }
         }
 
-        public string TransportDescription => "WebRTC RTP AV1X/H.264 media track";
-        public string CodecParameters => $"AV1X payload={Av1PayloadType}; H.264 {H264FormatParameters}";
+        public string TransportDescription => "WebRTC RTP H.264 media track";
+        public string CodecParameters => H264FormatParameters;
 
         public Task AttachMicrophoneAsync(MicCaptureService mic)
         {
@@ -137,12 +135,7 @@ namespace Zink.Services.NativeCalling
 
         public Task<bool> SendEncodedVideoFrameAsync(byte[] h264Frame)
         {
-            return SendEncodedVideoFrameAsync(h264Frame, ScreenShareCodecNames.H264);
-        }
-
-        public Task<bool> SendEncodedVideoFrameAsync(byte[] encodedFrame, string codec)
-        {
-            if (encodedFrame.Length == 0)
+            if (h264Frame.Length == 0)
                 return Task.FromResult(false);
 
             RTCPeerConnection? peerConnection;
@@ -153,7 +146,7 @@ namespace Zink.Services.NativeCalling
 
             if (peerConnection == null || _isClosed)
             {
-                LogSendDiagnostic("not sent: peer connection is closed or not created", encodedFrame.Length);
+                LogSendDiagnostic("not sent: peer connection is closed or not created", h264Frame.Length);
                 return Task.FromResult(false);
             }
 
@@ -161,35 +154,27 @@ namespace Zink.Services.NativeCalling
                 peerConnection.connectionState == RTCPeerConnectionState.failed ||
                 peerConnection.connectionState == RTCPeerConnectionState.disconnected)
             {
-                LogSendDiagnostic($"not sent: connectionState={peerConnection.connectionState}", encodedFrame.Length);
+                LogSendDiagnostic($"not sent: connectionState={peerConnection.connectionState}", h264Frame.Length);
                 return Task.FromResult(false);
             }
 
             if (peerConnection.connectionState != RTCPeerConnectionState.connected)
             {
-                LogSendDiagnostic($"not sent: video transport not ready; connectionState={peerConnection.connectionState}", encodedFrame.Length);
+                LogSendDiagnostic($"not sent: video transport not ready; connectionState={peerConnection.connectionState}", h264Frame.Length);
                 return Task.FromResult(false);
             }
 
             try
             {
-                if (ScreenShareCodecNames.IsAv1(codec))
-                {
-                    peerConnection.VideoStream.SendAv1Frame(VideoFrameDuration, Av1PayloadType, encodedFrame);
-                }
-                else
-                {
-                    peerConnection.VideoStream.SendH264Frame(VideoFrameDuration, H264PayloadType, encodedFrame);
-                }
-
+                peerConnection.SendVideo(VideoFrameDuration, h264Frame);
                 var sentFrames = Interlocked.Increment(ref _sentVideoFrames);
                 if (sentFrames == 1 || sentFrames % (NativeScreenShareStreamingService.TargetFps * 2) == 0)
-                    Debug.WriteLine($"[ScreenShare:RTP] {_diagnosticName}: sent {sentFrames} {GetLogCodecName(codec)} frames; bytes={encodedFrame.Length}; connectionState={peerConnection.connectionState}.");
+                    Debug.WriteLine($"[ScreenShare:RTP] {_diagnosticName}: sent {sentFrames} H.264 frames; bytes={h264Frame.Length}; connectionState={peerConnection.connectionState}.");
                 return Task.FromResult(true);
             }
             catch (Exception ex)
             {
-                LogSendDiagnostic($"send failed: {ex.Message}", encodedFrame.Length);
+                LogSendDiagnostic($"send failed: {ex.Message}", h264Frame.Length);
                 return Task.FromResult(false);
             }
         }
@@ -277,10 +262,9 @@ namespace Zink.Services.NativeCalling
                 {
                     var receivedFrames = Interlocked.Increment(ref _receivedVideoFrames);
                     if (receivedFrames == 1 || receivedFrames % (NativeScreenShareStreamingService.TargetFps * 2) == 0)
-                    Debug.WriteLine($"[ScreenShare:RTP] {_diagnosticName}: received {receivedFrames} encoded video frames; bytes={frame.Length}.");
+                        Debug.WriteLine($"[ScreenShare:RTP] {_diagnosticName}: received {receivedFrames} H.264 frames; bytes={frame.Length}.");
 
-                    var codec = Volatile.Read(ref _lastRemoteVideoCodec) ?? ScreenShareCodecNames.H264;
-                    EncodedVideoFrameReceived?.Invoke(this, new NativeRtpVideoFrameEventArgs(frame, codec));
+                    EncodedVideoFrameReceived?.Invoke(this, new NativeRtpVideoFrameEventArgs(frame));
                 };
                 peerConnection.OnRtpPacketReceived += (_, mediaType, packet) =>
                 {
@@ -304,9 +288,6 @@ namespace Zink.Services.NativeCalling
             lock (_syncRoot)
             {
                 _lastRemoteVideoSsrc = mediaSsrc;
-                _lastRemoteVideoCodec = header.PayloadType == Av1PayloadType
-                    ? ScreenShareCodecNames.Av1
-                    : ScreenShareCodecNames.H264;
 
                 if (_lastRemoteVideoSequence.HasValue)
                 {
@@ -401,26 +382,17 @@ namespace Zink.Services.NativeCalling
                 if (_hasVideoTrack)
                     return;
 
-                var videoFormats = new List<VideoFormat>
-                {
-                    new VideoFormat(Av1PayloadType, "AV1", (int)H264ClockRate, null),
-                    new VideoFormat(
-                        VideoCodecsEnum.H264,
-                        H264PayloadType,
-                        (int)H264ClockRate,
-                        H264FormatParameters)
-                };
-                var videoTrack = new MediaStreamTrack(videoFormats, MediaStreamStatusEnum.SendRecv);
+                var videoFormat = new VideoFormat(
+                    VideoCodecsEnum.H264,
+                    H264PayloadType,
+                    (int)H264ClockRate,
+                    H264FormatParameters);
+                var videoTrack = new MediaStreamTrack(videoFormat, MediaStreamStatusEnum.SendRecv);
 
                 EnsurePeerConnection().addTrack(videoTrack);
                 _hasVideoTrack = true;
-                Debug.WriteLine($"[ScreenShare:RTP] {_diagnosticName}: added low-latency AV1X/H.264 video track: AV1/{H264ClockRate}, H.264 {H264FormatParameters}");
+                Debug.WriteLine($"[ScreenShare:RTP] {_diagnosticName}: added low-latency H.264 video track: {H264FormatParameters}");
             }
-        }
-
-        private static string GetLogCodecName(string codec)
-        {
-            return ScreenShareCodecNames.IsAv1(codec) ? ScreenShareCodecNames.AV1XDisplayName : "H.264";
         }
 
         private void LogSendDiagnostic(string message, int byteCount)
@@ -450,17 +422,10 @@ namespace Zink.Services.NativeCalling
     public sealed class NativeRtpVideoFrameEventArgs : EventArgs
     {
         public NativeRtpVideoFrameEventArgs(byte[] frameData)
-            : this(frameData, ScreenShareCodecNames.H264)
-        {
-        }
-
-        public NativeRtpVideoFrameEventArgs(byte[] frameData, string codec)
         {
             FrameData = frameData;
-            Codec = codec;
         }
 
         public byte[] FrameData { get; }
-        public string Codec { get; }
     }
 }

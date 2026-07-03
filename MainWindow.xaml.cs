@@ -7,8 +7,6 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Navigation;
 using System;
-using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -24,17 +22,15 @@ using Zink.Pages.Social;
 using Zink.Services;
 using Zink.Services.Calling;
 using Zink.Services.NativeCalling;
-using Zink.Services.Recording;
 using Zink.Services.Social;
-using Zink.Services.Streaming;
 
 namespace Zink
 {
     public sealed partial class MainWindow : Window
     {
-        private const double SidebarOpenWidth = 320;
+        private const double SidebarOpenWidth = 260;
         private const double SidebarCompactWidth = 104;
-        private const double SidebarOpenPaneLength = 292;
+        private const double SidebarOpenPaneLength = 232;
         private const double SidebarCompactPaneLength = 76;
 
         private bool _isSidebarCompact;
@@ -54,29 +50,20 @@ namespace Zink
 
         private DesktopAcrylicController? _acrylicController;
         private SystemBackdropConfiguration? _backdropConfig;
-        private static readonly global::Windows.UI.Color DefaultGlassTint =
-            global::Windows.UI.Color.FromArgb(255, 56, 255, 102);
-        private static readonly global::Windows.UI.Color LegacyDefaultGlassTint =
-            global::Windows.UI.Color.FromArgb(255, 59, 117, 130);
-        private global::Windows.UI.Color _currentGlassTint = DefaultGlassTint;
-        private ElementTheme _currentAppTheme = ElementTheme.Dark;
+        private ElementTheme _currentAppTheme = ElementTheme.Default;
 
         private bool _windowIsActivated = false;
 
         private bool _incomingCallDialogShowing = false;
-        private bool _zinkSocialLockedDialogShowing = false;
         private bool _realtimeConnectAttempted = false;
-        private bool _startupOverlayHidden = false;
-        private bool _initialNavigationStarted = false;
-        private HotkeyService? _hotkeyService;
-        private readonly HashSet<WebView2> _discordPresenceWebViews = new();
+
+        public bool AllowClose { get; set; }
 
         public MainWindow()
         {
             this.InitializeComponent();
 
             ApplySavedThemeOnStartup();
-            ApplySavedGlassTintOnStartup();
 
             this.Activated += MainWindow_Activated;
             this.Closed += MainWindow_Closed;
@@ -86,14 +73,17 @@ namespace Zink
 
             MaximizeWindow();
             SetWindowIcon();
-            InitializeHotkeys();
+            RegisterWindowClosingHandler();
 
             SidebarNav.PaneDisplayMode = NavigationViewPaneDisplayMode.Left;
             SidebarNav.IsPaneOpen = true;
             SetSidebarColumnForPaneState(true);
 
+            ContentFrame.Navigate(typeof(HomeDashboardPage));
+
+            TrySelectHomeItem();
+
             ContentFrame.Navigated += ContentFrame_Navigated;
-            RootGrid.Loaded += RootGrid_Loaded_StartInitialNavigation;
 
             SocialManager.Instance.Realtime.IncomingCall -= Realtime_IncomingCall_Global;
             SocialManager.Instance.Realtime.IncomingCall += Realtime_IncomingCall_Global;
@@ -101,33 +91,36 @@ namespace Zink
             _ = EnsureRealtimeConnectedIfLoggedInAsync();
         }
 
-        private async void RootGrid_Loaded_StartInitialNavigation(object sender, RoutedEventArgs e)
+        private void RegisterWindowClosingHandler()
         {
-            RootGrid.Loaded -= RootGrid_Loaded_StartInitialNavigation;
-
-            if (_initialNavigationStarted)
-                return;
-
-            _initialNavigationStarted = true;
-
-            await Task.Delay(100);
-
             try
             {
-                if (SuppressInitialNavigation || ContentFrame.Content != null || ContentFrame.CurrentSourcePageType != null)
-                {
-                    DispatcherQueue.TryEnqueue(ApplyGlassTintToCurrentPage);
-                    return;
-                }
-
-                ContentFrame.Navigate(typeof(HomeDashboardPage));
-                TrySelectHomeItem();
-                DispatcherQueue.TryEnqueue(ApplyGlassTintToCurrentPage);
+                var hwnd = WindowNative.GetWindowHandle(this);
+                var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
+                var appWindow = AppWindow.GetFromWindowId(windowId);
+                appWindow.Closing += MainWindow_AppWindowClosing;
             }
             catch
             {
-                HideStartupOverlay();
             }
+        }
+
+        private void MainWindow_AppWindowClosing(AppWindow sender, AppWindowClosingEventArgs args)
+        {
+            if (AllowClose)
+                return;
+
+            if (!BackgroundModePreferences.AreBackgroundNotificationsEnabled)
+            {
+                return;
+            }
+
+            if (IsActiveCallState(NativeCallCoordinator.Instance.CurrentSession.State))
+                return;
+
+            args.Cancel = true;
+            HideToTray();
+            _ = ZinkBackgroundModeService.Instance.ApplyAsync();
         }
 
         private async void MainWindow_Activated_EnsureRealtime(object sender, WindowActivatedEventArgs e)
@@ -509,12 +502,8 @@ namespace Zink
                     content.RequestedTheme = theme;
                 }
 
-                if (RootGrid != null)
-                {
-                    SetBackdropThemeFromRoot(RootGrid);
-                }
-
-                ApplyGlassTintToResources(_currentGlassTint, true);
+                SetBackdropThemeFromRoot(RootGrid);
+                ApplyShellThemeColors();
             }
             catch { }
         }
@@ -543,19 +532,6 @@ namespace Zink
         public IntPtr GetWindowHandle()
         {
             return WindowNative.GetWindowHandle(this);
-        }
-
-        private void InitializeHotkeys()
-        {
-            try
-            {
-                _hotkeyService = new HotkeyService(GetWindowHandle());
-                _hotkeyService.Initialize();
-            }
-            catch
-            {
-                _hotkeyService = null;
-            }
         }
 
         public void HideToTray()
@@ -589,7 +565,7 @@ namespace Zink
         {
             try
             {
-                var value = ApplicationData.Current.LocalSettings.Values["Zink.Theme"] as string ?? "Dark";
+                var value = ApplicationData.Current.LocalSettings.Values["Zink.Theme"] as string ?? "Default";
 
                 var theme = value switch
                 {
@@ -677,13 +653,11 @@ namespace Zink
             var iconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Zink.ico");
             if (File.Exists(iconPath))
                 appWindow.SetIcon(iconPath);
-            appWindow.TitleBar.IconShowOptions = IconShowOptions.HideIconAndSystemMenu;
         }
 
         public NavigationView SidebarNavReference => SidebarNav;
         public ColumnDefinition SidebarColumnReference => SidebarColumn;
         public Frame MainFrame => ContentFrame;
-        public bool SuppressInitialNavigation { get; set; }
 
         public void SaveAndHideSidebar()
         {
@@ -965,20 +939,6 @@ namespace Zink
             if (args.SelectedItem is not NavigationViewItem item)
                 return;
 
-            if (item.Tag is string selectedTag && IsZinkSocialLockedTag(selectedTag))
-            {
-                SidebarNav.SelectedItem = null;
-                _ = ShowZinkSocialLockedDialogAsync();
-                return;
-            }
-
-            if ((item.Tag as string) == "ZinkConnect" && ZinkConnectBrowserWindow.LaunchBrowserOnlyEnabled)
-            {
-                ZinkConnectBrowserWindow.ShowOrActivate();
-                HideToTray();
-                return;
-            }
-
             var targetPage = item.Tag switch
             {
                 "Search" => typeof(SearchResultsPage),
@@ -993,14 +953,6 @@ namespace Zink
                 "VideoPlayer" => typeof(VideoPlayerPage),
                 "VideoLibrary" => typeof(VideoLibraryPage),
                 "ScreenRecorder" => typeof(RecorderPage),
-                "RecordingsLibrary" => typeof(RecordingsLibraryPage),
-                "Streaming" => typeof(StreamingPage),
-                "YouTubeStreaming" => typeof(YouTubeStreamingPage),
-                "KickStreaming" => typeof(KickStreamingPage),
-                "InstagramStreaming" => typeof(InstagramStreamingPage),
-                "TikTokStreaming" => typeof(TikTokStreamingPage),
-                "FacebookStreaming" => typeof(FacebookStreamingPage),
-                "XStreaming" => typeof(XStreamingPage),
                 "Netflix" => typeof(NetflixPage),
                 "PrimeVideo" => typeof(PrimeVideoPage),
                 "DisneyPlus" => typeof(DisneyPlusPage),
@@ -1009,7 +961,6 @@ namespace Zink
                 "BBCiPlayer" => typeof(BBCiPlayerPage),
                 "My5" => typeof(My5Page),
                 "Radio" => typeof(RadioPage),
-                "RadioDiscovery" => typeof(RadioDiscoveryPage),
                 "Spotify" => typeof(SpotifyLoginPage),
                 "SpotifyWidget" => typeof(SpotifyWidgetPage),
                 "LikedRadioSongs" => typeof(LikedRadioSongsPage),
@@ -1045,8 +996,6 @@ namespace Zink
                 "AmazonLuna" => typeof(AmazonLunaPage),
                 "Boosteroid" => typeof(BoosteroidPage),
                 "ShadowPC" => typeof(ShadowPCPage),
-                "FeatureTour" => typeof(FeatureTourPage),
-                "WidgetHub" => typeof(WidgetHubPage),
                 "Notifications" => typeof(NotificationsPage),
                 "PrivacyPolicy" => typeof(PrivacyPolicyPage),
                 "LeaveReview" => typeof(ReviewPage),
@@ -1060,41 +1009,6 @@ namespace Zink
             {
                 ContentFrame.Navigate(targetPage);
             }
-        }
-
-        private void ZinkSocialLocked_Tapped(object sender, TappedRoutedEventArgs e)
-        {
-            _ = ShowZinkSocialLockedDialogAsync();
-        }
-
-        private async Task ShowZinkSocialLockedDialogAsync()
-        {
-            if (_zinkSocialLockedDialogShowing)
-                return;
-
-            _zinkSocialLockedDialogShowing = true;
-
-            try
-            {
-                var dialog = new ContentDialog
-                {
-                    Title = "Zink Social is coming soon",
-                    Content = "This feature is still in development, keep updating the app and check out the about section for when the feature goes live.",
-                    CloseButtonText = "OK",
-                    XamlRoot = RootGrid.XamlRoot
-                };
-
-                await dialog.ShowAsync();
-            }
-            finally
-            {
-                _zinkSocialLockedDialogShowing = false;
-            }
-        }
-
-        private static bool IsZinkSocialLockedTag(string tag)
-        {
-            return tag is "ZinkSocialLocked" or "SocialLogin" or "SocialRegister" or "SocialDeveloperSettings" or "SocialFriends" or "SocialMessages" or "SocialFriendRequests" or "SocialProfile" or "SocialCall";
         }
 
         private bool TrySetDesktopAcrylicBackdrop()
@@ -1135,9 +1049,6 @@ namespace Zink
         {
             SocialManager.Instance.Realtime.IncomingCall -= Realtime_IncomingCall_Global;
 
-            _hotkeyService?.Dispose();
-            _hotkeyService = null;
-
             if (_acrylicController != null)
             {
                 _acrylicController.Dispose();
@@ -1153,7 +1064,7 @@ namespace Zink
 
             if (_currentAppTheme == ElementTheme.Default)
             {
-                ApplyGlassTintToResources(_currentGlassTint, true);
+                ApplyShellThemeColors();
             }
         }
 
@@ -1169,523 +1080,61 @@ namespace Zink
             };
         }
 
-        public void ApplyGlassTint(global::Windows.UI.Color tint)
-        {
-            ApplyGlassTint(tint, true);
-        }
-
-        public void ApplyGlassTint(global::Windows.UI.Color tint, bool tintCurrentPage)
-        {
-            _currentGlassTint = tint;
-
-            try
-            {
-                ApplicationData.Current.LocalSettings.Values["Zink.GlassTint"] = ColorToHex(tint);
-            }
-            catch { }
-
-            ApplyGlassTintToResources(tint, tintCurrentPage);
-        }
-
-        private void ApplySavedGlassTintOnStartup()
-        {
-            try
-            {
-                var saved = ApplicationData.Current.LocalSettings.Values["Zink.GlassTint"] as string;
-                var tint = TryParseHexColor(saved, out var savedTint) && !IsLegacyDefaultGlassTint(savedTint)
-                    ? savedTint
-                    : DefaultGlassTint;
-
-                if (!string.Equals(saved, ColorToHex(tint), StringComparison.OrdinalIgnoreCase))
-                {
-                    ApplicationData.Current.LocalSettings.Values["Zink.GlassTint"] = ColorToHex(tint);
-                }
-
-                _currentGlassTint = tint;
-                ApplyGlassTintToResources(tint, true);
-            }
-            catch { }
-        }
-
-        private void ApplyGlassTintToResources(global::Windows.UI.Color tint, bool tintCurrentPage)
+        private void ApplyShellThemeColors()
         {
             var useLightTheme = GetEffectiveAppTheme() == ElementTheme.Light;
-            var panel = useLightTheme ? WithAlpha(MixWithWhite(tint, 210), 172) : WithAlpha(tint, 52);
-            var card = useLightTheme ? WithAlpha(MixWithWhite(tint, 230), 142) : WithAlpha(tint, 36);
-            var hover = useLightTheme ? WithAlpha(tint, 24) : WithAlpha(Lighten(tint, 55), 34);
-            var selected = useLightTheme ? WithAlpha(tint, 38) : WithAlpha(Lighten(tint, 72), 44);
-            var pressed = useLightTheme ? WithAlpha(Darken(tint, 20), 34) : WithAlpha(Lighten(tint, 48), 38);
-            var primaryText = GetTintedTextColor(tint, TextBrushRole.Primary, useLightTheme);
-            var mutedText = GetTintedTextColor(tint, TextBrushRole.Muted, useLightTheme);
-            var sidebarPrimaryText = useLightTheme
-                ? global::Windows.UI.Color.FromArgb(255, 0, 0, 0)
-                : primaryText;
-            var sidebarMutedText = useLightTheme
-                ? global::Windows.UI.Color.FromArgb(255, 0, 0, 0)
-                : mutedText;
 
-            SetBrushColor("ZinkGlassPanelBrush", panel);
-            SetBrushColor("ZinkGlassCardBrush", card);
-            SetBrushColor("ZinkGlassBorderBrush", useLightTheme ? WithAlpha(Darken(tint, 24), 70) : WithAlpha(Lighten(tint, 90), 92));
-            SetBrushColor("ZinkGlassHoverBrush", hover);
-            SetBrushColor("ZinkGlassSelectedBrush", selected);
+            var panel = useLightTheme
+                ? global::Windows.UI.Color.FromArgb(218, 238, 246, 249)
+                : global::Windows.UI.Color.FromArgb(170, 17, 24, 32);
+            var border = useLightTheme
+                ? global::Windows.UI.Color.FromArgb(86, 82, 107, 116)
+                : global::Windows.UI.Color.FromArgb(47, 255, 255, 255);
+            var hover = useLightTheme
+                ? global::Windows.UI.Color.FromArgb(34, 0, 0, 0)
+                : global::Windows.UI.Color.FromArgb(32, 255, 255, 255);
+            var selected = useLightTheme
+                ? global::Windows.UI.Color.FromArgb(48, 0, 0, 0)
+                : global::Windows.UI.Color.FromArgb(54, 255, 255, 255);
+            var pressed = useLightTheme
+                ? global::Windows.UI.Color.FromArgb(42, 0, 0, 0)
+                : global::Windows.UI.Color.FromArgb(42, 255, 255, 255);
+            var sidebarText = useLightTheme
+                ? global::Windows.UI.Color.FromArgb(255, 0, 0, 0)
+                : global::Windows.UI.Color.FromArgb(234, 244, 250, 255);
+            var sidebarSelectedText = useLightTheme
+                ? global::Windows.UI.Color.FromArgb(255, 0, 0, 0)
+                : global::Windows.UI.Color.FromArgb(255, 255, 255, 255);
+
+            SetBrushColor("ShellGlassBrush", panel);
+            SetBrushColor("ShellGlassBorderBrush", border);
             SetBrushColor("NavigationViewItemBackgroundPointerOver", hover);
             SetBrushColor("NavigationViewItemBackgroundSelected", selected);
             SetBrushColor("NavigationViewItemBackgroundPressed", pressed);
-            SetBrushColor("NavigationViewItemForeground", sidebarMutedText);
-            SetBrushColor("NavigationViewItemForegroundPointerOver", sidebarPrimaryText);
-            SetBrushColor("NavigationViewItemForegroundSelected", sidebarPrimaryText);
-            SetBrushColor("NavigationViewItemIconForeground", sidebarMutedText);
-            SetBrushColor("NavigationViewItemIconForegroundPointerOver", sidebarPrimaryText);
-            SetBrushColor("NavigationViewItemIconForegroundSelected", sidebarPrimaryText);
-            SetBrushColor("NavigationViewItemHeaderForeground", sidebarMutedText);
-            SetBrushColor("NavigationViewItemSeparatorForeground", sidebarMutedText);
-            ApplyTitleBarGlass(tint, useLightTheme);
+            SetBrushColor("NavigationViewItemForeground", sidebarText);
+            SetBrushColor("NavigationViewItemForegroundPointerOver", sidebarSelectedText);
+            SetBrushColor("NavigationViewItemForegroundSelected", sidebarSelectedText);
+            SetBrushColor("NavigationViewItemIconForeground", sidebarText);
+            SetBrushColor("NavigationViewItemIconForegroundPointerOver", sidebarSelectedText);
+            SetBrushColor("NavigationViewItemIconForegroundSelected", sidebarSelectedText);
+            SetBrushColor("NavigationViewItemHeaderForeground", sidebarText);
+            SetBrushColor("NavigationViewItemSeparatorForeground", sidebarText);
 
-            SidebarNav.Foreground = new SolidColorBrush(sidebarPrimaryText);
-            ApplySidebarItemTextColor(sidebarMutedText);
+            SidebarNav.Foreground = new SolidColorBrush(sidebarText);
+            ApplySidebarItemTextColor(sidebarText);
 
             if (useLightTheme)
             {
-                ShellGradientStart.Color = MixWithWhite(tint, 238);
-                ShellGradientMiddle.Color = MixWithWhite(tint, 220);
-                ShellGradientEnd.Color = MixWithWhite(tint, 246);
+                ShellGradientStart.Color = global::Windows.UI.Color.FromArgb(255, 244, 249, 251);
+                ShellGradientMiddle.Color = global::Windows.UI.Color.FromArgb(255, 226, 239, 244);
+                ShellGradientEnd.Color = global::Windows.UI.Color.FromArgb(255, 248, 251, 252);
             }
             else
             {
-                ShellGradientStart.Color = Darken(tint, 110);
-                ShellGradientMiddle.Color = WithAlpha(Darken(tint, 52), 255);
-                ShellGradientEnd.Color = WithAlpha(Darken(tint, 126), 255);
+                ShellGradientStart.Color = global::Windows.UI.Color.FromArgb(255, 13, 23, 31);
+                ShellGradientMiddle.Color = global::Windows.UI.Color.FromArgb(255, 20, 37, 53);
+                ShellGradientEnd.Color = global::Windows.UI.Color.FromArgb(255, 7, 10, 15);
             }
-
-            if (tintCurrentPage)
-            {
-                ApplyGlassTintToCurrentPage();
-            }
-        }
-
-        private void ApplyTitleBarGlass(global::Windows.UI.Color tint, bool useLightTheme)
-        {
-            try
-            {
-                var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
-                var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
-                var titleBar = AppWindow.GetFromWindowId(windowId).TitleBar;
-
-                var titleBarColor = useLightTheme
-                    ? MixWithWhite(tint, 236)
-                    : Darken(tint, 82);
-                var inactiveTitleBarColor = useLightTheme
-                    ? MixWithWhite(tint, 244)
-                    : Darken(tint, 104);
-                var hoverColor = useLightTheme
-                    ? MixWithWhite(tint, 218)
-                    : Darken(tint, 54);
-                var pressedColor = useLightTheme
-                    ? MixWithWhite(tint, 202)
-                    : Darken(tint, 36);
-                var foregroundColor = useLightTheme
-                    ? global::Windows.UI.Color.FromArgb(255, 20, 28, 31)
-                    : global::Windows.UI.Color.FromArgb(255, 238, 250, 255);
-                var inactiveForegroundColor = useLightTheme
-                    ? global::Windows.UI.Color.FromArgb(255, 92, 104, 108)
-                    : global::Windows.UI.Color.FromArgb(255, 157, 185, 191);
-
-                titleBar.BackgroundColor = titleBarColor;
-                titleBar.ForegroundColor = foregroundColor;
-                titleBar.InactiveBackgroundColor = inactiveTitleBarColor;
-                titleBar.InactiveForegroundColor = inactiveForegroundColor;
-                titleBar.ButtonBackgroundColor = titleBarColor;
-                titleBar.ButtonForegroundColor = foregroundColor;
-                titleBar.ButtonHoverBackgroundColor = hoverColor;
-                titleBar.ButtonHoverForegroundColor = foregroundColor;
-                titleBar.ButtonPressedBackgroundColor = pressedColor;
-                titleBar.ButtonPressedForegroundColor = foregroundColor;
-                titleBar.ButtonInactiveBackgroundColor = inactiveTitleBarColor;
-                titleBar.ButtonInactiveForegroundColor = inactiveForegroundColor;
-            }
-            catch { }
-        }
-
-        private void ApplyGlassTintToCurrentPage()
-        {
-            try
-            {
-                if (ContentFrame?.Content is FrameworkElement content)
-                {
-                    content.RequestedTheme = _currentAppTheme;
-                    content.Loaded -= CurrentPage_Loaded;
-                    content.Loaded += CurrentPage_Loaded;
-
-                    ApplyGlassTintToElementTree(content, _currentGlassTint);
-
-                    if (content is not SettingsPage)
-                    {
-                        QueueGlassTintPass(content, 3);
-                    }
-                }
-            }
-            catch { }
-        }
-
-        private void CurrentPage_Loaded(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                if (sender is FrameworkElement content)
-                {
-                    content.RequestedTheme = _currentAppTheme;
-                    ApplyGlassTintToElementTree(content, _currentGlassTint);
-
-                    if (content is not SettingsPage)
-                    {
-                        QueueGlassTintPass(content, 3);
-                    }
-                }
-
-                HideStartupOverlay();
-            }
-            catch { }
-        }
-
-        private async void HideStartupOverlay()
-        {
-            if (_startupOverlayHidden)
-                return;
-
-            _startupOverlayHidden = true;
-
-            await Task.Delay(TimeSpan.FromSeconds(3));
-
-            try
-            {
-                if (StartupOverlay != null)
-                {
-                    StartupOverlay.Visibility = Visibility.Collapsed;
-                }
-            }
-            catch { }
-        }
-
-        private void QueueGlassTintPass(FrameworkElement content, int remainingPasses)
-        {
-            if (remainingPasses <= 0)
-                return;
-
-            DispatcherQueue.TryEnqueue(() =>
-            {
-                try
-                {
-                    ApplyGlassTintToElementTree(content, _currentGlassTint);
-                    QueueGlassTintPass(content, remainingPasses - 1);
-                }
-                catch { }
-            });
-        }
-
-        private void ApplyGlassTintToElementTree(DependencyObject element, global::Windows.UI.Color tint)
-        {
-            if (IsWebViewElement(element))
-                return;
-
-            if (element is FrameworkElement frameworkElement)
-            {
-                frameworkElement.RequestedTheme = _currentAppTheme;
-                ApplyGlassTintToResourceDictionary(frameworkElement.Resources, tint);
-                TintElementBrushes(frameworkElement, tint);
-            }
-
-            var childCount = VisualTreeHelper.GetChildrenCount(element);
-            for (var i = 0; i < childCount; i++)
-            {
-                ApplyGlassTintToElementTree(VisualTreeHelper.GetChild(element, i), tint);
-            }
-        }
-
-        private void ApplyGlassTintToResourceDictionary(ResourceDictionary resources, global::Windows.UI.Color tint)
-        {
-            var useLightTheme = GetEffectiveAppTheme() == ElementTheme.Light;
-            var panel = useLightTheme ? WithAlpha(MixWithWhite(tint, 210), 218) : WithAlpha(tint, 88);
-            var card = useLightTheme ? WithAlpha(MixWithWhite(tint, 230), 190) : WithAlpha(tint, 56);
-            var border = useLightTheme ? WithAlpha(Darken(tint, 24), 60) : WithAlpha(Lighten(tint, 96), 64);
-            var strong = useLightTheme ? WithAlpha(MixWithWhite(tint, 200), 235) : WithAlpha(Darken(tint, 28), 116);
-
-            SetResourceBrush(resources, "GlassPanelBrush", panel, tint);
-            SetResourceBrush(resources, "GlassPanelStrongBrush", strong, useLightTheme ? MixWithWhite(tint, 200) : Darken(tint, 12));
-            SetResourceBrush(resources, "GlassPanelBorderBrush", border, useLightTheme ? Darken(tint, 24) : Lighten(tint, 98));
-            SetResourceBrush(resources, "GlassStrongBrush", strong, useLightTheme ? MixWithWhite(tint, 200) : Darken(tint, 28));
-            SetResourceBrush(resources, "GlassCardBrush", card, tint);
-            SetResourceBrush(resources, "GlassTileBrush", useLightTheme ? WithAlpha(MixWithWhite(tint, 228), 170) : WithAlpha(tint, 48), tint);
-            SetResourceBrush(resources, "GlassTileHoverBrush", useLightTheme ? WithAlpha(tint, 34) : WithAlpha(Lighten(tint, 42), 72), useLightTheme ? tint : Lighten(tint, 42));
-            SetResourceBrush(resources, "GlassBorderBrush", border, useLightTheme ? Darken(tint, 24) : Lighten(tint, 96));
-            SetResourceBrush(resources, "GlassBorderStrongBrush", useLightTheme ? WithAlpha(Darken(tint, 38), 96) : WithAlpha(Lighten(tint, 112), 108), useLightTheme ? Darken(tint, 38) : Lighten(tint, 112));
-            SetResourceBrush(resources, "ThemePanelBrush", panel, tint);
-            SetResourceBrush(resources, "ThemeCardBrush", card, tint);
-            SetResourceTextBrush(resources, "MutedTextBrush", GetTintedTextColor(tint, TextBrushRole.Muted, useLightTheme));
-            SetResourceTextBrush(resources, "DimTextBrush", GetTintedTextColor(tint, TextBrushRole.Dim, useLightTheme));
-            SetResourceTextBrush(resources, "SubtleTextBrush", GetTintedTextColor(tint, TextBrushRole.Dim, useLightTheme));
-            SetResourceTextBrush(resources, "PrimaryTextBrush", GetTintedTextColor(tint, TextBrushRole.Primary, useLightTheme));
-        }
-
-        private void TintElementBrushes(FrameworkElement element, global::Windows.UI.Color tint)
-        {
-            try
-            {
-                var useLightTheme = GetEffectiveAppTheme() == ElementTheme.Light;
-
-                switch (element)
-                {
-                    case TextBlock textBlock:
-                        textBlock.Foreground = TintTextBrush(textBlock.Foreground, tint, TextBrushRole.Primary, useLightTheme);
-                        break;
-                    case RichTextBlock richTextBlock:
-                        richTextBlock.Foreground = TintTextBrush(richTextBlock.Foreground, tint, TextBrushRole.Primary, useLightTheme);
-                        break;
-                    case FontIcon fontIcon:
-                        fontIcon.Foreground = TintTextBrush(fontIcon.Foreground, tint, TextBrushRole.Primary, useLightTheme);
-                        break;
-                    case Grid grid:
-                        grid.Background = TintBrush(grid.Background, tint, GlassBrushRole.Surface, useLightTheme);
-                        break;
-                    case StackPanel stackPanel:
-                        stackPanel.Background = TintBrush(stackPanel.Background, tint, GlassBrushRole.Surface, useLightTheme);
-                        break;
-                    case Panel panel:
-                        panel.Background = TintBrush(panel.Background, tint, GlassBrushRole.Surface, useLightTheme);
-                        break;
-                    case Border border:
-                        border.Background = TintBrush(border.Background, tint, GlassBrushRole.Surface, useLightTheme);
-                        border.BorderBrush = TintBrush(border.BorderBrush, tint, GlassBrushRole.Border, useLightTheme);
-                        break;
-                    case Button:
-                        break;
-                    case Control control:
-                        control.Background = TintBrush(control.Background, tint, GlassBrushRole.Control, useLightTheme);
-                        control.BorderBrush = TintBrush(control.BorderBrush, tint, GlassBrushRole.Border, useLightTheme);
-                        control.Foreground = TintTextBrush(control.Foreground, tint, TextBrushRole.Primary, useLightTheme);
-                        break;
-                    case Microsoft.UI.Xaml.Shapes.Shape shape:
-                        shape.Fill = TintBrush(shape.Fill, tint, GlassBrushRole.Surface, useLightTheme);
-                        shape.Stroke = TintBrush(shape.Stroke, tint, GlassBrushRole.Border, useLightTheme);
-                        break;
-                }
-            }
-            catch { }
-        }
-
-        private enum GlassBrushRole
-        {
-            Surface,
-            Control,
-            Border
-        }
-
-        private enum TextBrushRole
-        {
-            Primary,
-            Muted,
-            Dim
-        }
-
-        private static Brush TintBrush(Brush brush, global::Windows.UI.Color tint, GlassBrushRole role, bool useLightTheme)
-        {
-            try
-            {
-                switch (brush)
-                {
-                    case null:
-                        return brush;
-                    case SolidColorBrush solidBrush when solidBrush.Color.A == 0:
-                        return brush;
-                    case SolidColorBrush solidBrush when IsGlassLikeColor(solidBrush.Color):
-                        solidBrush.Color = role switch
-                        {
-                            GlassBrushRole.Border => useLightTheme
-                                ? WithAlpha(Darken(tint, 24), Math.Max((byte)48, solidBrush.Color.A))
-                                : WithAlpha(Lighten(tint, 100), 64),
-                            GlassBrushRole.Control => useLightTheme
-                                ? WithAlpha(MixWithWhite(tint, 224), Math.Max((byte)45, solidBrush.Color.A))
-                                : WithAlpha(Lighten(tint, 34), 70),
-                            _ => useLightTheme
-                                ? WithAlpha(MixWithWhite(tint, 230), Math.Max((byte)70, solidBrush.Color.A))
-                                : WithAlpha(tint, 88)
-                        };
-                        return brush;
-                    case AcrylicBrush acrylicBrush:
-                        acrylicBrush.TintColor = useLightTheme ? MixWithWhite(tint, 220) : tint;
-                        acrylicBrush.FallbackColor = WithAlpha(
-                            useLightTheme ? MixWithWhite(tint, 230) : tint,
-                            Math.Max((byte)160, acrylicBrush.FallbackColor.A));
-                        return brush;
-                    case LinearGradientBrush gradientBrush:
-                        TintGradientStops(gradientBrush, tint, useLightTheme);
-                        return brush;
-                }
-            }
-            catch { }
-
-            return brush;
-        }
-
-        private static Brush TintTextBrush(Brush brush, global::Windows.UI.Color tint, TextBrushRole fallbackRole, bool useLightTheme)
-        {
-            try
-            {
-                if (brush is not SolidColorBrush solidBrush)
-                    return new SolidColorBrush(GetTintedTextColor(tint, fallbackRole, useLightTheme));
-
-                if (solidBrush.Color.A == 0)
-                    return brush;
-
-                var role = IsTextLikeColor(solidBrush.Color)
-                    ? GetTextRole(solidBrush.Color)
-                    : fallbackRole;
-
-                return new SolidColorBrush(GetTintedTextColor(tint, role, useLightTheme));
-            }
-            catch { }
-
-            return brush;
-        }
-
-        private static void TintGradientStops(LinearGradientBrush gradientBrush, global::Windows.UI.Color tint, bool useLightTheme)
-        {
-            try
-            {
-                for (var i = 0; i < gradientBrush.GradientStops.Count; i++)
-                {
-                    var stop = gradientBrush.GradientStops[i];
-                    if (!IsGlassLikeColor(stop.Color))
-                        continue;
-
-                    stop.Color = i switch
-                    {
-                        0 => WithAlpha(useLightTheme ? MixWithWhite(tint, 238) : Darken(tint, 112), stop.Color.A),
-                        1 => WithAlpha(useLightTheme ? MixWithWhite(tint, 220) : Darken(tint, 52), stop.Color.A),
-                        _ => WithAlpha(useLightTheme ? MixWithWhite(tint, 246) : Darken(tint, 126), stop.Color.A)
-                    };
-                }
-            }
-            catch { }
-        }
-
-        private static bool IsGlassLikeColor(global::Windows.UI.Color color)
-        {
-            if (color.A == 0)
-                return false;
-
-            if (color.A < 255)
-                return true;
-
-            var max = Math.Max(color.R, Math.Max(color.G, color.B));
-            var min = Math.Min(color.R, Math.Min(color.G, color.B));
-
-            return max <= 64 || (max - min <= 24 && max >= 210);
-        }
-
-        private static bool IsTextLikeColor(global::Windows.UI.Color color)
-        {
-            if (color.A == 0)
-                return false;
-
-            var max = Math.Max(color.R, Math.Max(color.G, color.B));
-            var min = Math.Min(color.R, Math.Min(color.G, color.B));
-
-            return max >= 120 && max - min <= 70;
-        }
-
-        private static TextBrushRole GetTextRole(global::Windows.UI.Color color)
-        {
-            if (color.A < 170)
-                return TextBrushRole.Dim;
-
-            var max = Math.Max(color.R, Math.Max(color.G, color.B));
-            if (max < 215 || color.A < 225)
-                return TextBrushRole.Muted;
-
-            return TextBrushRole.Primary;
-        }
-
-        private static global::Windows.UI.Color GetTintedTextColor(global::Windows.UI.Color tint, TextBrushRole role, bool useLightTheme)
-        {
-            if (useLightTheme)
-            {
-                return role switch
-                {
-                    TextBrushRole.Dim => WithAlpha(MixWithBlack(tint, 120), 175),
-                    TextBrushRole.Muted => WithAlpha(MixWithBlack(tint, 150), 220),
-                    _ => WithAlpha(MixWithBlack(tint, 190), 255)
-                };
-            }
-
-            return role switch
-            {
-                TextBrushRole.Dim => WithAlpha(MixWithWhite(tint, 112), 165),
-                TextBrushRole.Muted => WithAlpha(MixWithWhite(tint, 136), 220),
-                _ => WithAlpha(MixWithWhite(tint, 168), 255)
-            };
-        }
-
-        private static global::Windows.UI.Color MixWithWhite(global::Windows.UI.Color color, byte whiteAmount)
-        {
-            var keep = 255 - whiteAmount;
-            return global::Windows.UI.Color.FromArgb(
-                color.A,
-                (byte)Math.Min(255, ((color.R * keep) + (255 * whiteAmount)) / 255),
-                (byte)Math.Min(255, ((color.G * keep) + (255 * whiteAmount)) / 255),
-                (byte)Math.Min(255, ((color.B * keep) + (255 * whiteAmount)) / 255));
-        }
-
-        private static global::Windows.UI.Color MixWithBlack(global::Windows.UI.Color color, byte blackAmount)
-        {
-            var keep = 255 - blackAmount;
-            return global::Windows.UI.Color.FromArgb(
-                color.A,
-                (byte)Math.Max(0, (color.R * keep) / 255),
-                (byte)Math.Max(0, (color.G * keep) / 255),
-                (byte)Math.Max(0, (color.B * keep) / 255));
-        }
-
-        private static void SetResourceBrush(
-            ResourceDictionary resources,
-            string key,
-            global::Windows.UI.Color color,
-            global::Windows.UI.Color tint)
-        {
-            try
-            {
-                if (!resources.TryGetValue(key, out var value))
-                    return;
-
-                if (value is SolidColorBrush solidBrush)
-                {
-                    solidBrush.Color = color;
-                    return;
-                }
-
-                if (value is AcrylicBrush acrylicBrush)
-                {
-                    acrylicBrush.TintColor = tint;
-                    acrylicBrush.FallbackColor = color;
-                }
-            }
-            catch { }
-        }
-
-        private static void SetResourceTextBrush(
-            ResourceDictionary resources,
-            string key,
-            global::Windows.UI.Color color)
-        {
-            try
-            {
-                if (resources.TryGetValue(key, out var value) &&
-                    value is SolidColorBrush solidBrush)
-                {
-                    solidBrush.Color = color;
-                }
-            }
-            catch { }
         }
 
         private void ApplySidebarItemTextColor(global::Windows.UI.Color color)
@@ -1730,96 +1179,23 @@ namespace Zink
             catch { }
         }
 
-        private static bool IsWebViewElement(DependencyObject root)
-        {
-            try
-            {
-                var typeName = root.GetType().FullName ?? root.GetType().Name;
-                if (typeName.Contains("WebView", StringComparison.OrdinalIgnoreCase))
-                    return true;
-            }
-            catch { }
-
-            return false;
-        }
-
         private void SetBrushColor(string resourceKey, global::Windows.UI.Color color)
         {
             try
             {
-                if (Application.Current.Resources.TryGetValue(resourceKey, out var appValue) &&
-                    appValue is SolidColorBrush appBrush)
-                {
-                    appBrush.Color = color;
-                }
-
                 if (RootGrid.Resources.TryGetValue(resourceKey, out var shellValue) &&
                     shellValue is SolidColorBrush shellBrush)
                 {
                     shellBrush.Color = color;
                 }
+
+                if (Application.Current.Resources.TryGetValue(resourceKey, out var appValue) &&
+                    appValue is SolidColorBrush appBrush)
+                {
+                    appBrush.Color = color;
+                }
             }
             catch { }
-        }
-
-        private static global::Windows.UI.Color WithAlpha(global::Windows.UI.Color color, byte alpha)
-        {
-            return global::Windows.UI.Color.FromArgb(alpha, color.R, color.G, color.B);
-        }
-
-        private static global::Windows.UI.Color Lighten(global::Windows.UI.Color color, byte amount)
-        {
-            return global::Windows.UI.Color.FromArgb(
-                color.A,
-                (byte)Math.Min(255, color.R + amount),
-                (byte)Math.Min(255, color.G + amount),
-                (byte)Math.Min(255, color.B + amount));
-        }
-
-        private static global::Windows.UI.Color Darken(global::Windows.UI.Color color, byte amount)
-        {
-            return global::Windows.UI.Color.FromArgb(
-                color.A,
-                (byte)Math.Max(0, color.R - amount),
-                (byte)Math.Max(0, color.G - amount),
-                (byte)Math.Max(0, color.B - amount));
-        }
-
-        private static string ColorToHex(global::Windows.UI.Color color)
-        {
-            return $"#{color.R:X2}{color.G:X2}{color.B:X2}";
-        }
-
-        private static bool TryParseHexColor(string? hex, out global::Windows.UI.Color color)
-        {
-            color = DefaultGlassTint;
-
-            if (string.IsNullOrWhiteSpace(hex))
-                return false;
-
-            var value = hex.Trim().TrimStart('#');
-            if (value.Length == 8)
-                value = value.Substring(2);
-
-            if (value.Length != 6)
-                return false;
-
-            if (!byte.TryParse(value.Substring(0, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var r) ||
-                !byte.TryParse(value.Substring(2, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var g) ||
-                !byte.TryParse(value.Substring(4, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var b))
-            {
-                return false;
-            }
-
-            color = global::Windows.UI.Color.FromArgb(255, r, g, b);
-            return true;
-        }
-
-        private static bool IsLegacyDefaultGlassTint(global::Windows.UI.Color color)
-        {
-            return color.R == LegacyDefaultGlassTint.R &&
-                color.G == LegacyDefaultGlassTint.G &&
-                color.B == LegacyDefaultGlassTint.B;
         }
 
         private void ContentFrame_Navigated(object sender, NavigationEventArgs e)
@@ -1833,8 +1209,6 @@ namespace Zink
                 {
                     content.RequestedTheme = _currentAppTheme;
                 }
-
-                ApplyGlassTintToCurrentPage();
 
                 try
                 {
@@ -1872,7 +1246,6 @@ namespace Zink
                 }
 
                 UpdateDiscordPresenceForPage(t, title);
-                AttachDiscordPresenceToCurrentWebViews(t, title);
             }
             catch { }
         }
@@ -1887,419 +1260,53 @@ namespace Zink
                 var tag = GetTagForPageType(pageType);
                 var displayName = GetDiscordPresenceDisplayName(tag, fallbackTitle);
 
-                switch (tag)
+                if (string.Equals(tag, "Home", StringComparison.OrdinalIgnoreCase))
                 {
-                    case "Home":
-                        DiscordPresenceService.Instance.SetAppPresence("Checking the home dashboard");
-                        break;
-
-                    case "ZinkConnect":
-                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Connect", "Connecting devices with Zink Connect");
-                        break;
-
-                    case "MusicPlayer":
-                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Music", "Choosing music on Zink Music");
-                        break;
-                    case "MusicLibrary":
-                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Music", "Browsing their music library");
-                        break;
-                    case "YouTubeMusic":
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Music", "Listening to YouTube Music");
-                        break;
-                    case "AmazonMusic":
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Music", "Listening to Amazon Music");
-                        break;
-                    case "Spotify":
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Music", "Signing in to Spotify");
-                        break;
-                    case "SpotifyWidget":
-                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Music", "Using the Spotify widget");
-                        break;
-                    case "Radio":
-                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Radio", "Choosing a radio station");
-                        break;
-                    case "RadioDiscovery":
-                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Radio", "Discovering radio stations");
-                        break;
-                    case "LikedRadioSongs":
-                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Radio", "Checking liked radio songs");
-                        break;
-                    case "RadioWidget":
-                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Radio", "Using the radio widget");
-                        break;
-                    case "Equalizer":
-                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Audio", "Tuning the equalizer");
-                        break;
-                    case "Visualizer":
-                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Music", "Watching the music visualizer");
-                        break;
-
-                    case "VideoPlayer":
-                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Video", "Watching videos on Zink");
-                        break;
-                    case "VideoLibrary":
-                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Video", "Browsing their video library");
-                        break;
-                    case "Netflix":
-                    case "PrimeVideo":
-                    case "DisneyPlus":
-                    case "ParamountPlus":
-                    case "NowTV":
-                    case "BBCiPlayer":
-                    case "My5":
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Streaming", $"Watching {displayName}");
-                        break;
-                    case "YouTube":
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Video", "Watching YouTube");
-                        break;
-                    case "Twitch":
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Streaming", "Watching Twitch");
-                        break;
-
-                    case "Streaming":
-                        DiscordPresenceService.Instance.SetStreamingPresence("Twitch", NativeTwitchStreamingService.Instance.IsStreaming);
-                        break;
-                    case "YouTubeStreaming":
-                        DiscordPresenceService.Instance.SetStreamingPresence("YouTube", NativeTwitchStreamingService.YouTubeInstance.IsStreaming);
-                        break;
-                    case "KickStreaming":
-                        DiscordPresenceService.Instance.SetStreamingPresence("Kick", NativeTwitchStreamingService.KickInstance.IsStreaming);
-                        break;
-                    case "InstagramStreaming":
-                        DiscordPresenceService.Instance.SetStreamingPresence("Instagram", NativeTwitchStreamingService.InstagramInstance.IsStreaming);
-                        break;
-                    case "TikTokStreaming":
-                        DiscordPresenceService.Instance.SetStreamingPresence("TikTok", NativeTwitchStreamingService.TikTokInstance.IsStreaming);
-                        break;
-                    case "FacebookStreaming":
-                        DiscordPresenceService.Instance.SetStreamingPresence("Facebook Live", NativeTwitchStreamingService.FacebookInstance.IsStreaming);
-                        break;
-                    case "XStreaming":
-                        DiscordPresenceService.Instance.SetStreamingPresence("X Live", NativeTwitchStreamingService.XInstance.IsStreaming);
-                        break;
-                    case "ScreenRecorder":
-                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Recording", "Setting up a screen recording");
-                        break;
-                    case "RecordingsLibrary":
-                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Recording", "Browsing saved recordings");
-                        break;
-                    case "FpsRecorder":
-                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Gaming", "Monitoring FPS and game clips");
-                        break;
-
-                    case "Discord":
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", "Chatting on Discord");
-                        break;
-                    case "TikTok":
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", "Browsing TikTok");
-                        break;
-                    case "Instagram":
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", "Browsing Instagram");
-                        break;
-                    case "X":
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", "Browsing X");
-                        break;
-                    case "Facebook":
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", "Browsing Facebook");
-                        break;
-                    case "Telegram":
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", "Messaging on Telegram");
-                        break;
-                    case "WhatsApp":
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", "Messaging on WhatsApp");
-                        break;
-                    case "Messenger":
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", "Messaging on Messenger");
-                        break;
-                    case "LinkedIn":
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", "Browsing LinkedIn");
-                        break;
-                    case "Threads":
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", "Browsing Threads");
-                        break;
-                    case "Bluesky":
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", "Browsing Bluesky");
-                        break;
-                    case "Mastodon":
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", "Browsing Mastodon");
-                        break;
-                    case "Pinterest":
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", "Browsing Pinterest");
-                        break;
-                    case "Tumblr":
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", "Browsing Tumblr");
-                        break;
-                    case "Reddit":
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", "Browsing Reddit");
-                        break;
-                    case "SocialLogin":
-                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Zink Social", "Signing in to Zink Social");
-                        break;
-                    case "SocialRegister":
-                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Zink Social", "Creating a Zink Social account");
-                        break;
-                    case "SocialDeveloperSettings":
-                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Zink Social", "Editing social developer settings");
-                        break;
-                    case "SocialFriends":
-                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Zink Social", "Checking friends");
-                        break;
-                    case "SocialMessages":
-                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Zink Social", "Reading messages");
-                        break;
-                    case "SocialFriendRequests":
-                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Zink Social", "Checking friend requests");
-                        break;
-                    case "SocialProfile":
-                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Zink Social", "Viewing a profile");
-                        break;
-                    case "SocialCall":
-                        DiscordPresenceService.Instance.SetPagePresence("Zink Call", "Calls", "Starting a Zink call");
-                        break;
-
-                    case "Xbox":
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Gaming", "Playing on Xbox");
-                        break;
-                    case "GeForceNow":
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Cloud gaming", "Playing on GeForce NOW");
-                        break;
-                    case "AmazonLuna":
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Cloud gaming", "Playing on Amazon Luna");
-                        break;
-                    case "Boosteroid":
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Cloud gaming", "Playing on Boosteroid");
-                        break;
-                    case "ShadowPC":
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Cloud gaming", "Using Shadow PC");
-                        break;
-
-                    case "FeatureTour":
-                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Zink", "Exploring Zink features");
-                        break;
-                    case "WidgetHub":
-                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Widgets", "Managing Zink widgets");
-                        break;
-                    case "Notifications":
-                        DiscordPresenceService.Instance.SetPagePresence(displayName, "App", "Checking notifications");
-                        break;
-                    case "PrivacyPolicy":
-                        DiscordPresenceService.Instance.SetPagePresence(displayName, "App", "Reading the privacy policy");
-                        break;
-                    case "LeaveReview":
-                        DiscordPresenceService.Instance.SetPagePresence(displayName, "App", "Leaving a review for Zink");
-                        break;
-                    case "AppCustomization":
-                        DiscordPresenceService.Instance.SetPagePresence(displayName, "App", "Customizing Zink");
-                        break;
-                    case "Settings":
-                        DiscordPresenceService.Instance.SetPagePresence(displayName, "App", "Changing Zink settings");
-                        break;
-                    case "About":
-                        DiscordPresenceService.Instance.SetPagePresence(displayName, "App", "Reading about Zink");
-                        break;
-                    case "Search":
-                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Search", "Searching in Zink");
-                        break;
-
-                    default:
-                        DiscordPresenceService.Instance.SetPagePresence(displayName, "Zink", $"Using {displayName}");
-                        break;
-                }
-            }
-            catch { }
-        }
-
-        private void AttachDiscordPresenceToCurrentWebViews(Type pageType, string fallbackTitle)
-        {
-            try
-            {
-                if (ContentFrame.Content is not DependencyObject root)
+                    DiscordPresenceService.Instance.SetAppPresence("Home dashboard");
                     return;
-
-                var tag = GetTagForPageType(pageType);
-                var displayName = GetDiscordPresenceDisplayName(tag, fallbackTitle);
-
-                AttachDiscordPresenceToWebViews(root, tag, displayName);
-
-                DispatcherQueue.TryEnqueue(async () =>
-                {
-                    try
-                    {
-                        await Task.Delay(650);
-                        if (ContentFrame.Content is DependencyObject delayedRoot)
-                            AttachDiscordPresenceToWebViews(delayedRoot, tag, displayName);
-                    }
-                    catch { }
-                });
-            }
-            catch { }
-        }
-
-        private void AttachDiscordPresenceToWebViews(DependencyObject root, string tag, string displayName)
-        {
-            try
-            {
-                if (root is WebView2 webView)
-                {
-                    AttachDiscordPresenceToWebView(webView, tag, displayName);
                 }
 
-                var count = VisualTreeHelper.GetChildrenCount(root);
-                for (var i = 0; i < count; i++)
+                if (IsStreamingPresenceTag(tag))
                 {
-                    AttachDiscordPresenceToWebViews(VisualTreeHelper.GetChild(root, i), tag, displayName);
+                    DiscordPresenceService.Instance.SetWebPresence(displayName, "Streaming", $"Browsing {displayName}");
+                    return;
                 }
-            }
-            catch { }
-        }
 
-        private void AttachDiscordPresenceToWebView(WebView2 webView, string tag, string displayName)
-        {
-            try
-            {
-                if (!_discordPresenceWebViews.Add(webView))
-                    return;
-
-                webView.CoreWebView2Initialized += (_, __) => AttachDiscordPresenceToCoreWebView(webView, tag, displayName);
-                AttachDiscordPresenceToCoreWebView(webView, tag, displayName);
-            }
-            catch { }
-        }
-
-        private void AttachDiscordPresenceToCoreWebView(WebView2 webView, string tag, string displayName)
-        {
-            try
-            {
-                var core = webView.CoreWebView2;
-                if (core == null)
-                    return;
-
-                core.NavigationCompleted += (_, __) => UpdateDiscordPresenceFromWebView(webView, tag, displayName);
-                core.DocumentTitleChanged += (_, __) => UpdateDiscordPresenceFromWebView(webView, tag, displayName);
-                UpdateDiscordPresenceFromWebView(webView, tag, displayName);
-            }
-            catch { }
-        }
-
-        private void UpdateDiscordPresenceFromWebView(WebView2 webView, string tag, string displayName)
-        {
-            try
-            {
-                if (IsActiveCallState(NativeCallCoordinator.Instance.CurrentSession.State))
-                    return;
-
-                var core = webView.CoreWebView2;
-                if (core == null)
-                    return;
-
-                var title = CleanDiscordWebTitle(core.DocumentTitle, displayName);
-                if (string.IsNullOrWhiteSpace(title) || string.Equals(title, displayName, StringComparison.OrdinalIgnoreCase))
-                    return;
-
-                switch (tag)
+                if (IsMusicPresenceTag(tag))
                 {
-                    case "YouTube":
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Video", $"Watching {title}");
-                        break;
-                    case "Twitch":
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Streaming", $"Watching {title}");
-                        break;
-                    case "YouTubeMusic":
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Music", $"Listening to {title}");
-                        break;
-                    case "AmazonMusic":
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Music", $"Listening to {title}");
-                        break;
-                    case "Spotify":
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Music", $"Listening to {title}");
-                        break;
-                    case "Netflix":
-                    case "PrimeVideo":
-                    case "DisneyPlus":
-                    case "ParamountPlus":
-                    case "NowTV":
-                    case "BBCiPlayer":
-                    case "My5":
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Streaming", $"Watching {title}");
-                        break;
-                    case "Xbox":
-                    case "GeForceNow":
-                    case "AmazonLuna":
-                    case "Boosteroid":
-                    case "ShadowPC":
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Gaming", $"Playing {title}");
-                        break;
-                    case "Discord":
-                    case "Telegram":
-                    case "WhatsApp":
-                    case "Messenger":
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", $"Messaging on {title}");
-                        break;
-                    case "TikTok":
-                    case "Instagram":
-                    case "X":
-                    case "Facebook":
-                    case "LinkedIn":
-                    case "Threads":
-                    case "Bluesky":
-                    case "Mastodon":
-                    case "Pinterest":
-                    case "Tumblr":
-                    case "Reddit":
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", $"Viewing {title}");
-                        break;
-                    default:
-                        DiscordPresenceService.Instance.SetWebPresence(displayName, "Web", $"Viewing {title}");
-                        break;
+                    DiscordPresenceService.Instance.SetPagePresence(displayName, "Music", "Browsing");
+                    return;
                 }
+
+                if (IsSocialPresenceTag(tag))
+                {
+                    DiscordPresenceService.Instance.SetWebPresence(displayName, "Social", $"Browsing {displayName}");
+                    return;
+                }
+
+                if (IsGamingPresenceTag(tag))
+                {
+                    DiscordPresenceService.Instance.SetWebPresence(displayName, "Cloud gaming", $"Launching {displayName}");
+                    return;
+                }
+
+                if (string.Equals(tag, "SocialCall", StringComparison.OrdinalIgnoreCase))
+                {
+                    DiscordPresenceService.Instance.SetPagePresence("Zink Call", "Calls", "Opening");
+                    return;
+                }
+
+                var category = tag switch
+                {
+                    "ScreenRecorder" or "FpsRecorder" or "Equalizer" or "Visualizer" or "ZinkConnect" => "Tools",
+                    "Search" => "Search",
+                    "Notifications" or "PrivacyPolicy" or "LeaveReview" or "AppCustomization" or "Settings" or "About" => "App",
+                    _ => "Zink"
+                };
+
+                DiscordPresenceService.Instance.SetPagePresence(displayName, category, "Using");
             }
             catch { }
-        }
-
-        private static string CleanDiscordWebTitle(string? title, string fallback)
-        {
-            if (string.IsNullOrWhiteSpace(title))
-                return "";
-
-            var clean = title.Trim();
-            var suffixes = new[]
-            {
-                " - YouTube",
-                " - YouTube Music",
-                " | Netflix",
-                " - Netflix",
-                " | Prime Video",
-                " - Prime Video",
-                " | Disney+",
-                " - Disney+",
-                " | Twitch",
-                " - Twitch",
-                " / X",
-                " | X",
-                " | Facebook",
-                " - Facebook",
-                " | Instagram",
-                " - Instagram",
-                " | TikTok",
-                " - TikTok"
-            };
-
-            foreach (var suffix in suffixes)
-            {
-                if (clean.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
-                {
-                    clean = clean.Substring(0, clean.Length - suffix.Length).Trim();
-                    break;
-                }
-            }
-
-            if (string.Equals(clean, fallback, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(clean, "about:blank", StringComparison.OrdinalIgnoreCase))
-            {
-                return "";
-            }
-
-            return clean.Length <= 110 ? clean : clean.Substring(0, 110);
         }
 
         private static bool IsActiveCallState(NativeCallState state)
@@ -2339,6 +1346,7 @@ namespace Zink
             return tag switch
             {
                 "Home" => "Home dashboard",
+                "ZinkConnect" => "Zink Connect",
                 "MusicPlayer" => "Music player",
                 "MusicLibrary" => "Music library",
                 "YouTubeMusic" => "YouTube Music",
@@ -2346,13 +1354,6 @@ namespace Zink
                 "VideoPlayer" => "Video player",
                 "VideoLibrary" => "Video library",
                 "ScreenRecorder" => "Screen recorder",
-                "Streaming" => "Streaming",
-                "YouTubeStreaming" => "YouTube streaming",
-                "KickStreaming" => "Kick streaming",
-                "InstagramStreaming" => "Instagram streaming",
-                "TikTokStreaming" => "TikTok streaming",
-                "FacebookStreaming" => "Facebook Live streaming",
-                "XStreaming" => "X Live streaming",
                 "FpsRecorder" => "FPS recorder",
                 "PrimeVideo" => "Prime Video",
                 "DisneyPlus" => "Disney+",
@@ -2423,14 +1424,6 @@ namespace Zink
                 if (t == typeof(VideoPlayerPage)) return "VideoPlayer";
                 if (t == typeof(VideoLibraryPage)) return "VideoLibrary";
                 if (t == typeof(RecorderPage)) return "ScreenRecorder";
-                if (t == typeof(RecordingsLibraryPage)) return "RecordingsLibrary";
-                if (t == typeof(StreamingPage)) return "Streaming";
-                if (t == typeof(YouTubeStreamingPage)) return "YouTubeStreaming";
-                if (t == typeof(KickStreamingPage)) return "KickStreaming";
-                if (t == typeof(InstagramStreamingPage)) return "InstagramStreaming";
-                if (t == typeof(TikTokStreamingPage)) return "TikTokStreaming";
-                if (t == typeof(FacebookStreamingPage)) return "FacebookStreaming";
-                if (t == typeof(XStreamingPage)) return "XStreaming";
                 if (t == typeof(NetflixPage)) return "Netflix";
                 if (t == typeof(PrimeVideoPage)) return "PrimeVideo";
                 if (t == typeof(DisneyPlusPage)) return "DisneyPlus";
@@ -2439,7 +1432,6 @@ namespace Zink
                 if (t == typeof(BBCiPlayerPage)) return "BBCiPlayer";
                 if (t == typeof(My5Page)) return "My5";
                 if (t == typeof(RadioPage)) return "Radio";
-                if (t == typeof(RadioDiscoveryPage)) return "RadioDiscovery";
                 if (t == typeof(SpotifyLoginPage)) return "Spotify";
                 if (t == typeof(SpotifyWidgetPage)) return "SpotifyWidget";
                 if (t == typeof(LikedRadioSongsPage)) return "LikedRadioSongs";
@@ -2475,8 +1467,6 @@ namespace Zink
                 if (t == typeof(AmazonLunaPage)) return "AmazonLuna";
                 if (t == typeof(BoosteroidPage)) return "Boosteroid";
                 if (t == typeof(ShadowPCPage)) return "ShadowPC";
-                if (t == typeof(FeatureTourPage)) return "FeatureTour";
-                if (t == typeof(WidgetHubPage)) return "WidgetHub";
                 if (t == typeof(NotificationsPage)) return "Notifications";
                 if (t == typeof(PrivacyPolicyPage)) return "PrivacyPolicy";
                 if (t == typeof(ReviewPage)) return "LeaveReview";
