@@ -17,6 +17,7 @@ namespace Zink.Pages
     public sealed partial class FpsRecorderPage : Page
     {
         private const string SettingsPrefix = "Zink.FpsRecorder.";
+        private static readonly Uri RtssDownloadUri = new("https://www.guru3d.com/download/rtss-rivatuner-statistics-server-download/");
         private readonly FpsMonitorService _monitor = FpsMonitorService.Instance;
         private bool _loaded;
 
@@ -77,49 +78,36 @@ namespace Zink.Pages
 
         private async void InstallRtssButton_Click(object sender, RoutedEventArgs e)
         {
-            var installerPath = FindRtssInstallerPath();
-            if (string.IsNullOrWhiteSpace(installerPath))
-            {
-                InstallRtssStatusText.Text = "Setup file is missing.";
-                return;
-            }
-
             try
             {
                 InstallRtssButton.IsEnabled = false;
                 InstallRtssProgressRing.IsActive = true;
                 InstallRtssProgressRing.Visibility = Visibility.Visible;
-                InstallRtssButtonText.Text = "Setting up...";
-                InstallRtssStatusText.Text = "Setting up real FPS in the background.";
+                InstallRtssButtonText.Text = "Checking...";
+                InstallRtssStatusText.Text = "Checking for an existing RTSS install.";
 
-                var process = Process.Start(new ProcessStartInfo
+                if (await IsRtssRunningAsync())
                 {
-                    FileName = installerPath,
-                    Arguments = "/S",
-                    UseShellExecute = true,
-                    Verb = "runas",
-                    WindowStyle = ProcessWindowStyle.Hidden
-                });
+                    InstallRtssStatusText.Text = "RTSS is already running. Start the monitor again.";
+                    return;
+                }
 
-                if (process != null)
-                    await Task.Run(() => process.WaitForExit());
-
-                InstallRtssStatusText.Text = "Finalizing...";
-                DismissRtssUpdatePrompt();
-                TryStartRtss();
-                await WaitForRtssSharedMemoryAsync();
+                InstallRtssButtonText.Text = "Opening...";
+                var opened = await Launcher.LaunchUriAsync(RtssDownloadUri);
+                InstallRtssStatusText.Text = opened
+                    ? "Install RTSS from your browser, then come back and start the monitor again."
+                    : "Could not open the RTSS download page.";
             }
             catch
             {
-                InstallRtssStatusText.Text = "Setup could not finish.";
+                InstallRtssStatusText.Text = "Could not open RTSS setup information.";
             }
             finally
             {
                 InstallRtssProgressRing.IsActive = false;
                 InstallRtssProgressRing.Visibility = Visibility.Collapsed;
-                InstallRtssButtonText.Text = "Set up real FPS";
+                InstallRtssButtonText.Text = "Open RTSS download";
                 InstallRtssButton.IsEnabled = true;
-                Frame?.Navigate(typeof(FpsRecorderPage));
             }
         }
 
@@ -274,45 +262,22 @@ namespace Zink.Pages
                 : fallback;
         }
 
-        private static string? FindRtssInstallerPath()
+        private static async Task<bool> IsRtssRunningAsync()
         {
-            var candidates = new[]
-            {
-                Path.Combine(AppContext.BaseDirectory, "RTSSSetup.exe"),
-                Path.Combine(Environment.CurrentDirectory, "RTSSSetup.exe"),
-                Path.Combine(Environment.CurrentDirectory, "Tools", "RTSS", "RTSSSetup.exe")
-            };
-
-            foreach (var candidate in candidates)
-            {
-                if (File.Exists(candidate))
-                    return candidate;
-            }
-
-            return null;
-        }
-
-        private static void TryStartRtss()
-        {
-            foreach (var candidate in GetRtssExeCandidates())
+            for (var i = 0; i < 2; i++)
             {
                 try
                 {
-                    if (!File.Exists(candidate))
-                        continue;
-
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = candidate,
-                        UseShellExecute = true,
-                        WindowStyle = ProcessWindowStyle.Minimized
-                    });
-                    return;
+                    using var mappedFile = MemoryMappedFile.OpenExisting("RTSSSharedMemoryV2", MemoryMappedFileRights.Read);
+                    return true;
                 }
                 catch
                 {
+                    await Task.Delay(100);
                 }
             }
+
+            return false;
         }
 
         private static async Task WaitForRtssSharedMemoryAsync()
@@ -362,21 +327,6 @@ namespace Zink.Pages
                     await Task.Delay(250);
                 }
             });
-        }
-
-        private static string[] GetRtssExeCandidates()
-        {
-            var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-            var programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
-            return new[]
-            {
-                Path.Combine(programFiles, "RivaTuner Statistics Server", "RTSS.exe"),
-                Path.Combine(programFilesX86, "RivaTuner Statistics Server", "RTSS.exe"),
-                Path.Combine(programFiles, "MSI Afterburner", "RTSS.exe"),
-                Path.Combine(programFilesX86, "MSI Afterburner", "RTSS.exe"),
-                Path.Combine(programFiles, "MSI Afterburner", "Bundle", "OSDServer", "RTSS.exe"),
-                Path.Combine(programFilesX86, "MSI Afterburner", "Bundle", "OSDServer", "RTSS.exe")
-            };
         }
 
         private static string FormatDuration(TimeSpan duration)

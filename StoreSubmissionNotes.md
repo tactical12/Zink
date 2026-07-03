@@ -43,9 +43,9 @@ Zink includes or integrates with third-party tools and services for media, brows
 - Spotify integration uses Spotify OAuth and Spotify Web API.
 - WebView pages can open third-party web services such as YouTube, Discord, Netflix, Twitch, X, TikTok, and others.
 - Zink Connect includes local filtering/ad-blocking functionality for the in-app browser experience.
-- FFmpeg/ffprobe support is used for media inspection/streaming workflows where available.
+- Media inspection and streaming are handled without launching bundled command-line executables in the Store build.
 - Codec prompts are used to help users understand missing local media codec support.
-- RTSS integration is optional and used only for FPS-related features when available.
+- RTSS integration is optional and used only for FPS-related features when RTSS is already installed/running. Zink does not bundle or silently install the RTSS installer.
 
 ## Reviewer notes
 

@@ -78,6 +78,9 @@ namespace Zink.Pages
 
         private const string K_ShowHeroInsights = "Dash_ShowHeroInsights";
         private const string K_ShowPowerTools = "Dash_ShowPowerTools";
+        private const string K_ShowRecentActivity = "Dash_ShowRecentActivity";
+        private const string K_QuickStartSeen = "Dash_QuickStartSeen";
+        private const string K_QuickStartMode = "Dash_QuickStartMode";
         private static string K_Tile(string id) => $"Dash_Tile_{id}";
 
         private bool _isUpdatingHomeRadioVolumeUi;
@@ -148,6 +151,8 @@ namespace Zink.Pages
                 InitializeHomeRadioVolumeUi();
                 RefreshNowPlayingFromServices();
                 RefreshNotifications();
+                RefreshQuickStartMode();
+                _ = ShowQuickStartDialogIfNeededAsync();
             }
             catch { }
         }
@@ -1006,13 +1011,35 @@ namespace Zink.Pages
             return defaultValue;
         }
 
+        private static void WriteBool(string key, bool value)
+        {
+            try { Settings.Values[key] = value; } catch { }
+        }
+
+        private static string ReadString(string key, string defaultValue)
+        {
+            try
+            {
+                if (Settings.Values.TryGetValue(key, out var v) && v is string s && !string.IsNullOrWhiteSpace(s))
+                    return s;
+            }
+            catch { }
+
+            return defaultValue;
+        }
+
+        private static void WriteString(string key, string value)
+        {
+            try { Settings.Values[key] = value; } catch { }
+        }
+
         private void ApplyDashboardCustomisation()
         {
             try
             {
                 HeroInsightsSection.Visibility = ReadBool(K_ShowHeroInsights, true) ? Visibility.Visible : Visibility.Collapsed;
                 PowerToolsSection.Visibility = ReadBool(K_ShowPowerTools, true) ? Visibility.Visible : Visibility.Collapsed;
-                RecentActivitySection.Visibility = Visibility.Visible;
+                RecentActivitySection.Visibility = ReadBool(K_ShowRecentActivity, true) ? Visibility.Visible : Visibility.Collapsed;
 
                 SetTileVisibility(TileBtn_MusicPlayer, "MusicPlayer");
                 SetTileVisibility(TileBtn_VideoPlayer, "VideoPlayer");
@@ -1026,6 +1053,9 @@ namespace Zink.Pages
 
                 SetTileVisibility(TileBtn_Settings, "Settings");
                 SetTileVisibility(TileBtn_VersionHistory, "VersionHistory");
+                SetTileVisibility(TileBtn_ZinkConnect, "ZinkConnect");
+                SetTileVisibility(TileBtn_Streaming, "Streaming");
+                SetTileVisibility(TileBtn_LeaveReview, "LeaveReview");
 
                 SetTileVisibility(TileBtn_Spotify, "Spotify");
                 SetTileVisibility(TileBtn_Twitch, "Twitch");
@@ -1034,6 +1064,7 @@ namespace Zink.Pages
                 SetTileVisibility(TileBtn_YouTube, "YouTube");
 
                 SetTileVisibility(TileBtn_Customise, "Customise");
+                RefreshQuickStartMode();
             }
             catch { }
         }
@@ -1771,6 +1802,227 @@ namespace Zink.Pages
             try { App.MainWindow.MainFrame.Navigate(typeof(MusicLibraryPage)); } catch { }
         }
 
+        private async Task ShowQuickStartDialogIfNeededAsync()
+        {
+            try
+            {
+                if (ReadBool(K_QuickStartSeen, false))
+                    return;
+
+                WriteBool(K_QuickStartSeen, true);
+                await ShowQuickStartModeDialogAsync();
+            }
+            catch { }
+        }
+
+        private async void ChangeQuickStartMode_Click(object sender, RoutedEventArgs e)
+        {
+            await ShowQuickStartModeDialogAsync();
+        }
+
+        private async Task ShowQuickStartModeDialogAsync()
+        {
+            try
+            {
+                var current = ReadString(K_QuickStartMode, "creator");
+
+                var group = new StackPanel { Spacing = 10 };
+                group.Children.Add(new TextBlock
+                {
+                    Text = "Choose the starting path Zink should suggest. Every feature stays available in the sidebar and dashboard.",
+                    TextWrapping = TextWrapping.WrapWholeWords
+                });
+
+                var modes = new[]
+                {
+                    ("creator", "Creator", "Recording, clips, streaming, and sharing."),
+                    ("media", "Media", "Music, video, radio, Spotify, and libraries."),
+                    ("gaming", "Gaming", "FPS tools, Xbox, cloud gaming, and capture."),
+                    ("social", "Social", "Zink Connect, calls, messages, and web spaces.")
+                };
+
+                foreach (var mode in modes)
+                {
+                    group.Children.Add(new RadioButton
+                    {
+                        Content = $"{mode.Item2} - {mode.Item3}",
+                        Tag = mode.Item1,
+                        GroupName = "QuickStartMode",
+                        IsChecked = string.Equals(current, mode.Item1, StringComparison.OrdinalIgnoreCase)
+                    });
+                }
+
+                var dialog = new ContentDialog
+                {
+                    Title = "Set up Zink",
+                    Content = group,
+                    PrimaryButtonText = "Apply",
+                    CloseButtonText = "Keep default",
+                    DefaultButton = ContentDialogButton.Primary,
+                    XamlRoot = XamlRoot
+                };
+
+                var result = await dialog.ShowAsync();
+                if (result != ContentDialogResult.Primary)
+                {
+                    RefreshQuickStartMode();
+                    return;
+                }
+
+                foreach (var child in group.Children.OfType<RadioButton>())
+                {
+                    if (child.IsChecked == true && child.Tag is string selected)
+                    {
+                        WriteString(K_QuickStartMode, selected);
+                        break;
+                    }
+                }
+
+                RefreshQuickStartMode();
+            }
+            catch { }
+        }
+
+        private void RefreshQuickStartMode()
+        {
+            try
+            {
+                var mode = ReadString(K_QuickStartMode, "creator").ToLowerInvariant();
+
+                switch (mode)
+                {
+                    case "media":
+                        SetQuickStartText(
+                            "Media hub setup",
+                            "Start with radio, libraries, and Spotify so Zink feels useful in the first minute.",
+                            "Listen live", "Open radio", "\uE7F6", "#FFD56A",
+                            "Build library", "Import media", "\uE8F1", "#5AE8E0",
+                            "Spotify", "Now playing", "\uE768", "#7BF5B5");
+                        break;
+
+                    case "gaming":
+                        SetQuickStartText(
+                            "Gaming setup",
+                            "Jump into cloud gaming, FPS tools, and capture without hiding the rest of Zink.",
+                            "FPS tools", "Overlay and capture", "\uE7FC", "#7BF5B5",
+                            "Recordings", "Saved clips", "\uE8B7", "#5AA7FF",
+                            "Xbox", "Gaming hub", "\uE7FC", "#5AE8E0");
+                        break;
+
+                    case "social":
+                        SetQuickStartText(
+                            "Social setup",
+                            "Use Zink Connect for calls, messages, screen sharing, and browser spaces.",
+                            "Connect", "Call or share", "\uE774", "#5AE8E0",
+                            "Messages", "Open chats", "\uE8BD", "#5AA7FF",
+                            "Discord", "Presence", "\uE13D", "#FFD56A");
+                        break;
+
+                    default:
+                        SetQuickStartText(
+                            "Creator setup",
+                            "Start with capture, streaming, and Zink Connect for the clearest install value.",
+                            "Record", "Capture a clip", "\uE722", "#5AA7FF",
+                            "Library", "Saved clips", "\uE8B7", "#5AE8E0",
+                            "Connect", "Call or share", "\uE774", "#7BF5B5");
+                        break;
+                }
+            }
+            catch { }
+        }
+
+        private void SetQuickStartText(
+            string title,
+            string subtitle,
+            string primaryTitle,
+            string primarySubtitle,
+            string primaryIcon,
+            string primaryColor,
+            string secondaryTitle,
+            string secondarySubtitle,
+            string secondaryIcon,
+            string secondaryColor,
+            string thirdTitle,
+            string thirdSubtitle,
+            string thirdIcon,
+            string thirdColor)
+        {
+            QuickStartTitle.Text = title;
+            QuickStartSubtitle.Text = subtitle;
+
+            QuickStartPrimaryTitle.Text = primaryTitle;
+            QuickStartPrimarySubtitle.Text = primarySubtitle;
+            QuickStartPrimaryIcon.Glyph = primaryIcon;
+            QuickStartPrimaryIcon.Foreground = ColorBrushFromHex(primaryColor);
+
+            QuickStartSecondaryTitle.Text = secondaryTitle;
+            QuickStartSecondarySubtitle.Text = secondarySubtitle;
+            QuickStartSecondaryIcon.Glyph = secondaryIcon;
+            QuickStartSecondaryIcon.Foreground = ColorBrushFromHex(secondaryColor);
+
+            QuickStartThirdTitle.Text = thirdTitle;
+            QuickStartThirdSubtitle.Text = thirdSubtitle;
+            QuickStartThirdIcon.Glyph = thirdIcon;
+            QuickStartThirdIcon.Foreground = ColorBrushFromHex(thirdColor);
+        }
+
+        private void QuickStartPrimary_Click(object sender, RoutedEventArgs e)
+        {
+            switch (ReadString(K_QuickStartMode, "creator").ToLowerInvariant())
+            {
+                case "media":
+                    App.MainWindow.MainFrame.Navigate(typeof(RadioPage));
+                    break;
+                case "gaming":
+                    App.MainWindow.MainFrame.Navigate(typeof(FpsRecorderPage));
+                    break;
+                case "social":
+                    App.MainWindow.MainFrame.Navigate(typeof(ZinkConnectPage));
+                    break;
+                default:
+                    App.MainWindow.MainFrame.Navigate(typeof(RecorderPage));
+                    break;
+            }
+        }
+
+        private void QuickStartSecondary_Click(object sender, RoutedEventArgs e)
+        {
+            switch (ReadString(K_QuickStartMode, "creator").ToLowerInvariant())
+            {
+                case "media":
+                    App.MainWindow.MainFrame.Navigate(typeof(MusicLibraryPage));
+                    break;
+                case "gaming":
+                    App.MainWindow.MainFrame.Navigate(typeof(RecordingsLibraryPage));
+                    break;
+                case "social":
+                    App.MainWindow.MainFrame.Navigate(typeof(Social.MessagesPage));
+                    break;
+                default:
+                    App.MainWindow.MainFrame.Navigate(typeof(RecordingsLibraryPage));
+                    break;
+            }
+        }
+
+        private void QuickStartThird_Click(object sender, RoutedEventArgs e)
+        {
+            switch (ReadString(K_QuickStartMode, "creator").ToLowerInvariant())
+            {
+                case "media":
+                    Spotify_Click(sender, e);
+                    break;
+                case "gaming":
+                    App.MainWindow.MainFrame.Navigate(typeof(XboxPage));
+                    break;
+                case "social":
+                    Discord_Click(sender, e);
+                    break;
+                default:
+                    App.MainWindow.MainFrame.Navigate(typeof(ZinkConnectPage));
+                    break;
+            }
+        }
+
         private void ClearRecent_Click(object sender, RoutedEventArgs e)
         {
             try { ActivityHub.Clear(); } catch { }
@@ -1805,6 +2057,9 @@ namespace Zink.Pages
         private void Visualizer_Click(object sender, RoutedEventArgs e) => App.MainWindow.MainFrame.Navigate(typeof(VisualizerPage));
         private void Settings_Click(object sender, RoutedEventArgs e) => App.MainWindow.MainFrame.Navigate(typeof(SettingsPage));
         private void VersionHistory_Click(object sender, RoutedEventArgs e) => App.MainWindow.MainFrame.Navigate(typeof(VersionHistoryPage));
+        private void ZinkConnect_Click(object sender, RoutedEventArgs e) => App.MainWindow.MainFrame.Navigate(typeof(ZinkConnectPage));
+        private void Streaming_Click(object sender, RoutedEventArgs e) => App.MainWindow.MainFrame.Navigate(typeof(StreamingPage));
+        private void LeaveReview_Click(object sender, RoutedEventArgs e) => App.MainWindow.MainFrame.Navigate(typeof(ReviewPage));
         private void PulseCalls_Click(object sender, RoutedEventArgs e) => App.MainWindow.MainFrame.Navigate(typeof(Social.CallPage));
         private void PulseStream_Click(object sender, RoutedEventArgs e) => App.MainWindow.MainFrame.Navigate(typeof(Social.CallPage));
         private void PulseFps_Click(object sender, RoutedEventArgs e) => App.MainWindow.MainFrame.Navigate(typeof(FpsRecorderPage));

@@ -1,0 +1,62 @@
+<Page
+    x:Class="Zink.Pages.FeatureTourPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="Transparent">
+
+    <ScrollViewer>
+        <StackPanel Padding="24" Spacing="16">
+            <TextBlock Text="Try Zink" FontSize="30" FontWeight="SemiBold"/>
+            <TextBlock Text="A quick tour of the features most likely to make a new install stick" Opacity="0.75"/>
+
+            <Grid ColumnSpacing="12" RowSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <Button Click="OpenRecorder_Click" MinHeight="112">
+                    <StackPanel Padding="14" Spacing="4">
+                        <TextBlock Text="Replay Clips" FontWeight="SemiBold"/>
+                        <TextBlock Text="Start a buffer and save recent moments" Opacity="0.7" TextWrapping="WrapWholeWords"/>
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="1" Click="OpenRecordings_Click" MinHeight="112">
+                    <StackPanel Padding="14" Spacing="4">
+                        <TextBlock Text="Recording Library" FontWeight="SemiBold"/>
+                        <TextBlock Text="Open saved recordings from one place" Opacity="0.7" TextWrapping="WrapWholeWords"/>
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="2" Click="OpenWidgets_Click" MinHeight="112">
+                    <StackPanel Padding="14" Spacing="4">
+                        <TextBlock Text="Widgets" FontWeight="SemiBold"/>
+                        <TextBlock Text="Use compact radio, Spotify, and gaming tools" Opacity="0.7" TextWrapping="WrapWholeWords"/>
+                    </StackPanel>
+                </Button>
+                <Button Grid.Row="1" Click="OpenRadio_Click" MinHeight="112">
+                    <StackPanel Padding="14" Spacing="4">
+                        <TextBlock Text="Radio Discovery" FontWeight="SemiBold"/>
+                        <TextBlock Text="Find stations, liked songs, and the mini player" Opacity="0.7" TextWrapping="WrapWholeWords"/>
+                    </StackPanel>
+                </Button>
+                <Button Grid.Row="1" Grid.Column="1" Click="OpenStreaming_Click" MinHeight="112">
+                    <StackPanel Padding="14" Spacing="4">
+                        <TextBlock Text="Streaming" FontWeight="SemiBold"/>
+                        <TextBlock Text="Jump into the live studio" Opacity="0.7" TextWrapping="WrapWholeWords"/>
+                    </StackPanel>
+                </Button>
+                <Button Grid.Row="1" Grid.Column="2" Click="OpenConnect_Click" MinHeight="112">
+                    <StackPanel Padding="14" Spacing="4">
+                        <TextBlock Text="Zink Connect" FontWeight="SemiBold"/>
+                        <TextBlock Text="Calls, sharing, and browser hub" Opacity="0.7" TextWrapping="WrapWholeWords"/>
+                    </StackPanel>
+                </Button>
+            </Grid>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

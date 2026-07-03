@@ -36,9 +36,52 @@
                           Width="200"
                           SelectionChanged="StyleComboBox_SelectionChanged">
                     <ComboBoxItem Content="Bars" Tag="Bars" IsSelected="True"/>
+                    <ComboBoxItem Content="Mirror bars" Tag="MirrorBars"/>
                     <ComboBoxItem Content="Wave" Tag="Wave"/>
                     <ComboBoxItem Content="Circle" Tag="Circle"/>
+                    <ComboBoxItem Content="Dots" Tag="Dots"/>
+                    <ComboBoxItem Content="Tunnel" Tag="Tunnel"/>
+                    <ComboBoxItem Content="Pulse" Tag="Pulse"/>
                 </ComboBox>
+            </StackPanel>
+
+            <StackPanel>
+                <TextBlock Text="Colour"
+                           FontWeight="SemiBold"
+                           Margin="0,0,0,4"/>
+                <ComboBox x:Name="ColorComboBox"
+                          Width="180"
+                          SelectionChanged="ColorComboBox_SelectionChanged">
+                    <ComboBoxItem Content="Sky" Tag="Sky" IsSelected="True"/>
+                    <ComboBoxItem Content="Fire" Tag="Fire"/>
+                    <ComboBoxItem Content="Neon" Tag="Neon"/>
+                    <ComboBoxItem Content="Ocean" Tag="Ocean"/>
+                    <ComboBoxItem Content="Mono" Tag="Mono"/>
+                </ComboBox>
+            </StackPanel>
+
+            <StackPanel Width="150">
+                <TextBlock x:Name="SensitivityText"
+                           Text="Sensitivity 100%"
+                           FontWeight="SemiBold"
+                           Margin="0,0,0,4"/>
+                <Slider x:Name="SensitivitySlider"
+                        Minimum="0"
+                        Maximum="100"
+                        Value="100"
+                        ValueChanged="SensitivitySlider_ValueChanged"/>
+            </StackPanel>
+
+            <StackPanel Width="150">
+                <TextBlock x:Name="SmoothingText"
+                           Text="Smoothing 82%"
+                           FontWeight="SemiBold"
+                           Margin="0,0,0,4"/>
+                <Slider x:Name="SmoothingSlider"
+                        Minimum="0"
+                        Maximum="100"
+                        Value="82"
+                        ValueChanged="SmoothingSlider_ValueChanged"/>
             </StackPanel>
 
             <ToggleButton x:Name="PauseToggle"
@@ -46,6 +89,16 @@
                           Checked="PauseToggle_Checked"
                           Unchecked="PauseToggle_Unchecked"
                           VerticalAlignment="Bottom"/>
+
+            <Button x:Name="SaveButton"
+                    Content="Save"
+                    Click="SaveButton_Click"
+                    VerticalAlignment="Bottom"/>
+
+            <Button x:Name="ResetButton"
+                    Content="Reset"
+                    Click="ResetButton_Click"
+                    VerticalAlignment="Bottom"/>
         </StackPanel>
 
         <!-- Visualizer canvas -->
@@ -59,7 +112,7 @@
                 <Canvas x:Name="VisualizerCanvas"/>
 
                 <TextBlock x:Name="HintText"
-                           Text="Visualizer is currently using simulated data. When you're ready, we can hook this to the real audio levels from the Music Player."
+                           Text="Play audio in Zink or on this PC to drive the visualizer."
                            Opacity="0.5"
                            FontSize="12"
                            Margin="16"

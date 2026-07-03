@@ -73,11 +73,11 @@ namespace Zink.Services.Streaming
                     "Separates output pacing from source timing so the stream can keep a stable cadence."),
                 new ObsStyleStreamingStage(
                     "Video encoder",
-                    options.UseDirectNvenc ? "Direct NVIDIA NVENC SDK" : "Media Foundation NVIDIA H.264 MFT",
+                    options.UseDirectNvenc ? "Direct NVIDIA NVENC SDK" : "Media Foundation GPU H.264 MFT",
                     active: true,
                     options.UseDirectNvenc
                         ? "Direct NVENC path is selected."
-                        : "Current backend requires the NVIDIA H.264 Media Foundation MFT and refuses non-NVENC encoders."),
+                        : "Current backend uses the preferred available GPU H.264 Media Foundation encoder."),
                 new ObsStyleStreamingStage(
                     "Audio mixer",
                     "Windows loopback + microphone AAC",

@@ -139,8 +139,8 @@
                                     <StackPanel>
                                         <Border Height="104" Background="#151D26"/>
                                         <StackPanel Padding="14" Spacing="3">
-                                            <TextBlock Text="Dark" Foreground="White" FontWeight="SemiBold"/>
-                                            <TextBlock Text="Dim surfaces" Foreground="{StaticResource MutedTextBrush}" FontSize="12"/>
+                                            <TextBlock Text="Zink default" Foreground="White" FontWeight="SemiBold"/>
+                                            <TextBlock Text="Neon theme" Foreground="{StaticResource MutedTextBrush}" FontSize="12"/>
                                         </StackPanel>
                                     </StackPanel>
                                 </Button>
@@ -167,17 +167,17 @@
                                             <RowDefinition Height="46"/>
                                             <RowDefinition Height="46"/>
                                         </Grid.RowDefinitions>
-                                        <Button Tag="#3F6F7F" Click="PresetColor_Click" Background="#3F6F7F" BorderBrush="#55FFFFFF"/>
-                                        <Button Grid.Column="1" Tag="#1B4D5C" Click="PresetColor_Click" Background="#1B4D5C" BorderBrush="#55FFFFFF"/>
-                                        <Button Grid.Column="2" Tag="#183B64" Click="PresetColor_Click" Background="#183B64" BorderBrush="#55FFFFFF"/>
-                                        <Button Grid.Column="3" Tag="#43295A" Click="PresetColor_Click" Background="#43295A" BorderBrush="#55FFFFFF"/>
-                                        <Button Grid.Row="1" Tag="#184D3A" Click="PresetColor_Click" Background="#184D3A" BorderBrush="#55FFFFFF"/>
-                                        <Button Grid.Row="1" Grid.Column="1" Tag="#5C2D2D" Click="PresetColor_Click" Background="#5C2D2D" BorderBrush="#55FFFFFF"/>
-                                        <Button Grid.Row="1" Grid.Column="2" Tag="#5A4B22" Click="PresetColor_Click" Background="#5A4B22" BorderBrush="#55FFFFFF"/>
+                                        <Button Tag="#38FF66" Click="PresetColor_Click" Background="#38FF66" BorderBrush="#55FFFFFF"/>
+                                        <Button Grid.Column="1" Tag="#14D8E8" Click="PresetColor_Click" Background="#14D8E8" BorderBrush="#55FFFFFF"/>
+                                        <Button Grid.Column="2" Tag="#1EDC8A" Click="PresetColor_Click" Background="#1EDC8A" BorderBrush="#55FFFFFF"/>
+                                        <Button Grid.Column="3" Tag="#9EFF4F" Click="PresetColor_Click" Background="#9EFF4F" BorderBrush="#55FFFFFF"/>
+                                        <Button Grid.Row="1" Tag="#0E7B5A" Click="PresetColor_Click" Background="#0E7B5A" BorderBrush="#55FFFFFF"/>
+                                        <Button Grid.Row="1" Grid.Column="1" Tag="#06404A" Click="PresetColor_Click" Background="#06404A" BorderBrush="#55FFFFFF"/>
+                                        <Button Grid.Row="1" Grid.Column="2" Tag="#123B64" Click="PresetColor_Click" Background="#123B64" BorderBrush="#55FFFFFF"/>
                                         <Button Grid.Row="1" Grid.Column="3" Tag="#252A35" Click="PresetColor_Click" Background="#252A35" BorderBrush="#55FFFFFF"/>
                                     </Grid>
                                     <TextBlock x:Name="CurrentGlassText"
-                                               Text="Glass colour: #3F6F7F"
+                                               Text="Glass colour: #38FF66"
                                                Foreground="{StaticResource MutedTextBrush}"
                                                FontSize="12"/>
                                 </StackPanel>
@@ -212,7 +212,7 @@
                                          IsColorChannelTextInputVisible="True"
                                          IsHexInputVisible="True"/>
 
-                            <Button Content="Reset all colour to the default"
+                            <Button Content="Restore Zink neon theme"
                                     Click="ResetGlassColor_Click"
                                     HorizontalAlignment="Stretch"
                                     MinHeight="44"

@@ -400,7 +400,7 @@ namespace Zink
                     DiscordPresenceService.Instance.SetMusicPresence(
                         songTitle: track.Title,
                         artistName: track.Artist,
-                        sourceName: "Zink",
+                        sourceName: "Zink Music",
                         isPlaying: isPlaying);
                 }
             }

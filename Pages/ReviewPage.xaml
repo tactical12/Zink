@@ -112,13 +112,14 @@
                                         Grid.Column="0"
                                         Style="{StaticResource AccentButtonStyle}"
                                         MinHeight="46"
+                                        Foreground="#062D38"
                                         CornerRadius="23"
                                         Click="LeaveReview_Click">
                                     <StackPanel Orientation="Horizontal"
                                                 HorizontalAlignment="Center"
                                                 Spacing="8">
-                                        <FontIcon Glyph="&#xE8D2;" FontSize="15"/>
-                                        <TextBlock Text="Leave a review"/>
+                                        <FontIcon Glyph="&#xE8D2;" FontSize="15" Foreground="#062D38"/>
+                                        <TextBlock Text="Leave a review" Foreground="#062D38"/>
                                     </StackPanel>
                                 </Button>
 

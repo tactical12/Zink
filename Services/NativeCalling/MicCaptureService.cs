@@ -49,9 +49,9 @@ namespace Zink.Services.NativeCalling
         {
             var devices = new List<InputDeviceInfo>();
 
-            for (int i = 0; i < WaveIn.DeviceCount; i++)
+            for (int i = 0; i < WaveInEvent.DeviceCount; i++)
             {
-                var capabilities = WaveIn.GetCapabilities(i);
+                var capabilities = WaveInEvent.GetCapabilities(i);
 
                 devices.Add(new InputDeviceInfo
                 {
@@ -67,7 +67,7 @@ namespace Zink.Services.NativeCalling
         {
             lock (_gate)
             {
-                if (deviceNumber < 0 || deviceNumber >= WaveIn.DeviceCount)
+                if (deviceNumber < 0 || deviceNumber >= WaveInEvent.DeviceCount)
                     return false;
 
                 bool wasRunning = IsRunning;

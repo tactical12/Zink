@@ -145,6 +145,7 @@ namespace Zink
             _ = InitializeAppServicesAsync();
 
             SetupTray();
+            _ = ZinkBackgroundModeService.Instance.ApplyAsync();
 
             StorageFile fileToOpen = null;
             bool launchedFromStartupTask = IsStartupTaskLaunch();
@@ -170,6 +171,7 @@ namespace Zink
             if (fileToOpen != null)
             {
                 MainWindow = new MainWindow();
+                MainWindow.SuppressInitialNavigation = true;
                 MainWindow.Closed += OnMainWindowClosed;
                 MainWindow.Activate();
 
@@ -382,7 +384,7 @@ namespace Zink
                     return;
                 }
 
-                string savedPath = await service.SaveReplayAsync();
+                string savedPath = await service.SaveReplayAsync(RequiredReplayBufferDuration);
 
                 _trayService?.ShowBalloonTip(
                     "Zink Replay",

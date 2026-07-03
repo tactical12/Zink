@@ -438,7 +438,7 @@ namespace Zink.Services.Social
 
             var received = Interlocked.Increment(ref _incomingBinaryH264Frames);
             if (received == 1 || received % 120 == 0)
-                Debug.WriteLine($"[ScreenShare:H264:BINARY:IN] from={frame.UserId} {frame.Width}x{frame.Height} bytes={frame.Payload.Length} key={frame.IsKeyFrame}; count={received}.");
+                Debug.WriteLine($"[ScreenShare:{frame.Codec.ToUpperInvariant()}:BINARY:IN] from={frame.UserId} {frame.Width}x{frame.Height} bytes={frame.Payload.Length} key={frame.IsKeyFrame}; count={received}.");
 
             EncodedScreenFrameReceived?.Invoke(this, new ScreenFrameEventArgs
             {
@@ -448,7 +448,7 @@ namespace Zink.Services.Social
                 Width = frame.Width,
                 Height = frame.Height,
                 Timestamp = frame.Timestamp,
-                Codec = "h264",
+                Codec = frame.Codec,
                 IsKeyFrame = frame.IsKeyFrame
             });
         }
@@ -735,6 +735,43 @@ namespace Zink.Services.Social
             {
                 Debug.WriteLine(
                     $"[ScreenShare:H264:BINARY:OUT] target={userId} {width}x{height} bytes={frameData.Length} key={isKeyFrame}; websocketBytes={data.Length}; count={sent}.");
+            }
+
+            await SendBinaryAsync(data);
+        }
+
+        public async Task SendEncodedScreenFrameBinaryAsync(
+            long userId,
+            string callId,
+            string codec,
+            byte[] frameData,
+            int width,
+            int height,
+            long timestamp,
+            bool isKeyFrame)
+        {
+            if (!IsConnected)
+                await ConnectAsync();
+
+            if (frameData == null || frameData.Length == 0)
+                return;
+
+            var safeCodec = string.IsNullOrWhiteSpace(codec) ? "h264" : codec.Trim().ToLowerInvariant();
+            var data = BinaryScreenFrameProtocol.CreateEncodedFrame(
+                userId,
+                callId,
+                safeCodec,
+                width,
+                height,
+                timestamp,
+                isKeyFrame,
+                frameData);
+
+            var sent = Interlocked.Increment(ref _outgoingBinaryH264Frames);
+            if (sent == 1 || sent % 120 == 0)
+            {
+                Debug.WriteLine(
+                    $"[ScreenShare:{safeCodec.ToUpperInvariant()}:BINARY:OUT] target={userId} {width}x{height} bytes={frameData.Length} key={isKeyFrame}; websocketBytes={data.Length}; count={sent}.");
             }
 
             await SendBinaryAsync(data);

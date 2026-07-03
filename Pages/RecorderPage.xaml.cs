@@ -89,6 +89,21 @@ namespace Zink.Pages
             await _manager.SaveLast45SecondsAsync();
         }
 
+        private async void SaveLast30SecondsButton_Click(object sender, RoutedEventArgs e)
+        {
+            await _manager.SaveLastReplayAsync(System.TimeSpan.FromSeconds(30));
+        }
+
+        private async void SaveLastOneMinuteButton_Click(object sender, RoutedEventArgs e)
+        {
+            await _manager.SaveLastReplayAsync(System.TimeSpan.FromMinutes(1));
+        }
+
+        private void OpenRecordingsLibraryButton_Click(object sender, RoutedEventArgs e)
+        {
+            App.MainWindow.MainFrame.Navigate(typeof(RecordingsLibraryPage));
+        }
+
         private async void RunAtStartupToggle_Toggled(object sender, RoutedEventArgs e)
         {
             await StartupService.SetStartupEnabledAsync(RunAtStartupToggle.IsOn);

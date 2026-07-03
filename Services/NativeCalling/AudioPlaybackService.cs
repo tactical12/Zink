@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.InteropServices;
 using ConcentusDecoder = Concentus.Structs.OpusDecoder;
 using NAudio.Wave;
 
@@ -83,9 +84,10 @@ namespace Zink.Services.NativeCalling
                 }
             };
 
-            for (int i = 0; i < WaveOut.DeviceCount; i++)
+            for (int i = 0; i < WaveInterop.waveOutGetNumDevs(); i++)
             {
-                var capabilities = WaveOut.GetCapabilities(i);
+                var capabilities = new WaveOutCapabilities();
+                WaveInterop.waveOutGetDevCaps((IntPtr)i, out capabilities, Marshal.SizeOf<WaveOutCapabilities>());
 
                 devices.Add(new OutputDeviceInfo
                 {
@@ -101,7 +103,7 @@ namespace Zink.Services.NativeCalling
         {
             lock (_gate)
             {
-                if (deviceNumber < -1 || deviceNumber >= WaveOut.DeviceCount)
+                if (deviceNumber < -1 || deviceNumber >= WaveInterop.waveOutGetNumDevs())
                     return false;
 
                 bool wasRunning = _output != null || _mediaOutput != null;

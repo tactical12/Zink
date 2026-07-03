@@ -12,19 +12,22 @@
         <SolidColorBrush x:Key="BoxBrush"        Color="#1C1C1C"/>
     </Page.Resources>
 
-    <Grid Padding="20">
-        <Grid.Background>
-            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                <GradientStop Color="#70062D38" Offset="0"/>
-                <GradientStop Color="#780B4450" Offset="0.48"/>
-                <GradientStop Color="#9000080B" Offset="1"/>
-            </LinearGradientBrush>
-        </Grid.Background>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*"  MinWidth="220"/>
-            <ColumnDefinition Width="2*" MinWidth="300"/>
-            <ColumnDefinition Width="*"  MinWidth="220"/>
-        </Grid.ColumnDefinitions>
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled"
+                  ZoomMode="Disabled">
+        <Grid Padding="20">
+            <Grid.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#70062D38" Offset="0"/>
+                    <GradientStop Color="#780B4450" Offset="0.48"/>
+                    <GradientStop Color="#9000080B" Offset="1"/>
+                </LinearGradientBrush>
+            </Grid.Background>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"  MinWidth="220"/>
+                <ColumnDefinition Width="2*" MinWidth="300"/>
+                <ColumnDefinition Width="*"  MinWidth="220"/>
+            </Grid.ColumnDefinitions>
 
         <!-- === QUEUE PANEL === -->
         <Border Grid.Column="0"
@@ -233,5 +236,6 @@
                         CornerRadius="6"/>
             </StackPanel>
         </Border>
-    </Grid>
+        </Grid>
+    </ScrollViewer>
 </Page>

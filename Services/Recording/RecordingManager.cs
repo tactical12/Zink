@@ -163,25 +163,45 @@ namespace Zink.Services.Recording
         }
 
         public async Task<string?> SaveLast45SecondsAsync()
+            => await SaveLastReplayAsync(TimeSpan.FromSeconds(45));
+
+        public async Task<string?> SaveLastReplayAsync(TimeSpan requestedDuration)
         {
-            PublishStatus("Recording the last 45 seconds.");
+            var supportedDuration = TimeSpan.FromSeconds(45);
+            var label = FormatReplayDuration(requestedDuration);
+
+            if (requestedDuration > supportedDuration)
+            {
+                PublishStatus("Replay currently keeps up to 45 seconds. Start a manual recording for longer clips.");
+                return null;
+            }
+
+            PublishStatus($"Saving the last {label}.");
 
             if (_manualRecordingService.IsReplayBufferRunning)
             {
-                string path = await _manualRecordingService.SaveReplayAsync();
-                PublishStatus("Saved the last 45 seconds.");
+                string path = await _manualRecordingService.SaveReplayAsync(requestedDuration);
+                PublishStatus($"Saved the last {label}.");
                 return path;
             }
 
             if (_backgroundClipService.IsRunning)
             {
                 string path = await _backgroundClipService.SaveLast45SecondsAsync();
-                PublishStatus("Saved the last 45 seconds.");
+                PublishStatus($"Saved the last {label}.");
                 return path;
             }
 
             PublishStatus("Replay buffer is not running.");
             return null;
+        }
+
+        private static string FormatReplayDuration(TimeSpan duration)
+        {
+            if (duration.TotalMinutes >= 1)
+                return $"{(int)duration.TotalMinutes} minute{(duration.TotalMinutes >= 2 ? "s" : "")}";
+
+            return $"{Math.Max(1, (int)duration.TotalSeconds)} seconds";
         }
 
         public void PublishStatus(string message)

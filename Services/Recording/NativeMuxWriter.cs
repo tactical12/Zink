@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Buffers;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -111,35 +110,13 @@ namespace Zink.Services.Recording
             byte[] bgraData,
             uint cbBgraData)
         {
-            if (!CanFlipFrameRows(bgraData, cbBgraData))
-            {
-                return ZnkWriterWriteVideoFrame(
-                    _currentWriter,
-                    bgraData,
-                    checked((int)cbBgraData),
-                    checked((int)_currentVideoWidth),
-                    checked((int)_currentVideoHeight),
-                    sampleTime100ns);
-            }
-
-            byte[] flipped = ArrayPool<byte>.Shared.Rent((int)cbBgraData);
-
-            try
-            {
-                CopyRowsBottomUp(bgraData, flipped, (int)_currentVideoWidth, (int)_currentVideoHeight);
-
-                return ZnkWriterWriteVideoFrame(
-                    _currentWriter,
-                    flipped,
-                    checked((int)cbBgraData),
-                    checked((int)_currentVideoWidth),
-                    checked((int)_currentVideoHeight),
-                    sampleTime100ns);
-            }
-            finally
-            {
-                ArrayPool<byte>.Shared.Return(flipped);
-            }
+            return ZnkWriterWriteVideoFrame(
+                _currentWriter,
+                bgraData,
+                checked((int)cbBgraData),
+                checked((int)_currentVideoWidth),
+                checked((int)_currentVideoHeight),
+                sampleTime100ns);
         }
 
         [DllImport(DllName, EntryPoint = "znk_writer_write_video_frame", CallingConvention = CallingConvention.Cdecl)]
@@ -208,28 +185,5 @@ namespace Zink.Services.Recording
                 Marshal.ThrowExceptionForHR(hr);
         }
 
-        private static bool CanFlipFrameRows(byte[]? bgraData, uint cbBgraData)
-        {
-            if (bgraData is null || cbBgraData == 0)
-                return false;
-
-            if (_currentVideoWidth == 0 || _currentVideoHeight == 0)
-                return false;
-
-            ulong expectedBytes = (ulong)_currentVideoWidth * _currentVideoHeight * 4UL;
-            return expectedBytes == cbBgraData && bgraData.Length >= cbBgraData;
-        }
-
-        private static void CopyRowsBottomUp(byte[] source, byte[] destination, int width, int height)
-        {
-            int rowSize = width * 4;
-
-            for (int y = 0; y < height; y++)
-            {
-                int sourceOffset = y * rowSize;
-                int destinationOffset = (height - 1 - y) * rowSize;
-                Buffer.BlockCopy(source, sourceOffset, destination, destinationOffset, rowSize);
-            }
-        }
     }
 }

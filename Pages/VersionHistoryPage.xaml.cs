@@ -11,6 +11,31 @@ namespace Zink.Pages
         private readonly Dictionary<string, (string Title, DateTime? Released, string Notes)> _changelog =
             new(StringComparer.OrdinalIgnoreCase)
             {
+                // 3.0.34.0
+                ["3.0.34.0"] = (
+                    Title: "Version 3.0.34.0",
+                    Released: new DateTime(2026, 06, 28),
+                    Notes:
+@"Version 3.0.34.0
+- Added live video scrubbing to the video player so moving the time bar updates the video frame in real time while choosing where to watch.
+- Improved video seeking so playback can continue smoothly while dragging through the timeline."
+                ),
+
+                // 3.0.33.0
+                ["3.0.33.0"] = (
+                    Title: "Version 3.0.33.0",
+                    Released: new DateTime(2026, 05, 24),
+                    Notes:
+@"Version 3.0.33.0
+- Turned the Visualizer into a working live audio visualizer using real system output audio instead of simulated demo data.
+- Added new visualizer designs: Mirror bars, Dots, Tunnel, and Pulse, alongside the existing Bars, Wave, and Circle styles.
+- Added colour themes for the visualizer: Sky, Fire, Neon, Ocean, and Mono.
+- Added real 0% to 100% Sensitivity and Smoothing sliders with exact percentage labels.
+- Added saved visualizer settings so selected design, colour, sensitivity, and smoothing are restored after navigating away and back.
+- Added Save and Reset buttons for visualizer settings.
+- Improved the visualizer drawing pipeline with smoother live levels, waveform samples, pulse response, and ambient background rendering.
+- Kept the Zink Connect page layout focused on the main browser launch card."
+                ),
                 // 3.0.0.0 (NEW)
                 ["3.0.0.0"] = (
                     Title: "Version 3.0.0.0",
@@ -18,10 +43,24 @@ namespace Zink.Pages
                     Notes:
 @"Version 3.0.0.0
 - Rebranded the app to Zink across the visible product experience.
-- Revamped the home dashboard around Zink's media, calling, screen sharing, gaming and diagnostics identity.
-- Stabilised native calling and screen sharing with richer diagnostics and report upload support.
-- Added stronger Discord Rich Presence, Spotify now playing surfaces, health checks, FPS tools, and support-ready logs.
-- Refreshed the package versioning and Fluent glass branding assets for the Zink 3 milestone."
+- Revamped the home dashboard with a new glass-style Zink identity, stronger quick actions, social pulse shortcuts, and clearer media, calling, screen sharing, gaming, and diagnostics sections.
+- Added background mode controls so Zink can keep running when closed, with notification settings that are separate from startup behaviour.
+- Improved Zink Connect with locked social navigation, safer registration flow, browsing history, a close-data clearing setting, call feedback surfaces, and richer support-report actions.
+- Added the Zink Connect browser window and ad-block engine for a cleaner in-app web experience.
+- Stabilised native calling and screen sharing with safer ARM64 startup, automatic Windows Graphics Capture startup, fail-safe diagnostics uploads, crash breadcrumbs, screen-share feedback reports, and smoother receiver playback when using fullscreen.
+- Improved 720p60 screen sharing with faster WGC scaling, reduced sender preview load, stronger RTP connection fallback behaviour, and multiple fullscreen exit/control fixes.
+- Added Zink health diagnostics reports, diagnostics upload support, safer health checks, and stronger support-ready logging.
+- Reworked the screen recorder with a refreshed UI, direct manual capture, improved frame output, lower memory pressure, stronger capture-source handling, and bundled FFmpeg/FFprobe support.
+- Added Twitch streaming support, including the Streaming page, native Twitch streaming service, and OBS-style streaming pipeline.
+- Added the Spotify Beta page and improved Spotify authentication and now-playing surfaces.
+- Added real FPS overlay support with RTSS tooling and improved FPS monitor snapshots.
+- Revamped theme customization with glass tinting controls and fixed title bar glass styling while hiding the unwanted title bar logo.
+- Added more UK radio stations, including Heart Milton Keynes, and updated radio search support.
+- Fixed video fullscreen overlay behaviour and improved video player fullscreen controls.
+- Fixed light theme sidebar readability.
+- Removed the Feedback page from the main navigation while keeping support and review flows available elsewhere.
+- Hardened Store submission readiness with packaging, manifest, build, certificate, and store submission note updates.
+- Updated package settings, build scripts, README documentation, diagnostics logging, and Fluent glass branding assets for the Zink 3 milestone."
                 ),
 
                 // 2.4.1.0

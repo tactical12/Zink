@@ -16,17 +16,17 @@
             <SolidColorBrush x:Key="NavigationViewTopPaneBackground" Color="Transparent"/>
 
             <SolidColorBrush x:Key="NavigationViewItemBackground" Color="Transparent"/>
-            <SolidColorBrush x:Key="NavigationViewItemBackgroundPointerOver" Color="#20FFFFFF"/>
-            <SolidColorBrush x:Key="NavigationViewItemBackgroundSelected" Color="#36FFFFFF"/>
-            <SolidColorBrush x:Key="NavigationViewItemBackgroundPressed" Color="#2AFFFFFF"/>
-            <SolidColorBrush x:Key="NavigationViewItemForeground" Color="#EAF4FAFF"/>
+            <SolidColorBrush x:Key="NavigationViewItemBackgroundPointerOver" Color="#2414D8E8"/>
+            <SolidColorBrush x:Key="NavigationViewItemBackgroundSelected" Color="#3838FF66"/>
+            <SolidColorBrush x:Key="NavigationViewItemBackgroundPressed" Color="#3014D8E8"/>
+            <SolidColorBrush x:Key="NavigationViewItemForeground" Color="#F4FFFFFF"/>
             <SolidColorBrush x:Key="NavigationViewItemForegroundPointerOver" Color="White"/>
-            <SolidColorBrush x:Key="NavigationViewItemForegroundSelected" Color="White"/>
-            <SolidColorBrush x:Key="NavigationViewItemIconForeground" Color="#EAF4FAFF"/>
+            <SolidColorBrush x:Key="NavigationViewItemForegroundSelected" Color="#38FF66"/>
+            <SolidColorBrush x:Key="NavigationViewItemIconForeground" Color="#B5C8E7E2"/>
             <SolidColorBrush x:Key="NavigationViewItemIconForegroundPointerOver" Color="White"/>
-            <SolidColorBrush x:Key="NavigationViewItemIconForegroundSelected" Color="White"/>
-            <SolidColorBrush x:Key="NavigationViewItemHeaderForeground" Color="#EAF4FAFF"/>
-            <SolidColorBrush x:Key="NavigationViewItemSeparatorForeground" Color="#EAF4FAFF"/>
+            <SolidColorBrush x:Key="NavigationViewItemIconForegroundSelected" Color="#38FF66"/>
+            <SolidColorBrush x:Key="NavigationViewItemHeaderForeground" Color="#B5C8E7E2"/>
+            <SolidColorBrush x:Key="NavigationViewItemSeparatorForeground" Color="#8038FF66"/>
             <Style TargetType="FontIcon">
                 <Setter Property="Width" Value="24"/>
                 <Setter Property="Height" Value="24"/>
@@ -46,16 +46,26 @@
 
         <Grid.Background>
             <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                <GradientStop x:Name="ShellGradientStart" Color="#002333" Offset="0"/>
-                <GradientStop x:Name="ShellGradientMiddle" Color="#00394B" Offset="0.48"/>
-                <GradientStop x:Name="ShellGradientEnd" Color="#061019" Offset="1"/>
+                <GradientStop x:Name="ShellGradientStart" Color="#B0010B16" Offset="0"/>
+                <GradientStop x:Name="ShellGradientMiddle" Color="#82003F37" Offset="0.55"/>
+                <GradientStop x:Name="ShellGradientEnd" Color="#6638D94A" Offset="1"/>
             </LinearGradientBrush>
         </Grid.Background>
 
         <Grid.ColumnDefinitions>
-            <ColumnDefinition x:Name="SidebarColumn" Width="260"/>
+            <ColumnDefinition x:Name="SidebarColumn" Width="320"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
+
+        <Image Grid.ColumnSpan="2"
+               Source="ms-appx:///Assets/ZinkGeneratedThemeBackground.png"
+               Stretch="UniformToFill"
+               Opacity="0.38"
+               IsHitTestVisible="False"/>
+
+        <Rectangle Grid.ColumnSpan="2"
+                   Fill="#52010710"
+                   IsHitTestVisible="False"/>
 
         <Border x:Name="SidebarGlassHost"
                 Grid.Column="0"
@@ -73,7 +83,7 @@
             IsPaneToggleButtonVisible="False"
             PaneDisplayMode="Left"
             PaneTitle=""
-            OpenPaneLength="232"
+            OpenPaneLength="292"
             CompactPaneLength="76"
             Background="Transparent"
             IsSettingsVisible="False"
@@ -82,6 +92,13 @@
             PaneClosing="SidebarNav_PaneClosing"
             PaneClosed="SidebarNav_PaneClosed"
             SelectionChanged="SidebarNav_SelectionChanged">
+
+            <NavigationView.Resources>
+                <Style TargetType="TextBlock">
+                    <Setter Property="TextWrapping" Value="Wrap"/>
+                    <Setter Property="TextTrimming" Value="None"/>
+                </Style>
+            </NavigationView.Resources>
 
             <NavigationView.PaneHeader>
                 <Button x:Name="SidebarToggleButton"
@@ -189,6 +206,12 @@
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
+                        <NavigationViewItem Content="Radio Discovery" Tag="RadioDiscovery">
+                            <NavigationViewItem.Icon>
+                                <FontIcon Glyph="&#xE11A;" FontFamily="Segoe Fluent Icons"/>
+                            </NavigationViewItem.Icon>
+                        </NavigationViewItem>
+
                         <NavigationViewItem Content="Liked radio songs" Tag="LikedRadioSongs">
                             <NavigationViewItem.Icon>
                                 <FontIcon Glyph="&#xE8E1;" FontFamily="Segoe Fluent Icons"/>
@@ -228,7 +251,49 @@
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
 
+                        <NavigationViewItem Content="Recordings Library" Tag="RecordingsLibrary">
+                            <NavigationViewItem.Icon>
+                                <FontIcon Glyph="&#xE8B7;" FontFamily="Segoe Fluent Icons"/>
+                            </NavigationViewItem.Icon>
+                        </NavigationViewItem>
+
                         <NavigationViewItem Content="Streaming" Tag="Streaming">
+                            <NavigationViewItem.Icon>
+                                <FontIcon Glyph="&#xE93E;" FontFamily="Segoe Fluent Icons"/>
+                            </NavigationViewItem.Icon>
+                        </NavigationViewItem>
+
+                        <NavigationViewItem Content="YouTube" Tag="YouTubeStreaming">
+                            <NavigationViewItem.Icon>
+                                <FontIcon Glyph="&#xE93E;" FontFamily="Segoe Fluent Icons"/>
+                            </NavigationViewItem.Icon>
+                        </NavigationViewItem>
+
+                        <NavigationViewItem Content="Kick" Tag="KickStreaming">
+                            <NavigationViewItem.Icon>
+                                <FontIcon Glyph="&#xE93E;" FontFamily="Segoe Fluent Icons"/>
+                            </NavigationViewItem.Icon>
+                        </NavigationViewItem>
+
+                        <NavigationViewItem Content="Instagram" Tag="InstagramStreaming">
+                            <NavigationViewItem.Icon>
+                                <FontIcon Glyph="&#xE93E;" FontFamily="Segoe Fluent Icons"/>
+                            </NavigationViewItem.Icon>
+                        </NavigationViewItem>
+
+                        <NavigationViewItem Content="TikTok" Tag="TikTokStreaming">
+                            <NavigationViewItem.Icon>
+                                <FontIcon Glyph="&#xE93E;" FontFamily="Segoe Fluent Icons"/>
+                            </NavigationViewItem.Icon>
+                        </NavigationViewItem>
+
+                        <NavigationViewItem Content="Facebook Live" Tag="FacebookStreaming">
+                            <NavigationViewItem.Icon>
+                                <FontIcon Glyph="&#xE93E;" FontFamily="Segoe Fluent Icons"/>
+                            </NavigationViewItem.Icon>
+                        </NavigationViewItem>
+
+                        <NavigationViewItem Content="X Live" Tag="XStreaming">
                             <NavigationViewItem.Icon>
                                 <FontIcon Glyph="&#xE93E;" FontFamily="Segoe Fluent Icons"/>
                             </NavigationViewItem.Icon>
@@ -515,6 +580,18 @@
             </NavigationView.MenuItems>
 
             <NavigationView.FooterMenuItems>
+                <NavigationViewItem Content="Try Zink" Tag="FeatureTour">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE9CE;" FontFamily="Segoe Fluent Icons"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+
+                <NavigationViewItem Content="Widget Hub" Tag="WidgetHub">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE8A7;" FontFamily="Segoe Fluent Icons"/>
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+
                 <NavigationViewItem Content="Leave a review" Tag="LeaveReview">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE734;" FontFamily="Segoe Fluent Icons"/>
@@ -550,44 +627,32 @@
 
         <Grid x:Name="StartupOverlay"
               Grid.ColumnSpan="2"
+              Background="#CC00080B"
               Canvas.ZIndex="9999">
-            <Grid.Background>
-                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                    <GradientStop Color="#062D38" Offset="0"/>
-                    <GradientStop Color="#0B4450" Offset="0.48"/>
-                    <GradientStop Color="#00080B" Offset="1"/>
-                </LinearGradientBrush>
-            </Grid.Background>
+            <Image Source="ms-appx:///Assets/ZinkThemeSplash.png"
+                   Stretch="UniformToFill"
+                   HorizontalAlignment="Stretch"
+                   VerticalAlignment="Stretch"/>
 
-            <StackPanel HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Spacing="22">
-                <Border Width="178"
-                        Height="178"
-                        CornerRadius="40"
-                        Background="#1EFFFFFF"
-                        BorderBrush="#32FFFFFF"
-                        BorderThickness="1">
-                    <Image Source="ms-appx:///Assets/ZinkLogo.png"
-                           Width="138"
-                           Height="138"
-                           Stretch="Uniform"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"/>
-                </Border>
-
-                <TextBlock Text="Zink"
-                           HorizontalAlignment="Center"
-                           FontSize="46"
-                           FontWeight="SemiBold"
-                           Foreground="White"/>
+            <Border Width="88"
+                    Height="88"
+                    Margin="0,0,0,88"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Bottom"
+                    CornerRadius="44"
+                    BorderBrush="#8A38FF66"
+                    BorderThickness="1">
+                <Border.Background>
+                    <SolidColorBrush Color="#6600080B"/>
+                </Border.Background>
 
                 <ProgressRing IsActive="True"
-                              Width="42"
-                              Height="42"
-                              Foreground="#E8FFFFFF"
-                              HorizontalAlignment="Center"/>
-            </StackPanel>
+                              Width="52"
+                              Height="52"
+                              Foreground="#38FF66"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"/>
+            </Border>
         </Grid>
     </Grid>
 </Window>

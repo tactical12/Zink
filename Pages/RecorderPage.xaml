@@ -137,6 +137,23 @@
                     <Button Content="Save last 45 seconds now"
                             Style="{StaticResource RecorderActionButtonStyle}"
                             Click="SaveLast45SecondsButton_Click"/>
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Button Content="Save last 30s"
+                                Style="{StaticResource RecorderActionButtonStyle}"
+                                Click="SaveLast30SecondsButton_Click"/>
+                        <Button Content="Save last 1m"
+                                Style="{StaticResource RecorderActionButtonStyle}"
+                                Click="SaveLastOneMinuteButton_Click"/>
+                        <Button Content="Save last 5m"
+                                Style="{StaticResource RecorderActionButtonStyle}"
+                                IsEnabled="False"/>
+                    </StackPanel>
+                    <TextBlock Text="The replay buffer currently keeps up to 45 seconds. Use manual recording for longer clips."
+                               Opacity="0.7"
+                               TextWrapping="WrapWholeWords"/>
+                    <Button Content="Open recordings library"
+                            Style="{StaticResource RecorderActionButtonStyle}"
+                            Click="OpenRecordingsLibraryButton_Click"/>
                     <ToggleSwitch x:Name="RunAtStartupToggle"
                                   Header="Run at sign-in"
                                   Toggled="RunAtStartupToggle_Toggled"/>

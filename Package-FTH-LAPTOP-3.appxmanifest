@@ -5,9 +5,10 @@
   xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
   xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
   xmlns:uap6="http://schemas.microsoft.com/appx/manifest/uap/windows10/6"
+  xmlns:uap7="http://schemas.microsoft.com/appx/manifest/uap/windows10/7"
   xmlns:uap11="http://schemas.microsoft.com/appx/manifest/uap/windows10/11"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  IgnorableNamespaces="uap uap3 uap5 uap6 uap11 rescap">
+  IgnorableNamespaces="uap uap3 uap5 uap6 uap7 uap11 rescap">
 
   <Identity
     Name="FrancisHayle.Zink-MusicVideoPlayer"
@@ -15,7 +16,7 @@
     Version="3.0.38.0" />
 
   <Properties>
-    <DisplayName>Zink</DisplayName>
+    <DisplayName>Zink Music Video Player</DisplayName>
     <PublisherDisplayName>Francis Hayle</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
@@ -38,7 +39,7 @@
       EntryPoint="$targetentrypoint$">
 
       <uap:VisualElements
-        DisplayName="Zink"
+        DisplayName="Zink Music Video Player"
         Description="Zink - Your all-in-one media hub"
         BackgroundColor="transparent"
         Square150x150Logo="Assets\Square150x150Logo.png"
@@ -46,10 +47,10 @@
 
         <uap:DefaultTile
           Wide310x150Logo="Assets\Wide310x150Logo.png"
-          Square71x71Logo="Assets\Square44x44Logo.png"
-          Square310x310Logo="Assets\Square150x150Logo.png" />
+          Square71x71Logo="Assets\SmallTile.scale-100.png"
+          Square310x310Logo="Assets\LargeTile.scale-100.png" />
 
-        <uap:SplashScreen Image="Assets\SplashScreen.png" />
+        <uap:SplashScreen Image="Assets\SplashScreen.scale-100.png" />
       </uap:VisualElements>
 
       <Extensions>
@@ -60,7 +61,7 @@
           <uap5:StartupTask
             TaskId="ZinkStartupTask"
             Enabled="false"
-            DisplayName="Zink" />
+            DisplayName="Zink Music Video Player" />
         </uap5:Extension>
       </Extensions>
 
@@ -69,7 +70,7 @@
 
   <Capabilities>
     <rescap:Capability Name="runFullTrust" />
-    <rescap:Capability Name="globalMediaControl" />
+    <uap7:Capability Name="globalMediaControl" />
     <Capability Name="internetClient" />
     <uap3:Capability Name="backgroundMediaPlayback" />
     <uap6:Capability Name="graphicsCapture" />

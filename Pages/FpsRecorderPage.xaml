@@ -272,7 +272,7 @@
                                               Height="16"
                                               IsActive="False"
                                               Visibility="Collapsed"/>
-                                <TextBlock x:Name="InstallRtssButtonText" Text="Set up real FPS"/>
+                                <TextBlock x:Name="InstallRtssButtonText" Text="Open RTSS download"/>
                             </StackPanel>
                         </Button>
 

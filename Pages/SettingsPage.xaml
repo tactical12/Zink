@@ -267,6 +267,42 @@
                                 </primitives:ToggleButton>
                             </Grid>
                         </Border>
+
+                        <Border Style="{StaticResource GlassSettingRowStyle}">
+                            <Grid ColumnSpacing="18">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Spacing="6"
+                                            VerticalAlignment="Center">
+                                    <TextBlock Text="Game clip recording hotkey"
+                                               Foreground="White"
+                                               FontWeight="SemiBold"/>
+                                    <TextBlock x:Name="HotkeyClipRecordingStatusText"
+                                               Text=""
+                                               Foreground="{StaticResource MutedTextBrush}"
+                                               TextWrapping="WrapWholeWords"/>
+                                </StackPanel>
+
+                                <primitives:ToggleButton x:Name="HotkeyClipRecordingToggle"
+                                                         Grid.Column="1"
+                                                         Style="{StaticResource SettingsSlidingToggleStyle}"
+                                                         Click="HotkeyClipRecordingToggle_Toggled">
+                                    <Grid Width="128" Height="42">
+                                        <Border x:Name="HotkeyClipRecordingToggleTrack" CornerRadius="21" BorderThickness="1"/>
+                                        <TextBlock x:Name="HotkeyClipRecordingToggleOffLabel" Text="Off" Margin="46,0,14,0" Foreground="White" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="HotkeyClipRecordingToggleOnLabel" Text="On" Margin="14,0,46,0" Foreground="White" FontWeight="SemiBold" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                        <Border Width="34" Height="34" Margin="4" CornerRadius="17" Background="White" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                            <Border.RenderTransform>
+                                                <TranslateTransform x:Name="HotkeyClipRecordingToggleKnobTransform"/>
+                                            </Border.RenderTransform>
+                                        </Border>
+                                    </Grid>
+                                </primitives:ToggleButton>
+                            </Grid>
+                        </Border>
                     </StackPanel>
                 </Border>
 
