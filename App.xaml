@@ -19,12 +19,12 @@
             <conv:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
 
             <SolidColorBrush x:Key="ApplicationPageBackgroundThemeBrush" Color="#00000000"/>
-            <SolidColorBrush x:Key="LayerFillColorDefaultBrush" Color="#403B7582"/>
-            <SolidColorBrush x:Key="ZinkGlassPanelBrush" Color="#583B7582"/>
-            <SolidColorBrush x:Key="ZinkGlassCardBrush" Color="#383B7582"/>
-            <SolidColorBrush x:Key="ZinkGlassBorderBrush" Color="#40A3D9E6"/>
-            <SolidColorBrush x:Key="ZinkGlassHoverBrush" Color="#2872ACB9"/>
-            <SolidColorBrush x:Key="ZinkGlassSelectedBrush" Color="#368EC8D5"/>
+            <SolidColorBrush x:Key="LayerFillColorDefaultBrush" Color="#403F6F7F"/>
+            <SolidColorBrush x:Key="ZinkGlassPanelBrush" Color="#AA3F6F7F"/>
+            <SolidColorBrush x:Key="ZinkGlassCardBrush" Color="#823F6F7F"/>
+            <SolidColorBrush x:Key="ZinkGlassBorderBrush" Color="#48A5CFDF"/>
+            <SolidColorBrush x:Key="ZinkGlassHoverBrush" Color="#2C76A6B6"/>
+            <SolidColorBrush x:Key="ZinkGlassSelectedBrush" Color="#4492C4D4"/>
             <SolidColorBrush x:Key="ScrollBarThumbFill" Color="#E6FFFFFF"/>
             <SolidColorBrush x:Key="ScrollBarThumbFillPointerOver" Color="#FFFFFFFF"/>
             <SolidColorBrush x:Key="ScrollBarThumbFillPressed" Color="#FFFFFFFF"/>

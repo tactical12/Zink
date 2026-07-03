@@ -14,7 +14,7 @@ namespace Zink.Pages
         private readonly DispatcherTimer _glassApplyTimer;
         private global::Windows.UI.Color _pendingGlassColor;
         private static readonly global::Windows.UI.Color DefaultGlassColor =
-            global::Windows.UI.Color.FromArgb(255, 59, 117, 130);
+            global::Windows.UI.Color.FromArgb(255, 63, 111, 127);
 
         public AppThemePage()
         {

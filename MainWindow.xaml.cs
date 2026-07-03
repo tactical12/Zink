@@ -53,7 +53,7 @@ namespace Zink
         private DesktopAcrylicController? _acrylicController;
         private SystemBackdropConfiguration? _backdropConfig;
         private static readonly global::Windows.UI.Color DefaultGlassTint =
-            global::Windows.UI.Color.FromArgb(255, 59, 117, 130);
+            global::Windows.UI.Color.FromArgb(255, 63, 111, 127);
         private global::Windows.UI.Color _currentGlassTint = DefaultGlassTint;
         private ElementTheme _currentAppTheme = ElementTheme.Dark;
 

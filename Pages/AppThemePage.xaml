@@ -15,9 +15,9 @@
     <Grid>
         <Grid.Background>
             <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                <GradientStop x:Name="PageGradientStart" Color="#70062D38" Offset="0"/>
-                <GradientStop x:Name="PageGradientMiddle" Color="#780B4450" Offset="0.48"/>
-                <GradientStop x:Name="PageGradientEnd" Color="#9000080B" Offset="1"/>
+                <GradientStop x:Name="PageGradientStart" Color="#70002333" Offset="0"/>
+                <GradientStop x:Name="PageGradientMiddle" Color="#7800394B" Offset="0.48"/>
+                <GradientStop x:Name="PageGradientEnd" Color="#90061019" Offset="1"/>
             </LinearGradientBrush>
         </Grid.Background>
 
@@ -139,8 +139,8 @@
                                     <StackPanel>
                                         <Border Height="104" Background="#151D26"/>
                                         <StackPanel Padding="14" Spacing="3">
-                                            <TextBlock Text="Zink default" Foreground="White" FontWeight="SemiBold"/>
-                                            <TextBlock Text="Original theme" Foreground="{StaticResource MutedTextBrush}" FontSize="12"/>
+                                            <TextBlock Text="Dark" Foreground="White" FontWeight="SemiBold"/>
+                                            <TextBlock Text="Dim surfaces" Foreground="{StaticResource MutedTextBrush}" FontSize="12"/>
                                         </StackPanel>
                                     </StackPanel>
                                 </Button>
@@ -167,7 +167,7 @@
                                             <RowDefinition Height="46"/>
                                             <RowDefinition Height="46"/>
                                         </Grid.RowDefinitions>
-                                        <Button Tag="#3B7582" Click="PresetColor_Click" Background="#3B7582" BorderBrush="#55FFFFFF"/>
+                                        <Button Tag="#3F6F7F" Click="PresetColor_Click" Background="#3F6F7F" BorderBrush="#55FFFFFF"/>
                                         <Button Grid.Column="1" Tag="#1B4D5C" Click="PresetColor_Click" Background="#1B4D5C" BorderBrush="#55FFFFFF"/>
                                         <Button Grid.Column="2" Tag="#183B64" Click="PresetColor_Click" Background="#183B64" BorderBrush="#55FFFFFF"/>
                                         <Button Grid.Column="3" Tag="#43295A" Click="PresetColor_Click" Background="#43295A" BorderBrush="#55FFFFFF"/>
@@ -177,7 +177,7 @@
                                         <Button Grid.Row="1" Grid.Column="3" Tag="#252A35" Click="PresetColor_Click" Background="#252A35" BorderBrush="#55FFFFFF"/>
                                     </Grid>
                                     <TextBlock x:Name="CurrentGlassText"
-                                               Text="Glass colour: #3B7582"
+                                               Text="Glass colour: #3F6F7F"
                                                Foreground="{StaticResource MutedTextBrush}"
                                                FontSize="12"/>
                                 </StackPanel>
@@ -212,7 +212,7 @@
                                          IsColorChannelTextInputVisible="True"
                                          IsHexInputVisible="True"/>
 
-                            <Button Content="Restore Zink original theme"
+                            <Button Content="Reset all colour to the default"
                                     Click="ResetGlassColor_Click"
                                     HorizontalAlignment="Stretch"
                                     MinHeight="44"

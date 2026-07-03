@@ -46,9 +46,9 @@
 
         <Grid.Background>
             <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                <GradientStop x:Name="ShellGradientStart" Color="#062D38" Offset="0"/>
-                <GradientStop x:Name="ShellGradientMiddle" Color="#0B4450" Offset="0.48"/>
-                <GradientStop x:Name="ShellGradientEnd" Color="#00080B" Offset="1"/>
+                <GradientStop x:Name="ShellGradientStart" Color="#002333" Offset="0"/>
+                <GradientStop x:Name="ShellGradientMiddle" Color="#00394B" Offset="0.48"/>
+                <GradientStop x:Name="ShellGradientEnd" Color="#061019" Offset="1"/>
             </LinearGradientBrush>
         </Grid.Background>
 

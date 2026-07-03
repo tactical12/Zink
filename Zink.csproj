@@ -426,8 +426,8 @@
     <MakeDir Directories="$(AppxPackageDir)" Condition="'$(AppxPackageDir)'!=''" />
     <Copy SourceFiles="@(ZinkInstallTrustFiles)" DestinationFolder="$(AppxPackageDir)" SkipUnchangedFiles="true" Condition="'$(AppxPackageDir)'!='' And Exists('%(ZinkInstallTrustFiles.FullPath)')" />
     <Copy SourceFiles="@(ZinkInstallTrustFiles)" DestinationFolder="%(ZinkPackageTestDirectories.Identity)" SkipUnchangedFiles="true" Condition="Exists('%(ZinkPackageTestDirectories.Identity)') And Exists('%(ZinkInstallTrustFiles.FullPath)')" />
-    <MakeDir Directories="$(ZinkPackageArtifactDir)" Condition="'$(ZinkPackageArtifactDir)'!=''" />
-    <Copy SourceFiles="@(ZinkInstallTrustFiles)" DestinationFolder="$(ZinkPackageArtifactDir)" SkipUnchangedFiles="true" Condition="'$(ZinkPackageArtifactDir)'!='' And Exists('%(ZinkInstallTrustFiles.FullPath)')" />
+    <MakeDir Directories="$(MSBuildProjectDirectory)\BundleArtifacts" />
+    <Copy SourceFiles="@(ZinkInstallTrustFiles)" DestinationFolder="$(MSBuildProjectDirectory)\BundleArtifacts" SkipUnchangedFiles="true" Condition="Exists('%(ZinkInstallTrustFiles.FullPath)')" />
   </Target>
 
 </Project>
