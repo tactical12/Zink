@@ -27,6 +27,9 @@ using System.Text.RegularExpressions;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Collections.Generic;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using NAudio.Wave;
 
 using DispatcherTimer = Microsoft.UI.Xaml.DispatcherTimer;
 using Zink.Services;
@@ -65,6 +68,8 @@ namespace Zink
         private bool _isUserSeeking = false;
         private bool _ignoreSliderChange = false;
         private bool _mediaReadyForSeek = false;
+        private DateTime _lastLiveSeekUtc = DateTime.MinValue;
+        private bool _ffmpegAudioPausedForLiveSeek = false;
 
         private DispatcherTimer _discordPresenceTimer;
         private bool _userPausedDiscordPresence = false;
@@ -79,6 +84,8 @@ namespace Zink
 
         private bool _nativeSubtitlesEnabled = false;
         private MediaPlaybackItem _currentPlaybackItem;
+        private WStorage.StorageFile _currentSubtitleFile;
+        private readonly List<SubtitleCue> _subtitleCues = new List<SubtitleCue>();
 
         private const string VIDEO_POS_PREFIX = "Zink_VideoPos_";
         private const string VIDEO_CODEC_STATE_PREFIX = "Zink_VideoCodecState_";
@@ -105,6 +112,13 @@ namespace Zink
         private const string CodecInstallerFolderName = "CodecInstallers";
         private const string ToolsFolderName = "Tools";
         private const string FfprobeExeName = "ffprobe.exe";
+        private const string FfmpegExeName = "ffmpeg.exe";
+        private const string AudioFallbackFolderName = "AudioFallback";
+        private const string AudioTranslationFolderName = "AudioTranslations";
+        private const int AudioTranslationSegmentSeconds = 600;
+        private const string OpenAiAudioTranslationsEndpoint = "https://api.openai.com/v1/audio/translations";
+        private const string OpenAiAudioSpeechEndpoint = "https://api.openai.com/v1/audio/speech";
+        private const int AudioDubMaxGroupCharacters = 700;
 
         private const string DolbyDigitalPlusPrefix = "DolbyLaboratories.DolbyDigitalPlusDecoderOEM_";
         private const string DolbyAC4Prefix = "DolbyLaboratories.DolbyAC4DecoderOEM_";
@@ -130,13 +144,22 @@ namespace Zink
         private VideoMetadataInfo _detectedVideoMetadata = VideoMetadataInfo.Empty;
         private string _videoInfoStatus = "No video metadata detected yet.";
         private string _preferredSurroundMode = SurroundModeAuto;
+        private MediaPlaybackState? _lastLoggedPlaybackState = null;
+        private WStorage.StorageFile _effectivePlaybackFile;
+        private bool _usingAudioFallbackFile = false;
+        private bool _useFfmpegAudioRenderer = false;
+        private Process _ffmpegAudioProcess;
+        private WaveOutEvent _ffmpegAudioOutput;
+        private bool _isTranslatingAudio = false;
 
         private Flyout _soundFlyout;
         private Slider _flyoutVolumeSlider;
         private TextBlock _flyoutVolumeText;
         private Button _flyoutMuteButton;
         private ComboBox _surroundModeComboBox;
+        private ComboBox _audioTrackComboBox;
         private TextBlock _surroundModeStatusText;
+        private bool _audioTrackUiReady = false;
 
         private const string SurroundModeAuto = "auto";
         private const string SurroundModeAtmos = "atmos";
@@ -150,6 +173,12 @@ namespace Zink
         private const string SurroundMode914 = "9.1.4";
         private const string SurroundMode916 = "9.1.6";
         private const string SurroundMode24110 = "24.1.10";
+        private static readonly string[] SupportedVideoFileExtensions =
+        {
+            ".mp4", ".m4v", ".mkv", ".avi", ".mov", ".wmv", ".webm", ".flv",
+            ".ts", ".m2ts", ".mts", ".mpg", ".mpeg", ".3gp", ".3g2", ".ogv",
+            ".vob", ".divx", ".asf"
+        };
 
         private sealed class AudioStreamInfo
         {
@@ -164,6 +193,8 @@ namespace Zink
             public string Title { get; set; }
             public bool IsDolbyAtmos { get; set; }
             public string SurroundLayout { get; set; }
+
+            public override string ToString() => FormatAudioStreamSummary(this);
         }
 
         private sealed class VideoMetadataInfo
@@ -212,6 +243,13 @@ namespace Zink
             public string Label { get; set; }
 
             public override string ToString() => Label;
+        }
+
+        private sealed class SubtitleCue
+        {
+            public TimeSpan Start { get; set; }
+            public TimeSpan End { get; set; }
+            public string Text { get; set; }
         }
 
         public VideoPlayerPage()
@@ -371,6 +409,14 @@ namespace Zink
             };
             _surroundModeComboBox.SelectionChanged += SurroundModeComboBox_SelectionChanged;
 
+            _audioTrackComboBox = new ComboBox
+            {
+                Header = "Audio track",
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                PlaceholderText = "Detecting tracks..."
+            };
+            _audioTrackComboBox.SelectionChanged += AudioTrackComboBox_SelectionChanged;
+
             var titleText = new TextBlock
             {
                 Text = "Sound",
@@ -388,6 +434,7 @@ namespace Zink
             panel.Children.Add(_flyoutVolumeText);
             panel.Children.Add(_flyoutMuteButton);
             panel.Children.Add(_surroundModeComboBox);
+            panel.Children.Add(_audioTrackComboBox);
             panel.Children.Add(_surroundModeStatusText);
 
             _soundFlyout = new Flyout
@@ -579,6 +626,7 @@ namespace Zink
         {
             _userPausedDiscordPresence = false;
             mediaPlayerElement.MediaPlayer.Play();
+            StartFfmpegAudioRendererFromCurrentPosition();
             TryPushNowPlaying(true);
 
             SyncDiscordPlaybackClockFromSession(force: true);
@@ -593,6 +641,7 @@ namespace Zink
         {
             _userPausedDiscordPresence = true;
             mediaPlayerElement.MediaPlayer.Pause();
+            StopFfmpegAudioRenderer(restoreNativeAudio: false);
             TryPushNowPlaying(false);
 
             SyncDiscordPlaybackClockFromSession(force: true);
@@ -609,6 +658,7 @@ namespace Zink
             {
                 _userPausedDiscordPresence = false;
                 session.Position -= TimeSpan.FromSeconds(10);
+                RestartFfmpegAudioRendererIfPlaying();
 
                 SyncDiscordPlaybackClockFromSession(force: true);
                 ResetDiscordSecondPushTracking();
@@ -623,6 +673,7 @@ namespace Zink
             {
                 _userPausedDiscordPresence = false;
                 session.Position += TimeSpan.FromSeconds(10);
+                RestartFfmpegAudioRendererIfPlaying();
 
                 SyncDiscordPlaybackClockFromSession(force: true);
                 ResetDiscordSecondPushTracking();
@@ -638,9 +689,8 @@ namespace Zink
             InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainWindow));
             picker.SuggestedStartLocation = WPickers.PickerLocationId.VideosLibrary;
 
-            picker.FileTypeFilter.Add(".mp4");
-            picker.FileTypeFilter.Add(".mkv");
-            picker.FileTypeFilter.Add(".avi");
+            foreach (var extension in SupportedVideoFileExtensions)
+                picker.FileTypeFilter.Add(extension);
 
             var file = await picker.PickSingleFileAsync();
             if (file != null)
@@ -652,6 +702,7 @@ namespace Zink
 
         private async System.Threading.Tasks.Task LoadAndPlayAsync(WStorage.StorageFile file)
         {
+            DiagnosticLogService.EnsureLogFile("Video playback diagnostics requested.");
             _currentFile = file;
             _codecPromptAlreadyShownForCurrentFile = false;
             _lastCodecPromptedPath = null;
@@ -663,8 +714,14 @@ namespace Zink
             _audioInfoStatus = "Detecting audio format...";
             _detectedVideoMetadata = VideoMetadataInfo.Empty;
             _videoInfoStatus = "Detecting video metadata...";
+            _lastLoggedPlaybackState = null;
+            _effectivePlaybackFile = file;
+            _usingAudioFallbackFile = false;
+            _useFfmpegAudioRenderer = false;
+            StopFfmpegAudioRenderer(restoreNativeAudio: true);
             UpdateVideoMetadataUI(_detectedVideoMetadata, showBadge: false);
             ResetDiscordPlaybackClock();
+            WriteVideoAudioDiagnostics("Load requested for " + FormatVideoFileForLog(file));
 
             if (_suppressCodecPromptOnce)
             {
@@ -677,6 +734,8 @@ namespace Zink
 
             await DetectAndPrepareAudioInfoAsync(file);
             await DetectAndPrepareVideoMetadataAsync(file);
+            WriteVideoAudioDiagnostics("Probe complete.\n" + BuildAudioDiagnosticsSnapshot());
+            await ConfigureDirectAudioSupportForCurrentFileAsync(file);
 
             if (_forceStartFromBeginningOnNextLoad)
             {
@@ -699,15 +758,16 @@ namespace Zink
             _ignoreSliderChange = false;
             CurrentTimeText.Text = "00:00";
             TotalTimeText.Text = "00:00";
+            await LoadSidecarSubtitlesForCurrentVideoAsync(file);
 
             _currentPlaybackItem = await BuildPlaybackItemWithNativeSubtitlesAsync(_currentFile);
             mediaPlayerElement.Source = _currentPlaybackItem;
             LogVideoPlaybackPath("MediaPlaybackItem assigned to WinUI MediaPlayerElement / Windows Media Foundation path.");
+            WriteVideoAudioDiagnostics("Playback item assigned.\n" + BuildAudioDiagnosticsSnapshot());
 
             ApplyNativeSubtitleTrackState(_nativeSubtitlesEnabled);
-
-            if (_nativeSubtitlesEnabled)
-                SubtitleOverlay.Visibility = Visibility.Collapsed;
+            UpdateSubtitlesButtonState();
+            UpdateSubtitleOverlay(TimeSpan.Zero);
 
             try
             {
@@ -716,6 +776,8 @@ namespace Zink
             catch { }
 
             mediaPlayerElement.MediaPlayer.Play();
+            StartFfmpegAudioRendererFromCurrentPosition();
+            WriteVideoAudioDiagnostics("Play invoked.\n" + BuildPlaybackSettingsSnapshot(mediaPlayerElement.MediaPlayer));
 
             SyncDiscordPlaybackClockFromSession(force: true);
 
@@ -904,16 +966,18 @@ namespace Zink
 
                 process.Start();
 
-                string stdout = await process.StandardOutput.ReadToEndAsync();
-                _ = await process.StandardError.ReadToEndAsync();
-
-                await System.Threading.Tasks.Task.Run(() => process.WaitForExit(8000));
-
-                if (!process.HasExited)
+                var stdoutTask = process.StandardOutput.ReadToEndAsync();
+                var stderrTask = process.StandardError.ReadToEndAsync();
+                var waitTask = process.WaitForExitAsync();
+                var completed = await System.Threading.Tasks.Task.WhenAny(waitTask, System.Threading.Tasks.Task.Delay(TimeSpan.FromSeconds(8)));
+                if (completed != waitTask)
                 {
                     try { process.Kill(true); } catch { }
                     return null;
                 }
+
+                string stdout = await stdoutTask;
+                _ = await stderrTask;
 
                 if (!string.IsNullOrWhiteSpace(stdout))
                     return stdout.Trim();
@@ -942,13 +1006,17 @@ namespace Zink
                 }
 
                 UpdateSurroundModeStatusText();
+                RefreshAudioTrackComboBox();
+                WriteVideoAudioDiagnostics("Audio stream selection prepared.\n" + BuildAudioDiagnosticsSnapshot());
             }
-            catch
+            catch (Exception ex)
             {
                 _detectedAudioStreams = Array.Empty<AudioStreamInfo>();
                 _selectedAudioStream = null;
                 _audioInfoStatus = "Audio information could not be detected for this film.";
                 UpdateSurroundModeStatusText();
+                RefreshAudioTrackComboBox();
+                WriteVideoAudioDiagnostics("Audio stream detection failed: " + ex.Message);
             }
         }
 
@@ -959,11 +1027,17 @@ namespace Zink
             try
             {
                 if (file == null || string.IsNullOrWhiteSpace(file.Path))
+                {
+                    WriteVideoAudioDiagnostics("ffprobe audio stream detection skipped because the file path is blank.");
                     return results;
+                }
 
                 var ffprobePath = await GetBundledFfprobePathAsync();
                 if (string.IsNullOrWhiteSpace(ffprobePath) || !File.Exists(ffprobePath))
+                {
+                    WriteVideoAudioDiagnostics("ffprobe audio stream detection skipped because ffprobe.exe was not found.");
                     return results;
+                }
 
                 var startInfo = new ProcessStartInfo
                 {
@@ -987,24 +1061,36 @@ namespace Zink
                 process.StartInfo = startInfo;
                 process.Start();
 
-                string stdout = await process.StandardOutput.ReadToEndAsync();
-                _ = await process.StandardError.ReadToEndAsync();
-
-                await System.Threading.Tasks.Task.Run(() => process.WaitForExit(8000));
-
-                if (!process.HasExited)
+                var stdoutTask = process.StandardOutput.ReadToEndAsync();
+                var stderrTask = process.StandardError.ReadToEndAsync();
+                var waitTask = process.WaitForExitAsync();
+                var completed = await System.Threading.Tasks.Task.WhenAny(waitTask, System.Threading.Tasks.Task.Delay(TimeSpan.FromSeconds(8)));
+                if (completed != waitTask)
                 {
                     try { process.Kill(true); } catch { }
+                    WriteVideoAudioDiagnostics("ffprobe audio stream detection timed out for " + FormatVideoFileForLog(file));
                     return results;
                 }
 
+                string stdout = await stdoutTask;
+                string stderr = await stderrTask;
+
+                if (process.ExitCode != 0)
+                {
+                    WriteVideoAudioDiagnostics("ffprobe audio stream detection exited with " + process.ExitCode + ": " + TrimForLog(stderr, 800));
+                }
+
                 if (string.IsNullOrWhiteSpace(stdout))
+                {
+                    WriteVideoAudioDiagnostics("ffprobe audio stream detection returned no JSON. stderr: " + TrimForLog(stderr, 800));
                     return results;
+                }
 
                 using var doc = JsonDocument.Parse(stdout);
                 if (!doc.RootElement.TryGetProperty("streams", out var streams) ||
                     streams.ValueKind != JsonValueKind.Array)
                 {
+                    WriteVideoAudioDiagnostics("ffprobe audio stream JSON did not contain a streams array.");
                     return results;
                 }
 
@@ -1051,8 +1137,13 @@ namespace Zink
 
                     audioTrackNumber++;
                 }
+
+                WriteVideoAudioDiagnostics("ffprobe detected " + results.Count + " audio stream(s).\n" + FormatAudioStreamsForLog(results));
             }
-            catch { }
+            catch (Exception ex)
+            {
+                WriteVideoAudioDiagnostics("ffprobe audio stream detection failed: " + ex.Message);
+            }
 
             return results;
         }
@@ -1153,17 +1244,19 @@ namespace Zink
                 if (!process.Start())
                     return null;
 
-                string output = await process.StandardOutput.ReadToEndAsync();
-                string error = await process.StandardError.ReadToEndAsync();
-
-                await System.Threading.Tasks.Task.Run(() => process.WaitForExit(8000));
-
-                if (!process.HasExited)
+                var outputTask = process.StandardOutput.ReadToEndAsync();
+                var errorTask = process.StandardError.ReadToEndAsync();
+                var waitTask = process.WaitForExitAsync();
+                var completed = await System.Threading.Tasks.Task.WhenAny(waitTask, System.Threading.Tasks.Task.Delay(TimeSpan.FromSeconds(8)));
+                if (completed != waitTask)
                 {
                     try { process.Kill(true); } catch { }
                     DiagnosticLogService.WriteLine("Video metadata probe failed: ffprobe timed out.");
                     return null;
                 }
+
+                string output = await outputTask;
+                string error = await errorTask;
 
                 if (process.ExitCode != 0)
                 {
@@ -1631,6 +1724,25 @@ namespace Zink
                         if (!StreamMatchesSurroundMode(stream, mode))
                             continue;
 
+                        if (!IsLikelyWindowsPlayableAudioStream(stream))
+                            continue;
+
+                        int score = GetAudioStreamScore(stream);
+                        if (score > preferredScore)
+                        {
+                            preferred = stream;
+                            preferredScore = score;
+                        }
+                    }
+
+                    if (preferred != null)
+                        return preferred;
+
+                    foreach (var stream in streams)
+                    {
+                        if (!StreamMatchesSurroundMode(stream, mode))
+                            continue;
+
                         int score = GetAudioStreamScore(stream);
                         if (score > preferredScore)
                         {
@@ -1699,6 +1811,24 @@ namespace Zink
 
                 foreach (var stream in streams)
                 {
+                    if (!IsLikelyWindowsPlayableAudioStream(stream))
+                        continue;
+
+                    int score = GetAudioStreamScore(stream);
+                    if (score > bestScore)
+                    {
+                        best = stream;
+                        bestScore = score;
+                    }
+                }
+
+                if (best != null)
+                    return best;
+
+                bestScore = int.MinValue;
+
+                foreach (var stream in streams)
+                {
                     int score = GetAudioStreamScore(stream);
                     if (score > bestScore)
                     {
@@ -1720,20 +1850,32 @@ namespace Zink
             if (stream == null)
                 return int.MinValue;
 
-            int score = Math.Max(0, stream.Channels) * 100;
+            int channels = Math.Max(0, stream.Channels);
+            int score = Math.Min(channels, 6) * 100;
             string codec = (stream.Codec ?? "").Trim().ToLowerInvariant();
             string profile = (stream.Profile ?? "").Trim().ToLowerInvariant();
             string layout = (stream.ChannelLayout ?? "").Trim().ToLowerInvariant();
             string title = (stream.Title ?? "").Trim().ToLowerInvariant();
 
-            if (codec == "truehd")
-                score += 90;
-            else if (codec == "eac3" || codec == "ac4")
-                score += 70;
+            if (IsReliableWindowsAudioStream(stream))
+                score += 20000;
+            else if (IsLikelyWindowsPlayableAudioStream(stream))
+                score += 10000;
+            else
+                score -= 10000;
+
+            if (codec == "eac3" || codec == "ac4")
+                score += 600;
             else if (codec == "ac3")
-                score += 60;
+                score += 550;
+            else if (codec == "aac")
+                score += channels <= 6 ? 500 : 80;
+            else if (codec == "mp3" || codec == "opus")
+                score += 450;
+            else if (codec == "truehd")
+                score += 30;
             else if (codec == "dts" || codec == "dca")
-                score += 65;
+                score += 25;
 
             if (stream.IsDolbyAtmos)
                 score += 140;
@@ -1753,6 +1895,9 @@ namespace Zink
             else if (string.Equals(stream.SurroundLayout, SurroundMode72, StringComparison.OrdinalIgnoreCase))
                 score += 50;
 
+            if (channels > 6 && codec == "aac")
+                score -= 9000;
+
             if (profile.Contains("ma") || profile.Contains("hd") ||
                 layout.Contains("7.1") || title.Contains("7.1"))
             {
@@ -1760,6 +1905,52 @@ namespace Zink
             }
 
             return score;
+        }
+
+        private static bool IsReliableWindowsAudioStream(AudioStreamInfo stream)
+        {
+            if (stream == null)
+                return false;
+
+            string codec = (stream.Codec ?? "").Trim().ToLowerInvariant();
+            int channels = Math.Max(0, stream.Channels);
+
+            if (codec is "ac3" or "eac3" or "ac4" or "mp3" or "mp2" or "opus")
+                return true;
+
+            if (codec == "aac")
+                return channels <= 6;
+
+            if (codec.StartsWith("pcm_", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            return codec is "wmav1" or "wmav2" or "wmapro";
+        }
+
+        private static bool IsLikelyWindowsPlayableAudioStream(AudioStreamInfo stream)
+        {
+            if (stream == null)
+                return false;
+
+            string codec = (stream.Codec ?? "").Trim().ToLowerInvariant();
+
+            return codec is
+                "aac" or
+                "mp3" or
+                "mp2" or
+                "ac3" or
+                "eac3" or
+                "ac4" or
+                "opus" or
+                "flac" or
+                "alac" or
+                "pcm_s16le" or
+                "pcm_s24le" or
+                "pcm_s32le" or
+                "pcm_f32le" or
+                "wmav1" or
+                "wmav2" or
+                "wmapro";
         }
 
         private static string FormatAudioStreamSummary(AudioStreamInfo stream)
@@ -2032,6 +2223,399 @@ namespace Zink
             return null;
         }
 
+        private async System.Threading.Tasks.Task<string> GetBundledFfmpegPathAsync()
+        {
+            try
+            {
+                var installed = WAppModel.Package.Current.InstalledLocation;
+
+                try
+                {
+                    var toolsFolder = await installed.GetFolderAsync(ToolsFolderName);
+                    var ffmpegFile = await toolsFolder.GetFileAsync(FfmpegExeName);
+                    return ffmpegFile.Path;
+                }
+                catch { }
+
+                try
+                {
+                    var rootFfmpegFile = await installed.GetFileAsync(FfmpegExeName);
+                    return rootFfmpegFile.Path;
+                }
+                catch { }
+            }
+            catch { }
+
+            try
+            {
+                var baseDirectory = AppContext.BaseDirectory;
+                var toolFfmpegPath = Path.Combine(baseDirectory, ToolsFolderName, FfmpegExeName);
+                if (File.Exists(toolFfmpegPath))
+                    return toolFfmpegPath;
+
+                var rootFfmpegPath = Path.Combine(baseDirectory, FfmpegExeName);
+                if (File.Exists(rootFfmpegPath))
+                    return rootFfmpegPath;
+            }
+            catch { }
+
+            return null;
+        }
+
+        private async System.Threading.Tasks.Task<WStorage.StorageFile> EnsureAudioCompatiblePlaybackFileAsync(WStorage.StorageFile sourceFile)
+        {
+            try
+            {
+                if (sourceFile == null || string.IsNullOrWhiteSpace(sourceFile.Path))
+                    return sourceFile;
+
+                if (!ShouldCreateAudioFallbackFile(_selectedAudioStream))
+                {
+                    WriteVideoAudioDiagnostics("Audio fallback not needed for selected stream: " + (_selectedAudioStream == null ? "none" : FormatAudioStreamSummary(_selectedAudioStream)));
+                    return sourceFile;
+                }
+
+                var fallbackPath = await GetAudioFallbackPathAsync(sourceFile, _selectedAudioStream);
+                if (File.Exists(fallbackPath))
+                {
+                    _usingAudioFallbackFile = true;
+                    WriteVideoAudioDiagnostics("Using existing audio fallback file: " + fallbackPath);
+                    return await WStorage.StorageFile.GetFileFromPathAsync(fallbackPath);
+                }
+
+                var ffmpegPath = await GetBundledFfmpegPathAsync();
+                if (string.IsNullOrWhiteSpace(ffmpegPath) || !File.Exists(ffmpegPath))
+                {
+                    WriteVideoAudioDiagnostics("Audio fallback needed but ffmpeg.exe was not found. Continuing with original file.");
+                    return sourceFile;
+                }
+
+                Directory.CreateDirectory(Path.GetDirectoryName(fallbackPath));
+                WriteVideoAudioDiagnostics("Creating audio fallback file with stereo AAC audio. Source: " + sourceFile.Path + " Target: " + fallbackPath + " Stream: " + FormatAudioStreamSummary(_selectedAudioStream));
+
+                var tempPath = fallbackPath + ".tmp";
+                try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
+
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = ffmpegPath,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                startInfo.ArgumentList.Add("-y");
+                startInfo.ArgumentList.Add("-i");
+                startInfo.ArgumentList.Add(sourceFile.Path);
+                startInfo.ArgumentList.Add("-map");
+                startInfo.ArgumentList.Add("0:v:0?");
+                startInfo.ArgumentList.Add("-map");
+                startInfo.ArgumentList.Add("0:a:" + Math.Max(0, _selectedAudioStream?.AudioTrackNumber ?? 0));
+                startInfo.ArgumentList.Add("-sn");
+                startInfo.ArgumentList.Add("-dn");
+                startInfo.ArgumentList.Add("-c:v");
+                startInfo.ArgumentList.Add("copy");
+                startInfo.ArgumentList.Add("-c:a");
+                startInfo.ArgumentList.Add("aac");
+                startInfo.ArgumentList.Add("-ac");
+                startInfo.ArgumentList.Add("2");
+                startInfo.ArgumentList.Add("-b:a");
+                startInfo.ArgumentList.Add("192k");
+                startInfo.ArgumentList.Add(tempPath);
+
+                using var process = new Process();
+                process.StartInfo = startInfo;
+                process.Start();
+
+                string stdoutTaskResult = "";
+                string stderrTaskResult = "";
+                var stdoutTask = process.StandardOutput.ReadToEndAsync();
+                var stderrTask = process.StandardError.ReadToEndAsync();
+
+                bool exited = await System.Threading.Tasks.Task.Run(() => process.WaitForExit((int)TimeSpan.FromMinutes(20).TotalMilliseconds));
+                stdoutTaskResult = await stdoutTask;
+                stderrTaskResult = await stderrTask;
+
+                if (!exited)
+                {
+                    try { process.Kill(true); } catch { }
+                    WriteVideoAudioDiagnostics("Audio fallback creation timed out. Continuing with original file.");
+                    return sourceFile;
+                }
+
+                if (process.ExitCode != 0 || !File.Exists(tempPath))
+                {
+                    WriteVideoAudioDiagnostics("Audio fallback creation failed with exit " + process.ExitCode + ". stdout: " + TrimForLog(stdoutTaskResult, 600) + " stderr: " + TrimForLog(stderrTaskResult, 1200));
+                    return sourceFile;
+                }
+
+                try { if (File.Exists(fallbackPath)) File.Delete(fallbackPath); } catch { }
+                File.Move(tempPath, fallbackPath);
+
+                _usingAudioFallbackFile = true;
+                WriteVideoAudioDiagnostics("Audio fallback file created successfully: " + fallbackPath);
+                return await WStorage.StorageFile.GetFileFromPathAsync(fallbackPath);
+            }
+            catch (Exception ex)
+            {
+                WriteVideoAudioDiagnostics("Audio fallback setup failed: " + ex.Message + ". Continuing with original file.");
+                return sourceFile;
+            }
+        }
+
+        private async System.Threading.Tasks.Task ConfigureDirectAudioSupportForCurrentFileAsync(WStorage.StorageFile sourceFile)
+        {
+            _effectivePlaybackFile = sourceFile;
+            _usingAudioFallbackFile = false;
+            ConfigureDirectAudioSupportForSelectedStream();
+            await System.Threading.Tasks.Task.CompletedTask;
+        }
+
+        private void ConfigureDirectAudioSupportForSelectedStream()
+        {
+            try
+            {
+                _useFfmpegAudioRenderer = ShouldUseDirectFfmpegAudioRenderer(_selectedAudioStream);
+
+                if (mediaPlayerElement?.MediaPlayer != null)
+                    mediaPlayerElement.MediaPlayer.IsMuted = _useFfmpegAudioRenderer;
+
+                if (!_useFfmpegAudioRenderer)
+                    StopFfmpegAudioRenderer(restoreNativeAudio: true);
+
+                WriteVideoAudioDiagnostics(_useFfmpegAudioRenderer
+                    ? "Direct FFmpeg audio renderer enabled for " + FormatAudioStreamSummary(_selectedAudioStream)
+                    : "Native Windows audio renderer enabled for " + (_selectedAudioStream == null ? "no selected stream" : FormatAudioStreamSummary(_selectedAudioStream)));
+            }
+            catch (Exception ex)
+            {
+                WriteVideoAudioDiagnostics("Direct audio support configuration failed: " + ex.Message);
+            }
+        }
+
+        private static bool ShouldUseDirectFfmpegAudioRenderer(AudioStreamInfo stream)
+        {
+            if (stream == null)
+                return false;
+
+            if (!IsReliableWindowsAudioStream(stream))
+                return true;
+
+            if (stream.Channels > 2)
+                return true;
+
+            var layout = (stream.ChannelLayout ?? "").Trim().ToLowerInvariant();
+            if (!string.IsNullOrWhiteSpace(layout) &&
+                layout != "mono" &&
+                layout != "stereo" &&
+                layout != "2.0")
+            {
+                return true;
+            }
+
+            var surroundLayout = (stream.SurroundLayout ?? "").Trim().ToLowerInvariant();
+            if (!string.IsNullOrWhiteSpace(surroundLayout) &&
+                surroundLayout != "mono" &&
+                surroundLayout != "stereo" &&
+                surroundLayout != "2.0")
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        private void StartFfmpegAudioRendererFromCurrentPosition()
+        {
+            try
+            {
+                if (!_useFfmpegAudioRenderer)
+                    return;
+
+                var sourceFile = _currentFile;
+                if (sourceFile == null || string.IsNullOrWhiteSpace(sourceFile.Path))
+                    return;
+
+                var selected = _selectedAudioStream;
+                if (selected == null)
+                    return;
+
+                StopFfmpegAudioRenderer(restoreNativeAudio: false);
+
+                var ffmpegPath = GetBundledFfmpegPathAsync().GetAwaiter().GetResult();
+                if (string.IsNullOrWhiteSpace(ffmpegPath) || !File.Exists(ffmpegPath))
+                {
+                    WriteVideoAudioDiagnostics("Direct FFmpeg audio renderer could not start because ffmpeg.exe was not found.");
+                    return;
+                }
+
+                var player = mediaPlayerElement?.MediaPlayer;
+                var session = player?.PlaybackSession;
+                var startSeconds = Math.Max(0, session?.Position.TotalSeconds ?? 0);
+
+                if (player != null)
+                    player.IsMuted = true;
+
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = ffmpegPath,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                startInfo.ArgumentList.Add("-hide_banner");
+                startInfo.ArgumentList.Add("-loglevel");
+                startInfo.ArgumentList.Add("warning");
+                startInfo.ArgumentList.Add("-ss");
+                startInfo.ArgumentList.Add(startSeconds.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture));
+                startInfo.ArgumentList.Add("-i");
+                startInfo.ArgumentList.Add(sourceFile.Path);
+                startInfo.ArgumentList.Add("-map");
+                startInfo.ArgumentList.Add("0:a:" + Math.Max(0, selected.AudioTrackNumber));
+                startInfo.ArgumentList.Add("-vn");
+                startInfo.ArgumentList.Add("-sn");
+                startInfo.ArgumentList.Add("-dn");
+                startInfo.ArgumentList.Add("-f");
+                startInfo.ArgumentList.Add("s16le");
+                startInfo.ArgumentList.Add("-acodec");
+                startInfo.ArgumentList.Add("pcm_s16le");
+                startInfo.ArgumentList.Add("-ac");
+                startInfo.ArgumentList.Add("2");
+                startInfo.ArgumentList.Add("-ar");
+                startInfo.ArgumentList.Add("48000");
+                startInfo.ArgumentList.Add("pipe:1");
+
+                var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
+                process.ErrorDataReceived += (_, e) =>
+                {
+                    if (!string.IsNullOrWhiteSpace(e.Data))
+                        WriteVideoAudioDiagnostics("FFmpeg audio: " + e.Data);
+                };
+
+                process.Start();
+                process.BeginErrorReadLine();
+
+                var waveStream = new RawSourceWaveStream(process.StandardOutput.BaseStream, new WaveFormat(48000, 16, 2));
+                var output = new WaveOutEvent
+                {
+                    DesiredLatency = 120,
+                    NumberOfBuffers = 3
+                };
+                output.Init(waveStream);
+
+                try
+                {
+                    output.Volume = (float)Math.Max(0, Math.Min(1, player?.Volume ?? 1.0));
+                }
+                catch { }
+
+                _ffmpegAudioProcess = process;
+                _ffmpegAudioOutput = output;
+                output.Play();
+
+                WriteVideoAudioDiagnostics("Direct FFmpeg audio renderer started at " + startSeconds.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) + "s for " + FormatAudioStreamSummary(selected));
+            }
+            catch (Exception ex)
+            {
+                WriteVideoAudioDiagnostics("Direct FFmpeg audio renderer failed to start: " + ex.Message);
+                StopFfmpegAudioRenderer(restoreNativeAudio: true);
+            }
+        }
+
+        private void RestartFfmpegAudioRendererIfPlaying()
+        {
+            try
+            {
+                if (!_useFfmpegAudioRenderer)
+                    return;
+
+                var state = mediaPlayerElement?.MediaPlayer?.PlaybackSession?.PlaybackState;
+                if (state == MediaPlaybackState.Playing || state == MediaPlaybackState.Opening || state == MediaPlaybackState.Buffering)
+                    StartFfmpegAudioRendererFromCurrentPosition();
+            }
+            catch { }
+        }
+
+        private void StopFfmpegAudioRenderer(bool restoreNativeAudio)
+        {
+            try
+            {
+                try { _ffmpegAudioOutput?.Stop(); } catch { }
+                try { _ffmpegAudioOutput?.Dispose(); } catch { }
+                _ffmpegAudioOutput = null;
+
+                try
+                {
+                    if (_ffmpegAudioProcess != null && !_ffmpegAudioProcess.HasExited)
+                        _ffmpegAudioProcess.Kill(true);
+                }
+                catch { }
+
+                try { _ffmpegAudioProcess?.Dispose(); } catch { }
+                _ffmpegAudioProcess = null;
+
+                if (restoreNativeAudio && mediaPlayerElement?.MediaPlayer != null)
+                    mediaPlayerElement.MediaPlayer.IsMuted = false;
+            }
+            catch { }
+        }
+
+        private static bool ShouldCreateAudioFallbackFile(AudioStreamInfo stream)
+        {
+            if (stream == null)
+                return false;
+
+            string codec = (stream.Codec ?? "").Trim().ToLowerInvariant();
+
+            if (!IsReliableWindowsAudioStream(stream))
+                return true;
+
+            if (stream.Channels > 2)
+                return true;
+
+            return codec is "dts" or "truehd" or "mlp" or "flac" or "opus" or "vorbis" or "pcm_s16le" or "pcm_s24le" or "pcm_bluray" or "alac";
+        }
+
+        private async System.Threading.Tasks.Task<string> GetAudioFallbackPathAsync(WStorage.StorageFile sourceFile, AudioStreamInfo stream)
+        {
+            string folderPath;
+
+            try
+            {
+                var folder = await WStorage.ApplicationData.Current.LocalFolder.CreateFolderAsync(AudioFallbackFolderName, WStorage.CreationCollisionOption.OpenIfExists);
+                folderPath = folder.Path;
+            }
+            catch
+            {
+                folderPath = Path.Combine(Path.GetTempPath(), "Zink", AudioFallbackFolderName);
+            }
+
+            Directory.CreateDirectory(folderPath);
+
+            var key = sourceFile.Path + "|" + File.GetLastWriteTimeUtc(sourceFile.Path).Ticks + "|" + new FileInfo(sourceFile.Path).Length + "|" + (stream?.AudioTrackNumber ?? 0) + "|aac-stereo-v1";
+            using var sha = SHA256.Create();
+            var hash = Convert.ToHexString(sha.ComputeHash(Encoding.UTF8.GetBytes(key))).ToLowerInvariant();
+            var baseName = SanitizePlaybackCacheFileName(Path.GetFileNameWithoutExtension(sourceFile.Name));
+            return Path.Combine(folderPath, baseName + "-" + hash.Substring(0, 16) + ".mkv");
+        }
+
+        private static string SanitizePlaybackCacheFileName(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return "video";
+
+            var invalidChars = Path.GetInvalidFileNameChars();
+            var builder = new StringBuilder(value.Length);
+            foreach (var ch in value)
+                builder.Append(Array.IndexOf(invalidChars, ch) >= 0 ? '-' : ch);
+
+            var sanitized = builder.ToString().Trim('-', '.', ' ');
+            return string.IsNullOrWhiteSpace(sanitized) ? "video" : sanitized;
+        }
+
         private async System.Threading.Tasks.Task TryLaunchCodecInstallerByPrefixAsync(string filePrefix, string friendlyName)
         {
             try
@@ -2276,7 +2860,7 @@ namespace Zink
             try
             {
                 var sidecar = await FindSidecarSubtitleAsync(videoFile);
-                if (sidecar != null)
+                if (sidecar != null && ShouldAttachSidecarToNativeRenderer(sidecar))
                 {
                     var uri = new Uri(sidecar.Path);
                     var tts = TimedTextSource.CreateFromUri(uri);
@@ -2304,6 +2888,25 @@ namespace Zink
             return item;
         }
 
+        private bool ShouldAttachSidecarToNativeRenderer(WStorage.StorageFile sidecar)
+        {
+            try
+            {
+                if (sidecar == null)
+                    return false;
+
+                var appCanRenderSidecar =
+                    sidecar.FileType.Equals(".srt", StringComparison.OrdinalIgnoreCase) ||
+                    sidecar.FileType.Equals(".vtt", StringComparison.OrdinalIgnoreCase);
+
+                return !appCanRenderSidecar || _subtitleCues.Count == 0;
+            }
+            catch
+            {
+                return true;
+            }
+        }
+
         private void TryAutoSelectBestAudioTrack()
         {
             try
@@ -2312,11 +2915,17 @@ namespace Zink
                 var selected = _selectedAudioStream;
 
                 if (item == null || selected == null)
+                {
+                    WriteVideoAudioDiagnostics("Audio track auto-select skipped because no playback item or selected audio stream is available.");
                     return;
+                }
 
                 var tracks = item.AudioTracks;
                 if (tracks == null || tracks.Count == 0)
+                {
+                    WriteVideoAudioDiagnostics("Audio track auto-select skipped because Windows exposed 0 audio track(s).");
                     return;
+                }
 
                 int trackNumber = Math.Max(0, selected.AudioTrackNumber);
                 if (trackNumber < tracks.Count)
@@ -2325,9 +2934,17 @@ namespace Zink
                     _audioInfoStatus =
                         $"{GetSurroundModeSelectionPrefix(_preferredSurroundMode)} selected: {FormatAudioStreamSummary(selected)}";
                     UpdateSurroundModeStatusText();
+                    WriteVideoAudioDiagnostics("Audio track auto-selected. Windows track count: " + tracks.Count + ", selected index: " + tracks.SelectedIndex + ", selected stream: " + FormatAudioStreamSummary(selected));
+                }
+                else
+                {
+                    WriteVideoAudioDiagnostics("Audio track auto-select could not select index " + trackNumber + " because Windows exposed " + tracks.Count + " audio track(s). Selected stream: " + FormatAudioStreamSummary(selected));
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                WriteVideoAudioDiagnostics("Audio track auto-select failed: " + ex.Message);
+            }
         }
 
         private async System.Threading.Tasks.Task<WStorage.StorageFile> FindSidecarSubtitleAsync(WStorage.StorageFile videoFile)
@@ -2347,12 +2964,242 @@ namespace Zink
                     if (item is WStorage.StorageFile sf) return sf;
                 }
 
+                var files = await folder.GetFilesAsync();
+                foreach (var file in files)
+                {
+                    var fileNameWithoutExtension = Path.GetFileNameWithoutExtension(file.Name);
+                    if (string.IsNullOrWhiteSpace(fileNameWithoutExtension))
+                        continue;
+
+                    if (!fileNameWithoutExtension.StartsWith(baseName + ".", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    foreach (var ext in exts)
+                    {
+                        if (file.FileType.Equals(ext, StringComparison.OrdinalIgnoreCase))
+                            return file;
+                    }
+                }
+
                 return null;
             }
             catch
             {
                 return null;
             }
+        }
+
+        private async System.Threading.Tasks.Task LoadSidecarSubtitlesForCurrentVideoAsync(WStorage.StorageFile videoFile)
+        {
+            _currentSubtitleFile = null;
+            _subtitleCues.Clear();
+
+            try
+            {
+                var sidecar = await FindSidecarSubtitleAsync(videoFile);
+                if (sidecar != null)
+                    await LoadSubtitleFileAsync(sidecar);
+            }
+            catch { }
+        }
+
+        private async System.Threading.Tasks.Task LoadSubtitleFileAsync(WStorage.StorageFile subtitleFile)
+        {
+            _currentSubtitleFile = subtitleFile;
+            _subtitleCues.Clear();
+
+            if (subtitleFile == null)
+                return;
+
+            try
+            {
+                var text = await WStorage.FileIO.ReadTextAsync(subtitleFile);
+                var cues = ParseSubtitleText(text, subtitleFile.FileType);
+                _subtitleCues.AddRange(cues);
+            }
+            catch
+            {
+                _currentSubtitleFile = null;
+                _subtitleCues.Clear();
+            }
+        }
+
+        private static List<SubtitleCue> ParseSubtitleText(string text, string extension)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return new List<SubtitleCue>();
+
+            text = text.Replace("\r\n", "\n").Replace('\r', '\n');
+
+            if (string.Equals(extension, ".srt", StringComparison.OrdinalIgnoreCase))
+                return ParseSrtSubtitles(text);
+
+            return ParseWebVttSubtitles(text);
+        }
+
+        private static List<SubtitleCue> ParseWebVttSubtitles(string text)
+        {
+            var cues = new List<SubtitleCue>();
+            var blocks = Regex.Split(text.Trim(), @"\n{2,}");
+
+            foreach (var block in blocks)
+            {
+                var lines = block.Split('\n');
+                int timingLineIndex = -1;
+
+                for (int i = 0; i < lines.Length; i++)
+                {
+                    if (lines[i].Contains("-->"))
+                    {
+                        timingLineIndex = i;
+                        break;
+                    }
+                }
+
+                if (timingLineIndex < 0)
+                    continue;
+
+                if (!TryParseSubtitleTimingLine(lines[timingLineIndex], out var start, out var end))
+                    continue;
+
+                var builder = new StringBuilder();
+                for (int i = timingLineIndex + 1; i < lines.Length; i++)
+                {
+                    var line = CleanSubtitleTextLine(lines[i]);
+                    if (string.IsNullOrWhiteSpace(line))
+                        continue;
+
+                    if (builder.Length > 0)
+                        builder.AppendLine();
+
+                    builder.Append(line);
+                }
+
+                if (builder.Length > 0)
+                    cues.Add(new SubtitleCue { Start = start, End = end, Text = builder.ToString() });
+            }
+
+            return cues;
+        }
+
+        private static List<SubtitleCue> ParseSrtSubtitles(string text)
+        {
+            var cues = new List<SubtitleCue>();
+            var blocks = Regex.Split(text.Trim(), @"\n{2,}");
+
+            foreach (var block in blocks)
+            {
+                var lines = block.Split('\n');
+                int timingLineIndex = -1;
+
+                for (int i = 0; i < lines.Length; i++)
+                {
+                    if (lines[i].Contains("-->"))
+                    {
+                        timingLineIndex = i;
+                        break;
+                    }
+                }
+
+                if (timingLineIndex < 0)
+                    continue;
+
+                if (!TryParseSubtitleTimingLine(lines[timingLineIndex], out var start, out var end))
+                    continue;
+
+                var builder = new StringBuilder();
+                for (int i = timingLineIndex + 1; i < lines.Length; i++)
+                {
+                    var line = CleanSubtitleTextLine(lines[i]);
+                    if (string.IsNullOrWhiteSpace(line))
+                        continue;
+
+                    if (builder.Length > 0)
+                        builder.AppendLine();
+
+                    builder.Append(line);
+                }
+
+                if (builder.Length > 0)
+                    cues.Add(new SubtitleCue { Start = start, End = end, Text = builder.ToString() });
+            }
+
+            return cues;
+        }
+
+        private static bool TryParseSubtitleTimingLine(string line, out TimeSpan start, out TimeSpan end)
+        {
+            start = TimeSpan.Zero;
+            end = TimeSpan.Zero;
+
+            try
+            {
+                var parts = line.Split(new[] { "-->" }, StringSplitOptions.None);
+                if (parts.Length < 2)
+                    return false;
+
+                return TryParseSubtitleTime(parts[0], out start) &&
+                       TryParseSubtitleTime(parts[1], out end) &&
+                       end > start;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static bool TryParseSubtitleTime(string value, out TimeSpan time)
+        {
+            time = TimeSpan.Zero;
+
+            if (string.IsNullOrWhiteSpace(value))
+                return false;
+
+            value = value.Trim();
+            var firstTokenEnd = value.IndexOfAny(new[] { ' ', '\t' });
+            if (firstTokenEnd > 0)
+                value = value.Substring(0, firstTokenEnd);
+
+            value = value.Replace(',', '.');
+            var parts = value.Split(':');
+            if (parts.Length < 2 || parts.Length > 3)
+                return false;
+
+            double seconds;
+            int minutes;
+            int hours = 0;
+
+            if (parts.Length == 3)
+            {
+                if (!int.TryParse(parts[0], out hours))
+                    return false;
+
+                if (!int.TryParse(parts[1], out minutes))
+                    return false;
+
+                if (!double.TryParse(parts[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out seconds))
+                    return false;
+            }
+            else
+            {
+                if (!int.TryParse(parts[0], out minutes))
+                    return false;
+
+                if (!double.TryParse(parts[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out seconds))
+                    return false;
+            }
+
+            time = TimeSpan.FromHours(hours) + TimeSpan.FromMinutes(minutes) + TimeSpan.FromSeconds(seconds);
+            return true;
+        }
+
+        private static string CleanSubtitleTextLine(string line)
+        {
+            if (string.IsNullOrWhiteSpace(line))
+                return "";
+
+            line = Regex.Replace(line.Trim(), @"<[^>]+>", "");
+            return System.Net.WebUtility.HtmlDecode(line);
         }
 
         private void ApplyNativeSubtitleTrackState(bool enabled)
@@ -2365,16 +3212,129 @@ namespace Zink
                 var tracks = item.TimedMetadataTracks;
                 if (tracks == null || tracks.Count == 0) return;
 
+                var presentationMode = enabled && _subtitleCues.Count == 0
+                    ? TimedMetadataTrackPresentationMode.PlatformPresented
+                    : TimedMetadataTrackPresentationMode.Disabled;
+
+                int selectedTrackIndex = presentationMode == TimedMetadataTrackPresentationMode.PlatformPresented
+                    ? GetPreferredNativeSubtitleTrackIndex(tracks)
+                    : -1;
+
                 for (uint i = 0; i < tracks.Count; i++)
                 {
                     tracks.SetPresentationMode(
                         i,
-                        enabled
+                        (int)i == selectedTrackIndex
                             ? TimedMetadataTrackPresentationMode.PlatformPresented
                             : TimedMetadataTrackPresentationMode.Disabled);
                 }
             }
             catch { }
+        }
+
+        private static int GetPreferredNativeSubtitleTrackIndex(IReadOnlyList<TimedMetadataTrack> tracks)
+        {
+            try
+            {
+                if (tracks == null || tracks.Count == 0)
+                    return -1;
+
+                for (int i = 0; i < tracks.Count; i++)
+                {
+                    var language = tracks[i]?.Language ?? "";
+                    var label = tracks[i]?.Label ?? "";
+
+                    if (IsEnglishSubtitleTrack(language, label))
+                        return i;
+                }
+
+                return 0;
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+
+        private static bool IsEnglishSubtitleTrack(string language, string label)
+        {
+            var combined = $"{language} {label}".Trim();
+            if (string.IsNullOrWhiteSpace(combined))
+                return false;
+
+            return combined.Equals("en", StringComparison.OrdinalIgnoreCase) ||
+                   combined.StartsWith("en-", StringComparison.OrdinalIgnoreCase) ||
+                   combined.StartsWith("en_", StringComparison.OrdinalIgnoreCase) ||
+                   combined.IndexOf("english", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private void UpdateSubtitlesButtonState()
+        {
+            try
+            {
+                var label = SubtitlesButtonLabel;
+                if (label == null)
+                    return;
+
+                if (_nativeSubtitlesEnabled)
+                    label.Text = _subtitleCues.Count > 0 ? "Subtitles on" : "Subtitles on";
+                else
+                    label.Text = _subtitleCues.Count > 0 ? "Subtitles" : "Subtitles";
+            }
+            catch { }
+        }
+
+        private void UpdateSubtitleOverlay(TimeSpan position)
+        {
+            try
+            {
+                if (!_nativeSubtitlesEnabled || _subtitleCues.Count == 0)
+                {
+                    SubtitleOverlay.Visibility = Visibility.Collapsed;
+                    SubtitleTextBlock.Text = "";
+                    return;
+                }
+
+                SubtitleCue activeCue = null;
+                foreach (var cue in _subtitleCues)
+                {
+                    if (position >= cue.Start && position <= cue.End)
+                    {
+                        activeCue = cue;
+                        break;
+                    }
+                }
+
+                if (activeCue == null || string.IsNullOrWhiteSpace(activeCue.Text))
+                {
+                    SubtitleOverlay.Visibility = Visibility.Collapsed;
+                    SubtitleTextBlock.Text = "";
+                    return;
+                }
+
+                SubtitleTextBlock.Text = activeCue.Text;
+                SubtitleOverlay.Visibility = Visibility.Visible;
+            }
+            catch { }
+        }
+
+        private async System.Threading.Tasks.Task<WStorage.StorageFile> PickSubtitleFileAsync()
+        {
+            try
+            {
+                var picker = new WPickers.FileOpenPicker();
+                InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(App.MainWindow));
+                picker.SuggestedStartLocation = WPickers.PickerLocationId.VideosLibrary;
+
+                picker.FileTypeFilter.Add(".srt");
+                picker.FileTypeFilter.Add(".vtt");
+
+                return await picker.PickSingleFileAsync();
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         private async void SubtitlesButton_Click(object sender, RoutedEventArgs e)
@@ -2387,9 +3347,10 @@ namespace Zink
                 var dialog = new ContentDialog
                 {
                     Title = "Subtitles",
-                    Content = "Would you like to turn on subtitles for this video?",
-                    PrimaryButtonText = "Enable subtitles",
-                    CloseButtonText = "Don't enable",
+                    Content = "Turn on subtitles now",
+                    PrimaryButtonText = "Turn on subtitles now",
+                    SecondaryButtonText = "Choose file",
+                    CloseButtonText = "Turn off",
                     DefaultButton = ContentDialogButton.Primary,
                     XamlRoot = XamlRoot
                 };
@@ -2400,13 +3361,688 @@ namespace Zink
                 {
                     _nativeSubtitlesEnabled = true;
                     ApplyNativeSubtitleTrackState(true);
-                    SubtitleOverlay.Visibility = Visibility.Collapsed;
+                    UpdateSubtitleOverlay(mediaPlayerElement?.MediaPlayer?.PlaybackSession?.Position ?? TimeSpan.Zero);
+                }
+                else if (result == ContentDialogResult.Secondary)
+                {
+                    var subtitleFile = await PickSubtitleFileAsync();
+                    if (subtitleFile != null)
+                    {
+                        await LoadSubtitleFileAsync(subtitleFile);
+                        _nativeSubtitlesEnabled = _subtitleCues.Count > 0;
+                        ApplyNativeSubtitleTrackState(_nativeSubtitlesEnabled);
+                        UpdateSubtitleOverlay(mediaPlayerElement?.MediaPlayer?.PlaybackSession?.Position ?? TimeSpan.Zero);
+                    }
                 }
                 else
                 {
                     _nativeSubtitlesEnabled = false;
                     ApplyNativeSubtitleTrackState(false);
+                    UpdateSubtitleOverlay(TimeSpan.Zero);
                 }
+
+                UpdateSubtitlesButtonState();
+            }
+            catch { }
+        }
+
+        private async void TranslateAudioButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_isTranslatingAudio)
+                return;
+
+            try
+            {
+                if (_currentFile == null || string.IsNullOrWhiteSpace(_currentFile.Path))
+                {
+                    await ShowVideoMessageAsync("Translate audio", "Choose a video first, then Zink can translate its spoken audio into UK English.");
+                    return;
+                }
+
+                var apiKey = GetOpenAiApiKey();
+                if (string.IsNullOrWhiteSpace(apiKey))
+                {
+                    await ShowVideoMessageAsync("Translate audio", "Add an OPENAI_API_KEY environment variable, restart Zink, then press Translate audio again.");
+                    return;
+                }
+
+                _isTranslatingAudio = true;
+                SetTranslateAudioButtonState("Translating...", false);
+                WriteVideoAudioDiagnostics("Dubbed audio translation started for " + FormatVideoFileForLog(_currentFile));
+
+                var translatedVtt = await CreateOrLoadTranslatedAudioSubtitlesAsync(_currentFile, apiKey);
+                var cues = ParseWebVttSubtitles(translatedVtt);
+
+                if (cues.Count == 0)
+                {
+                    await ShowVideoMessageAsync("Translate audio", "Zink translated the audio, but no subtitle timings came back.");
+                    return;
+                }
+
+                var sourceFile = _currentFile;
+                var currentPosition = mediaPlayerElement?.MediaPlayer?.PlaybackSession?.Position ?? TimeSpan.Zero;
+                var dubbedVideoPath = await CreateOrLoadTranslatedDubbedVideoAsync(sourceFile, cues, apiKey);
+
+                _subtitleCues.Clear();
+                _subtitleCues.AddRange(cues);
+                _currentSubtitleFile = null;
+                _nativeSubtitlesEnabled = true;
+                ApplyNativeSubtitleTrackState(false);
+                UpdateSubtitlesButtonState();
+                UpdateSubtitleOverlay(currentPosition);
+
+                var dubbedFile = await WStorage.StorageFile.GetFileFromPathAsync(dubbedVideoPath);
+                _pendingResumeSeconds = Math.Max(0, currentPosition.TotalSeconds);
+                await LoadAndPlayAsync(dubbedFile);
+                _subtitleCues.Clear();
+                _subtitleCues.AddRange(cues);
+                _currentSubtitleFile = null;
+                _nativeSubtitlesEnabled = true;
+                ApplyNativeSubtitleTrackState(false);
+                UpdateSubtitlesButtonState();
+                UpdateSubtitleOverlay(currentPosition);
+
+                SetTranslateAudioButtonState("Translated audio", true);
+                WriteVideoAudioDiagnostics("Dubbed audio translation loaded with " + cues.Count + " cue(s). Dubbed file: " + dubbedVideoPath);
+            }
+            catch (Exception ex)
+            {
+                WriteVideoAudioDiagnostics("Audio translation failed: " + ex.Message);
+                await ShowVideoMessageAsync("Translate audio", "Zink could not translate this audio yet: " + ex.Message);
+            }
+            finally
+            {
+                _isTranslatingAudio = false;
+                if (TranslateAudioButton != null)
+                    TranslateAudioButton.IsEnabled = true;
+                if (TranslateAudioButtonLabel != null && TranslateAudioButtonLabel.Text == "Translating...")
+                    TranslateAudioButtonLabel.Text = "Translate audio";
+            }
+        }
+
+        private async System.Threading.Tasks.Task<string> CreateOrLoadTranslatedAudioSubtitlesAsync(WStorage.StorageFile videoFile, string apiKey)
+        {
+            var cacheFolder = await GetAudioTranslationCacheFolderAsync();
+            var cacheKey = GetAudioTranslationCacheKey(videoFile, _selectedAudioStream);
+            var translationPath = Path.Combine(cacheFolder, cacheKey + ".uk-en.vtt");
+
+            if (File.Exists(translationPath))
+            {
+                WriteVideoAudioDiagnostics("Using cached audio translation: " + translationPath);
+                return await File.ReadAllTextAsync(translationPath);
+            }
+
+            var segmentFolder = Path.Combine(cacheFolder, cacheKey + "_segments");
+            if (Directory.Exists(segmentFolder))
+            {
+                try { Directory.Delete(segmentFolder, true); } catch { }
+            }
+            Directory.CreateDirectory(segmentFolder);
+
+            await ExtractAudioTranslationSegmentsAsync(videoFile, segmentFolder);
+
+            var segmentFiles = Directory.GetFiles(segmentFolder, "segment_*.mp3");
+            Array.Sort(segmentFiles, StringComparer.OrdinalIgnoreCase);
+            if (segmentFiles.Length == 0)
+                throw new InvalidOperationException("No audio could be extracted from this video.");
+
+            var allCues = new List<SubtitleCue>();
+            for (int i = 0; i < segmentFiles.Length; i++)
+            {
+                SetTranslateAudioButtonState($"Translating {i + 1}/{segmentFiles.Length}", false);
+                var segmentVtt = await TranslateAudioSegmentToVttAsync(segmentFiles[i], apiKey);
+                var segmentCues = ParseWebVttSubtitles(segmentVtt);
+                var offset = TimeSpan.FromSeconds(i * AudioTranslationSegmentSeconds);
+
+                foreach (var cue in segmentCues)
+                {
+                    allCues.Add(new SubtitleCue
+                    {
+                        Start = cue.Start + offset,
+                        End = cue.End + offset,
+                        Text = cue.Text
+                    });
+                }
+            }
+
+            var combinedVtt = BuildWebVtt(allCues);
+            await File.WriteAllTextAsync(translationPath, combinedVtt, Encoding.UTF8);
+
+            try { Directory.Delete(segmentFolder, true); } catch { }
+            return combinedVtt;
+        }
+
+        private sealed class AudioDubGroup
+        {
+            public TimeSpan Start { get; set; }
+            public TimeSpan End { get; set; }
+            public string Text { get; set; }
+        }
+
+        private async System.Threading.Tasks.Task<string> CreateOrLoadTranslatedDubbedVideoAsync(WStorage.StorageFile videoFile, IReadOnlyList<SubtitleCue> cues, string apiKey)
+        {
+            var cacheFolder = await GetAudioTranslationCacheFolderAsync();
+            var cacheKey = GetAudioTranslationCacheKey(videoFile, _selectedAudioStream);
+            var dubbedVideoPath = Path.Combine(cacheFolder, cacheKey + ".uk-en-dub.mkv");
+
+            if (File.Exists(dubbedVideoPath))
+            {
+                WriteVideoAudioDiagnostics("Using cached dubbed audio video: " + dubbedVideoPath);
+                return dubbedVideoPath;
+            }
+
+            var workFolder = Path.Combine(cacheFolder, cacheKey + "_dub");
+            if (Directory.Exists(workFolder))
+            {
+                try { Directory.Delete(workFolder, true); } catch { }
+            }
+            Directory.CreateDirectory(workFolder);
+
+            var ffmpegPath = await GetBundledFfmpegPathAsync();
+            if (string.IsNullOrWhiteSpace(ffmpegPath) || !File.Exists(ffmpegPath))
+                throw new InvalidOperationException("ffmpeg.exe was not found.");
+
+            var groups = BuildAudioDubGroups(cues);
+            if (groups.Count == 0)
+                throw new InvalidOperationException("No translated speech was available to dub.");
+
+            var concatFiles = new List<string>();
+            var cursor = TimeSpan.Zero;
+
+            for (int i = 0; i < groups.Count; i++)
+            {
+                var group = groups[i];
+                var gap = group.Start - cursor;
+                if (gap.TotalMilliseconds > 120)
+                {
+                    var silencePath = Path.Combine(workFolder, "silence_" + i.ToString("0000", System.Globalization.CultureInfo.InvariantCulture) + ".mp3");
+                    await CreateSilenceAudioAsync(ffmpegPath, silencePath, gap);
+                    concatFiles.Add(silencePath);
+                    cursor += gap;
+                }
+
+                SetTranslateAudioButtonState($"Voicing {i + 1}/{groups.Count}", false);
+                var speechPath = Path.Combine(workFolder, "speech_" + i.ToString("0000", System.Globalization.CultureInfo.InvariantCulture) + ".mp3");
+                await CreateUkEnglishSpeechAsync(group.Text, speechPath, apiKey);
+                concatFiles.Add(speechPath);
+
+                var speechDuration = await GetMediaDurationAsync(speechPath);
+                cursor += speechDuration > TimeSpan.Zero ? speechDuration : (group.End - group.Start);
+            }
+
+            var dubbedAudioPath = Path.Combine(workFolder, "zink_uk_english_dub.mp3");
+            await ConcatenateAudioFilesAsync(ffmpegPath, concatFiles, dubbedAudioPath);
+
+            SetTranslateAudioButtonState("Muxing audio", false);
+            await MuxDubbedAudioWithVideoAsync(ffmpegPath, videoFile.Path, dubbedAudioPath, dubbedVideoPath);
+
+            try { Directory.Delete(workFolder, true); } catch { }
+            return dubbedVideoPath;
+        }
+
+        private static List<AudioDubGroup> BuildAudioDubGroups(IReadOnlyList<SubtitleCue> cues)
+        {
+            var groups = new List<AudioDubGroup>();
+            AudioDubGroup current = null;
+            var builder = new StringBuilder();
+
+            foreach (var cue in cues)
+            {
+                var text = NormalizeDubText(cue?.Text);
+                if (string.IsNullOrWhiteSpace(text))
+                    continue;
+
+                var startsNewGroup =
+                    current == null ||
+                    builder.Length + text.Length + 1 > AudioDubMaxGroupCharacters ||
+                    (cue.Start - current.End).TotalSeconds > 1.5;
+
+                if (startsNewGroup)
+                {
+                    if (current != null)
+                    {
+                        current.Text = builder.ToString().Trim();
+                        groups.Add(current);
+                    }
+
+                    current = new AudioDubGroup
+                    {
+                        Start = cue.Start,
+                        End = cue.End
+                    };
+                    builder.Clear();
+                }
+
+                if (builder.Length > 0)
+                    builder.Append(' ');
+
+                builder.Append(text);
+                current.End = cue.End;
+            }
+
+            if (current != null)
+            {
+                current.Text = builder.ToString().Trim();
+                groups.Add(current);
+            }
+
+            return groups;
+        }
+
+        private static string NormalizeDubText(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return "";
+
+            return Regex.Replace(text, "\\s+", " ").Trim();
+        }
+
+        private static async System.Threading.Tasks.Task CreateUkEnglishSpeechAsync(string text, string outputPath, string apiKey)
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
+            using var request = new HttpRequestMessage(HttpMethod.Post, OpenAiAudioSpeechEndpoint);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+
+            var payload = new
+            {
+                model = "gpt-4o-mini-tts",
+                voice = "marin",
+                input = text,
+                response_format = "mp3",
+                instructions = "Speak in clear, natural UK English. Keep the delivery close to a film dub: conversational, measured, and easy to understand."
+            };
+
+            request.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+
+            using var response = await http.SendAsync(request);
+            var bytes = await response.Content.ReadAsByteArrayAsync();
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = "";
+                try { body = Encoding.UTF8.GetString(bytes); } catch { }
+                throw new InvalidOperationException("Speech service returned " + (int)response.StatusCode + ": " + TrimForLog(body, 600));
+            }
+
+            await File.WriteAllBytesAsync(outputPath, bytes);
+        }
+
+        private static async System.Threading.Tasks.Task CreateSilenceAudioAsync(string ffmpegPath, string outputPath, TimeSpan duration)
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = ffmpegPath,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+
+            startInfo.ArgumentList.Add("-y");
+            startInfo.ArgumentList.Add("-f");
+            startInfo.ArgumentList.Add("lavfi");
+            startInfo.ArgumentList.Add("-i");
+            startInfo.ArgumentList.Add("anullsrc=r=24000:cl=mono");
+            startInfo.ArgumentList.Add("-t");
+            startInfo.ArgumentList.Add(duration.TotalSeconds.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture));
+            startInfo.ArgumentList.Add("-q:a");
+            startInfo.ArgumentList.Add("9");
+            startInfo.ArgumentList.Add("-acodec");
+            startInfo.ArgumentList.Add("libmp3lame");
+            startInfo.ArgumentList.Add(outputPath);
+
+            await RunProcessOrThrowAsync(startInfo, "Silence audio generation failed");
+        }
+
+        private static async System.Threading.Tasks.Task ConcatenateAudioFilesAsync(string ffmpegPath, IReadOnlyList<string> inputPaths, string outputPath)
+        {
+            var listPath = Path.Combine(Path.GetDirectoryName(outputPath) ?? Path.GetTempPath(), "dub_concat.txt");
+            var builder = new StringBuilder();
+
+            foreach (var path in inputPaths)
+            {
+                builder.Append("file '");
+                builder.Append(path.Replace("\\", "/").Replace("'", "'\\''"));
+                builder.AppendLine("'");
+            }
+
+            await File.WriteAllTextAsync(listPath, builder.ToString(), Encoding.UTF8);
+
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = ffmpegPath,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+
+            startInfo.ArgumentList.Add("-y");
+            startInfo.ArgumentList.Add("-f");
+            startInfo.ArgumentList.Add("concat");
+            startInfo.ArgumentList.Add("-safe");
+            startInfo.ArgumentList.Add("0");
+            startInfo.ArgumentList.Add("-i");
+            startInfo.ArgumentList.Add(listPath);
+            startInfo.ArgumentList.Add("-c:a");
+            startInfo.ArgumentList.Add("libmp3lame");
+            startInfo.ArgumentList.Add("-b:a");
+            startInfo.ArgumentList.Add("128k");
+            startInfo.ArgumentList.Add(outputPath);
+
+            await RunProcessOrThrowAsync(startInfo, "Dubbed audio concatenation failed");
+        }
+
+        private static async System.Threading.Tasks.Task MuxDubbedAudioWithVideoAsync(string ffmpegPath, string videoPath, string dubbedAudioPath, string outputPath)
+        {
+            var tempPath = outputPath + ".tmp.mkv";
+            try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
+
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = ffmpegPath,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+
+            startInfo.ArgumentList.Add("-y");
+            startInfo.ArgumentList.Add("-i");
+            startInfo.ArgumentList.Add(videoPath);
+            startInfo.ArgumentList.Add("-i");
+            startInfo.ArgumentList.Add(dubbedAudioPath);
+            startInfo.ArgumentList.Add("-map");
+            startInfo.ArgumentList.Add("0:v:0");
+            startInfo.ArgumentList.Add("-map");
+            startInfo.ArgumentList.Add("1:a:0");
+            startInfo.ArgumentList.Add("-c:v");
+            startInfo.ArgumentList.Add("copy");
+            startInfo.ArgumentList.Add("-c:a");
+            startInfo.ArgumentList.Add("aac");
+            startInfo.ArgumentList.Add("-b:a");
+            startInfo.ArgumentList.Add("160k");
+            startInfo.ArgumentList.Add("-metadata:s:a:0");
+            startInfo.ArgumentList.Add("language=eng");
+            startInfo.ArgumentList.Add("-metadata:s:a:0");
+            startInfo.ArgumentList.Add("title=Zink UK English translation");
+            startInfo.ArgumentList.Add(tempPath);
+
+            await RunProcessOrThrowAsync(startInfo, "Dubbed video muxing failed");
+
+            if (File.Exists(outputPath))
+                File.Delete(outputPath);
+
+            File.Move(tempPath, outputPath);
+        }
+
+        private async System.Threading.Tasks.Task<TimeSpan> GetMediaDurationAsync(string mediaPath)
+        {
+            try
+            {
+                var ffprobePath = await GetBundledFfprobePathAsync();
+                if (string.IsNullOrWhiteSpace(ffprobePath) || !File.Exists(ffprobePath))
+                    return TimeSpan.Zero;
+
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = ffprobePath,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                startInfo.ArgumentList.Add("-v");
+                startInfo.ArgumentList.Add("error");
+                startInfo.ArgumentList.Add("-show_entries");
+                startInfo.ArgumentList.Add("format=duration");
+                startInfo.ArgumentList.Add("-of");
+                startInfo.ArgumentList.Add("default=noprint_wrappers=1:nokey=1");
+                startInfo.ArgumentList.Add(mediaPath);
+
+                using var process = Process.Start(startInfo);
+                if (process == null)
+                    return TimeSpan.Zero;
+
+                var stdoutTask = process.StandardOutput.ReadToEndAsync();
+                var stderrTask = process.StandardError.ReadToEndAsync();
+                await process.WaitForExitAsync();
+                await stderrTask;
+
+                var stdout = (await stdoutTask)?.Trim();
+                if (double.TryParse(stdout, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var seconds))
+                    return TimeSpan.FromSeconds(Math.Max(0, seconds));
+            }
+            catch { }
+
+            return TimeSpan.Zero;
+        }
+
+        private static async System.Threading.Tasks.Task RunProcessOrThrowAsync(ProcessStartInfo startInfo, string errorPrefix)
+        {
+            using var process = Process.Start(startInfo);
+            if (process == null)
+                throw new InvalidOperationException(errorPrefix + ": process could not start.");
+
+            var stdoutTask = process.StandardOutput.ReadToEndAsync();
+            var stderrTask = process.StandardError.ReadToEndAsync();
+            var waitTask = process.WaitForExitAsync();
+            var completed = await System.Threading.Tasks.Task.WhenAny(waitTask, System.Threading.Tasks.Task.Delay(TimeSpan.FromMinutes(10)));
+            if (completed != waitTask)
+            {
+                try { process.Kill(true); } catch { }
+                throw new TimeoutException(errorPrefix + ": timed out.");
+            }
+
+            var stdout = await stdoutTask;
+            var stderr = await stderrTask;
+
+            if (process.ExitCode != 0)
+                throw new InvalidOperationException(errorPrefix + ": " + TrimForLog(stderr + "\n" + stdout, 900));
+        }
+
+        private async System.Threading.Tasks.Task<string> GetAudioTranslationCacheFolderAsync()
+        {
+            try
+            {
+                var folder = await WStorage.ApplicationData.Current.LocalFolder.CreateFolderAsync(AudioTranslationFolderName, WStorage.CreationCollisionOption.OpenIfExists);
+                Directory.CreateDirectory(folder.Path);
+                return folder.Path;
+            }
+            catch
+            {
+                var folderPath = Path.Combine(Path.GetTempPath(), "Zink", AudioTranslationFolderName);
+                Directory.CreateDirectory(folderPath);
+                return folderPath;
+            }
+        }
+
+        private static string GetAudioTranslationCacheKey(WStorage.StorageFile videoFile, AudioStreamInfo stream)
+        {
+            var path = videoFile?.Path ?? "";
+            var length = "0";
+            var ticks = "0";
+
+            try
+            {
+                if (File.Exists(path))
+                {
+                    var info = new FileInfo(path);
+                    length = info.Length.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    ticks = info.LastWriteTimeUtc.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                }
+            }
+            catch { }
+
+            var key = path + "|" + length + "|" + ticks + "|" + (stream?.AudioTrackNumber ?? 0) + "|uk-en-v1";
+            using var sha = SHA256.Create();
+            return Convert.ToHexString(sha.ComputeHash(Encoding.UTF8.GetBytes(key))).ToLowerInvariant();
+        }
+
+        private async System.Threading.Tasks.Task ExtractAudioTranslationSegmentsAsync(WStorage.StorageFile videoFile, string segmentFolder)
+        {
+            var ffmpegPath = await GetBundledFfmpegPathAsync();
+            if (string.IsNullOrWhiteSpace(ffmpegPath) || !File.Exists(ffmpegPath))
+                throw new InvalidOperationException("ffmpeg.exe was not found.");
+
+            var outputPattern = Path.Combine(segmentFolder, "segment_%03d.mp3");
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = ffmpegPath,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+
+            startInfo.ArgumentList.Add("-y");
+            startInfo.ArgumentList.Add("-i");
+            startInfo.ArgumentList.Add(videoFile.Path);
+            startInfo.ArgumentList.Add("-map");
+            startInfo.ArgumentList.Add("0:a:" + Math.Max(0, _selectedAudioStream?.AudioTrackNumber ?? 0));
+            startInfo.ArgumentList.Add("-vn");
+            startInfo.ArgumentList.Add("-ac");
+            startInfo.ArgumentList.Add("1");
+            startInfo.ArgumentList.Add("-ar");
+            startInfo.ArgumentList.Add("16000");
+            startInfo.ArgumentList.Add("-b:a");
+            startInfo.ArgumentList.Add("48k");
+            startInfo.ArgumentList.Add("-f");
+            startInfo.ArgumentList.Add("segment");
+            startInfo.ArgumentList.Add("-segment_time");
+            startInfo.ArgumentList.Add(AudioTranslationSegmentSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            startInfo.ArgumentList.Add("-reset_timestamps");
+            startInfo.ArgumentList.Add("1");
+            startInfo.ArgumentList.Add(outputPattern);
+
+            using var process = Process.Start(startInfo);
+            if (process == null)
+                throw new InvalidOperationException("FFmpeg could not start.");
+
+            var stdoutTask = process.StandardOutput.ReadToEndAsync();
+            var stderrTask = process.StandardError.ReadToEndAsync();
+            var waitTask = process.WaitForExitAsync();
+            var completed = await System.Threading.Tasks.Task.WhenAny(waitTask, System.Threading.Tasks.Task.Delay(TimeSpan.FromMinutes(10)));
+            if (completed != waitTask)
+            {
+                try { process.Kill(true); } catch { }
+                throw new TimeoutException("Audio extraction timed out.");
+            }
+
+            var stderr = await stderrTask;
+            await stdoutTask;
+
+            if (process.ExitCode != 0)
+                throw new InvalidOperationException("Audio extraction failed: " + TrimForLog(stderr, 600));
+        }
+
+        private static async System.Threading.Tasks.Task<string> TranslateAudioSegmentToVttAsync(string audioPath, string apiKey)
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
+            using var request = new HttpRequestMessage(HttpMethod.Post, OpenAiAudioTranslationsEndpoint);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+
+            using var form = new MultipartFormDataContent();
+            form.Add(new StringContent("whisper-1"), "model");
+            form.Add(new StringContent("vtt"), "response_format");
+            form.Add(new StringContent("Translate all speech into natural UK English. Keep names, brands, and technical terms accurate."), "prompt");
+
+            await using var stream = File.OpenRead(audioPath);
+            using var fileContent = new StreamContent(stream);
+            fileContent.Headers.ContentType = new MediaTypeHeaderValue("audio/mpeg");
+            form.Add(fileContent, "file", Path.GetFileName(audioPath));
+            request.Content = form;
+
+            using var response = await http.SendAsync(request);
+            var body = await response.Content.ReadAsStringAsync();
+            if (!response.IsSuccessStatusCode)
+                throw new InvalidOperationException("Translation service returned " + (int)response.StatusCode + ": " + TrimForLog(body, 600));
+
+            return body;
+        }
+
+        private static string BuildWebVtt(IReadOnlyList<SubtitleCue> cues)
+        {
+            var builder = new StringBuilder();
+            builder.AppendLine("WEBVTT");
+            builder.AppendLine();
+
+            for (int i = 0; i < cues.Count; i++)
+            {
+                var cue = cues[i];
+                builder.AppendLine((i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture));
+                builder.Append(FormatWebVttTime(cue.Start));
+                builder.Append(" --> ");
+                builder.AppendLine(FormatWebVttTime(cue.End));
+                builder.AppendLine(cue.Text ?? "");
+                builder.AppendLine();
+            }
+
+            return builder.ToString();
+        }
+
+        private static string FormatWebVttTime(TimeSpan time)
+        {
+            if (time < TimeSpan.Zero)
+                time = TimeSpan.Zero;
+
+            return string.Format(
+                System.Globalization.CultureInfo.InvariantCulture,
+                "{0:00}:{1:00}:{2:00}.{3:000}",
+                (int)time.TotalHours,
+                time.Minutes,
+                time.Seconds,
+                time.Milliseconds);
+        }
+
+        private static string GetOpenAiApiKey()
+        {
+            try
+            {
+                var key = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
+                if (!string.IsNullOrWhiteSpace(key))
+                    return key.Trim();
+            }
+            catch { }
+
+            try
+            {
+                return (WStorage.ApplicationData.Current.LocalSettings.Values["OPENAI_API_KEY"] as string)?.Trim();
+            }
+            catch { }
+
+            return null;
+        }
+
+        private void SetTranslateAudioButtonState(string text, bool enabled)
+        {
+            try
+            {
+                if (TranslateAudioButtonLabel != null)
+                    TranslateAudioButtonLabel.Text = text;
+
+                if (TranslateAudioButton != null)
+                    TranslateAudioButton.IsEnabled = enabled;
+            }
+            catch { }
+        }
+
+        private async System.Threading.Tasks.Task ShowVideoMessageAsync(string title, string message)
+        {
+            try
+            {
+                if (XamlRoot == null)
+                    return;
+
+                var dialog = new ContentDialog
+                {
+                    Title = title,
+                    Content = message,
+                    CloseButtonText = "OK",
+                    XamlRoot = XamlRoot
+                };
+
+                await dialog.ShowAsync();
             }
             catch { }
         }
@@ -2508,6 +4144,7 @@ namespace Zink
         private void MediaPlayer_MediaOpened(MediaPlayer sender, object args)
         {
             LogVideoPlaybackPath("Media opened successfully. " + (_detectedVideoMetadata?.PlaybackPath ?? "Native Windows playback path active."));
+            WriteVideoAudioDiagnostics("Media opened successfully.\n" + BuildPlaybackSettingsSnapshot(sender) + "\n" + BuildAudioDiagnosticsSnapshot());
 
             DispatcherQueue.TryEnqueue(() =>
             {
@@ -2547,6 +4184,8 @@ namespace Zink
 
                         SyncDiscordPlaybackClockFromSession(force: true);
                         TryAutoSelectBestAudioTrack();
+                        WriteVideoAudioDiagnostics("Media opened UI initialization complete.\n" + BuildPlaybackSettingsSnapshot(sender) + "\n" + BuildAudioDiagnosticsSnapshot());
+                        StartFfmpegAudioRendererFromCurrentPosition();
                         ResetDiscordSecondPushTracking();
                         try { _discordPresenceTimer?.Start(); } catch { }
                         RefreshDiscordVideoPresence(forcePlaying: true, forcePush: true);
@@ -2565,6 +4204,7 @@ namespace Zink
                     : $"{args.Error} {args.ErrorMessage}".Trim();
 
                 LogVideoPlaybackPath("Native Windows playback failed: " + error + " Safe fallback is unavailable inside the app without a supported Windows decoder; try enabling Windows HDR, installing the HEVC Video Extensions, or playing the HDR10/SDR base layer if the file provides one.");
+                WriteVideoAudioDiagnostics("Media failed: " + error + "\n" + BuildPlaybackSettingsSnapshot(sender) + "\n" + BuildAudioDiagnosticsSnapshot());
             }
             catch { }
         }
@@ -2577,6 +4217,7 @@ namespace Zink
                 {
                     _userPausedDiscordPresence = false;
                     _discordPresenceTimer?.Stop();
+                    StopFfmpegAudioRenderer(restoreNativeAudio: true);
                     ResetDiscordPlaybackClock();
                     ClearDiscordVideoPresence();
                 }
@@ -2594,10 +4235,16 @@ namespace Zink
                         return;
 
                     var state = sender.PlaybackState;
+                    if (_lastLoggedPlaybackState != state)
+                    {
+                        _lastLoggedPlaybackState = state;
+                        WriteVideoAudioDiagnostics("Playback state changed to " + state + ".\n" + BuildPlaybackSettingsSnapshot(mediaPlayerElement?.MediaPlayer));
+                    }
 
                     if (state == MediaPlaybackState.Playing)
                     {
                         _userPausedDiscordPresence = false;
+                        StartFfmpegAudioRendererFromCurrentPosition();
 
                         if (!_discordClockReady)
                             SyncDiscordPlaybackClockFromSession(force: true);
@@ -2614,6 +4261,8 @@ namespace Zink
                     }
                     else if (state == MediaPlaybackState.Paused)
                     {
+                        StopFfmpegAudioRenderer(restoreNativeAudio: false);
+
                         if (_userPausedDiscordPresence)
                         {
                             try { _discordPresenceTimer?.Stop(); } catch { }
@@ -2633,7 +4282,7 @@ namespace Zink
             SeekSlider.CapturePointer(e.Pointer);
 
             SetSliderFromPointer(e);
-            ApplySeekFromSlider();
+            ApplyLiveSeekFromSlider(force: true);
         }
 
         private void SeekSlider_PointerMoved(object sender, PointerRoutedEventArgs e)
@@ -2642,7 +4291,7 @@ namespace Zink
             if (!_isUserSeeking) return;
 
             SetSliderFromPointer(e);
-            CurrentTimeText.Text = FormatTime(TimeSpan.FromSeconds(SeekSlider.Value));
+            ApplyLiveSeekFromSlider(force: false);
         }
 
         private void SeekSlider_PointerReleased(object sender, PointerRoutedEventArgs e)
@@ -2713,19 +4362,68 @@ namespace Zink
                 _suppressDiscordPresenceRefresh = true;
 
                 player.Pause();
+                StopFfmpegAudioRenderer(restoreNativeAudio: false);
                 session.Position = TimeSpan.FromSeconds(seconds);
                 CurrentTimeText.Text = FormatTime(session.Position);
+                UpdateSubtitleOverlay(session.Position);
 
                 if (wasPlaying)
                 {
                     _userPausedDiscordPresence = false;
                     player.Play();
+                    StartFfmpegAudioRendererFromCurrentPosition();
                 }
 
                 _suppressDiscordPresenceRefresh = false;
+                _ffmpegAudioPausedForLiveSeek = false;
                 SyncDiscordPlaybackClockFromSession(force: true);
                 ResetDiscordSecondPushTracking();
                 RefreshDiscordVideoPresence(forcePlaying: wasPlaying, forcePush: true);
+            }
+            catch
+            {
+                _suppressDiscordPresenceRefresh = false;
+                _ffmpegAudioPausedForLiveSeek = false;
+            }
+        }
+
+        private void ApplyLiveSeekFromSlider(bool force)
+        {
+            try
+            {
+                var player = mediaPlayerElement.MediaPlayer;
+                var session = player.PlaybackSession;
+
+                if (!session.CanSeek) return;
+
+                var dur = session.NaturalDuration;
+                if (dur.TotalSeconds <= 0) return;
+
+                var nowUtc = DateTime.UtcNow;
+                if (!force && (nowUtc - _lastLiveSeekUtc).TotalMilliseconds < 35)
+                {
+                    CurrentTimeText.Text = FormatTime(TimeSpan.FromSeconds(SeekSlider.Value));
+                    return;
+                }
+
+                _lastLiveSeekUtc = nowUtc;
+
+                var seconds = Math.Max(0, Math.Min(SeekSlider.Value, dur.TotalSeconds));
+                var position = TimeSpan.FromSeconds(seconds);
+
+                _suppressDiscordPresenceRefresh = true;
+
+                if (_useFfmpegAudioRenderer && !_ffmpegAudioPausedForLiveSeek)
+                {
+                    StopFfmpegAudioRenderer(restoreNativeAudio: false);
+                    _ffmpegAudioPausedForLiveSeek = true;
+                }
+
+                session.Position = position;
+                CurrentTimeText.Text = FormatTime(position);
+                UpdateSubtitleOverlay(position);
+
+                _suppressDiscordPresenceRefresh = false;
             }
             catch
             {
@@ -2755,6 +4453,7 @@ namespace Zink
 
                 CurrentTimeText.Text = FormatTime(pos);
                 TotalTimeText.Text = FormatTime(duration);
+                UpdateSubtitleOverlay(pos);
 
                 MaybeSaveResumePosition(duration.TotalSeconds, pos.TotalSeconds);
             }
@@ -2965,6 +4664,8 @@ namespace Zink
 
                 double volume = Math.Max(0, Math.Min(100, _flyoutVolumeSlider.Value)) / 100.0;
                 mediaPlayerElement.MediaPlayer.Volume = volume;
+                if (_ffmpegAudioOutput != null)
+                    _ffmpegAudioOutput.Volume = (float)volume;
 
                 if (volume > 0)
                     _lastNonZeroVolume = volume;
@@ -3024,7 +4725,14 @@ namespace Zink
                     _lastNonZeroVolume = savedVolume;
 
                 if (mediaPlayerElement?.MediaPlayer != null)
+                {
                     mediaPlayerElement.MediaPlayer.Volume = savedVolume;
+                    if (_useFfmpegAudioRenderer)
+                        mediaPlayerElement.MediaPlayer.IsMuted = true;
+                }
+
+                if (_ffmpegAudioOutput != null)
+                    _ffmpegAudioOutput.Volume = (float)savedVolume;
 
                 if (_flyoutVolumeSlider != null)
                     _flyoutVolumeSlider.Value = savedVolume * 100.0;
@@ -3089,8 +4797,60 @@ namespace Zink
 
                 TryAutoSelectBestAudioTrack();
                 UpdateSurroundModeStatusText();
+                RefreshAudioTrackComboBox();
             }
             catch { }
+        }
+
+        private void AudioTrackComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            try
+            {
+                if (!_audioTrackUiReady)
+                    return;
+
+                if (_audioTrackComboBox?.SelectedItem is not AudioStreamInfo selected)
+                    return;
+
+                _selectedAudioStream = selected;
+                _audioInfoStatus = $"Selected: {FormatAudioStreamSummary(selected)}";
+                WriteVideoAudioDiagnostics("Audio track manually selected: " + FormatAudioStreamSummary(selected));
+
+                TryAutoSelectBestAudioTrack();
+                ConfigureDirectAudioSupportForSelectedStream();
+                RestartFfmpegAudioRendererIfPlaying();
+                UpdateSurroundModeStatusText();
+            }
+            catch { }
+        }
+
+        private void RefreshAudioTrackComboBox()
+        {
+            try
+            {
+                if (_audioTrackComboBox == null)
+                    return;
+
+                _audioTrackUiReady = false;
+
+                if (_detectedAudioStreams == null || _detectedAudioStreams.Count == 0)
+                {
+                    _audioTrackComboBox.ItemsSource = null;
+                    _audioTrackComboBox.PlaceholderText = "No audio tracks detected";
+                    _audioTrackComboBox.IsEnabled = false;
+                    return;
+                }
+
+                _audioTrackComboBox.ItemsSource = _detectedAudioStreams;
+                _audioTrackComboBox.SelectedItem = _selectedAudioStream;
+                _audioTrackComboBox.IsEnabled = true;
+                WriteVideoAudioDiagnostics("Audio track picker refreshed with " + _detectedAudioStreams.Count + " detected stream(s). Selected: " + (_selectedAudioStream == null ? "none" : FormatAudioStreamSummary(_selectedAudioStream)));
+            }
+            catch { }
+            finally
+            {
+                _audioTrackUiReady = true;
+            }
         }
 
         private void UpdateSurroundModeStatusText()
@@ -3130,6 +4890,107 @@ namespace Zink
                     SoundButton.Content = percent == 0 ? "Sound" : $"Sound {percent}%";
             }
             catch { }
+        }
+
+        private void WriteVideoAudioDiagnostics(string message)
+        {
+            try
+            {
+                DiagnosticLogService.WriteLine("[VideoAudio] " + message);
+            }
+            catch { }
+        }
+
+        private static string FormatVideoFileForLog(WStorage.StorageFile file)
+        {
+            if (file == null)
+                return "(no file)";
+
+            var path = string.IsNullOrWhiteSpace(file.Path) ? "(no path)" : file.Path;
+            return file.Name + " | " + path;
+        }
+
+        private string BuildAudioDiagnosticsSnapshot()
+        {
+            var builder = new StringBuilder();
+            builder.AppendLine("File: " + FormatVideoFileForLog(_currentFile));
+            builder.AppendLine("Preferred surround mode: " + _preferredSurroundMode);
+            builder.AppendLine("Audio status: " + (_audioInfoStatus ?? ""));
+            builder.AppendLine("Detected audio streams: " + (_detectedAudioStreams == null ? 0 : _detectedAudioStreams.Count));
+            builder.AppendLine("Selected audio stream: " + (_selectedAudioStream == null ? "none" : FormatAudioStreamSummary(_selectedAudioStream)));
+            builder.Append(FormatAudioStreamsForLog(_detectedAudioStreams));
+            return builder.ToString().TrimEnd();
+        }
+
+        private string BuildPlaybackSettingsSnapshot(MediaPlayer player)
+        {
+            var builder = new StringBuilder();
+            try
+            {
+                builder.AppendLine("MediaPlayer volume: " + (player == null ? "n/a" : Math.Round(player.Volume * 100.0) + "%"));
+                builder.AppendLine("MediaPlayer muted: " + (player == null ? "n/a" : player.IsMuted.ToString()));
+
+                var session = player?.PlaybackSession;
+                if (session != null)
+                {
+                    builder.AppendLine("Playback state: " + session.PlaybackState);
+                    builder.AppendLine("Position: " + FormatTime(session.Position));
+                    builder.AppendLine("Duration: " + (session.NaturalDuration.TotalSeconds > 0 ? FormatTime(session.NaturalDuration) : "unknown"));
+                    builder.AppendLine("Can seek: " + session.CanSeek);
+                }
+
+                var item = _currentPlaybackItem;
+                var tracks = item?.AudioTracks;
+                if (tracks != null)
+                    builder.AppendLine("Windows audio tracks exposed: " + tracks.Count + ", selected index: " + tracks.SelectedIndex);
+                else
+                    builder.AppendLine("Windows audio tracks exposed: none yet");
+            }
+            catch (Exception ex)
+            {
+                builder.AppendLine("Playback settings snapshot failed: " + ex.Message);
+            }
+
+            return builder.ToString().TrimEnd();
+        }
+
+        private static string FormatAudioStreamsForLog(IReadOnlyList<AudioStreamInfo> streams)
+        {
+            if (streams == null || streams.Count == 0)
+                return "Audio streams: none";
+
+            var builder = new StringBuilder();
+            builder.AppendLine("Audio streams:");
+
+            foreach (var stream in streams)
+            {
+                builder.Append("  - ");
+                builder.Append("ffprobe stream ");
+                builder.Append(stream.StreamIndex);
+                builder.Append(", track ");
+                builder.Append(stream.AudioTrackNumber + 1);
+                builder.Append(": ");
+                builder.Append(FormatAudioStreamSummary(stream));
+                builder.Append("; likely Windows playable: ");
+                builder.Append(IsLikelyWindowsPlayableAudioStream(stream));
+                builder.Append("; reliable Windows audio: ");
+                builder.Append(IsReliableWindowsAudioStream(stream));
+                builder.AppendLine();
+            }
+
+            return builder.ToString().TrimEnd();
+        }
+
+        private static string TrimForLog(string text, int maxLength)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return "";
+
+            text = text.Trim();
+            if (text.Length <= maxLength)
+                return text;
+
+            return text.Substring(0, maxLength) + "...";
         }
 
         protected override async void OnNavigatedTo(NavigationEventArgs e)
@@ -3185,6 +5046,7 @@ namespace Zink
                 hideControlsTimer?.Stop();
                 _videoBadgeHideTimer?.Stop();
                 _discordPresenceTimer?.Stop();
+                StopFfmpegAudioRenderer(restoreNativeAudio: true);
 
                 var mp = mediaPlayerElement?.MediaPlayer;
                 if (mp != null)

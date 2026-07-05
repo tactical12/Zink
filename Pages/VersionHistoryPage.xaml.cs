@@ -11,14 +11,44 @@ namespace Zink.Pages
         private readonly Dictionary<string, (string Title, DateTime? Released, string Notes)> _changelog =
             new(StringComparer.OrdinalIgnoreCase)
             {
+                // 3.0.35.0
+                ["3.0.35.0"] = (
+                    Title: "Version 3.0.35.0",
+                    Released: new DateTime(2026, 07, 05),
+                    Notes:
+@"Version 3.0.35.0
+- Fixed opening movie files directly from File Explorer with Zink so file activation now reaches the video player instead of hanging on the startup loading screen.
+- Added support for media paths passed through Explorer command-line launches as well as packaged Windows file activation.
+- Fixed the startup overlay so it clears immediately when a video or music file is opened directly with Zink.
+- Added real timeouts to video and audio metadata probing so slow or unusual movie files cannot leave the app waiting forever before playback.
+- Fixed direct-open movie playback hanging on the video player page by keeping Windows-playable AAC and other supported audio streams on the native Windows media path instead of starting the custom FFmpeg audio pipe."
+                ),
                 // 3.0.34.0
                 ["3.0.34.0"] = (
                     Title: "Version 3.0.34.0",
                     Released: new DateTime(2026, 06, 28),
                     Notes:
 @"Version 3.0.34.0
+- Added Duplicate Video Searcher to the Video section in the sidebar so duplicate videos in the Zink Video Library can be found in one place.
+- Added duplicate video results grouped by matching video name and file size, with quick actions to play each video.
+- Added Open file location for duplicate videos so Zink opens the folder containing the selected file and highlights it when Windows allows.
+- Added a delete action for duplicate videos, including a custom Zink confirmation UI before removing the file.
+- Added a Delete button to duplicate video results so unwanted copies can be removed directly from the Duplicate Video Searcher page.
+- Added a custom Zink deletion confirmation after a duplicate video has been deleted.
+- Added search to the Video Library page so films can be found by name, file type, folder, and duration.
+- Fixed the Video Library file count so it stays on the first calculated total after navigating away and only updates when new files are found.
+- Improved video subtitles so Zink now turns on one subtitle track at a time, supports matching sidecar subtitle files, and prevents duplicated caption text.
+- Improved video audio track selection so films with cinema audio tracks can fall back to a Windows-playable audio track when available.
 - Added live video scrubbing to the video player so moving the time bar updates the video frame in real time while choosing where to watch.
-- Improved video seeking so playback can continue smoothly while dragging through the timeline."
+- Improved video seeking so playback can continue smoothly while dragging through the timeline.
+- Added Zink video file thumbnails so videos opened by default with Zink can show a video-style Zink thumbnail in Windows.
+- Updated the Zink video file overlay badge in File Explorer to use the refreshed Zink logo artwork.
+- Fixed a Zink Connect browser issue where opening a YouTube video in a new window from a playing video could create a blank tab, break the original YouTube tab, or destabilise the browser.
+- YouTube new-window requests now open as independent Zink Connect tabs and navigate directly to the requested video page.
+- Prevented accidental YouTube embed-page redirects from causing video player configuration error 153.
+- Fixed local MSIX package signing so Windows App Installer can verify the publisher certificate and enable the Install button.
+- Updated the package certificate to match the app publisher identity and extended the local signing certificate validity to 2046.
+- Improved the packaging setup so Visual Studio local package builds are signed by default while Store upload builds can still opt out when needed."
                 ),
 
                 // 3.0.33.0

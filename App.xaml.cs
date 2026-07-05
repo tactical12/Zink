@@ -148,6 +148,7 @@ namespace Zink
             _ = ZinkBackgroundModeService.Instance.ApplyAsync();
 
             StorageFile fileToOpen = null;
+            string pathToOpen = null;
             bool launchedFromStartupTask = IsStartupTaskLaunch();
             bool backgroundRunEnabled = IsBackgroundRunEnabled();
             bool gamingReplayEnabled = RecordingPreferences.IsGamingBackgroundReplayEnabled;
@@ -168,7 +169,12 @@ namespace Zink
             }
             catch { }
 
-            if (fileToOpen != null)
+            if (fileToOpen == null)
+            {
+                pathToOpen = TryGetMediaPathFromLaunchArgs(args);
+            }
+
+            if (fileToOpen != null || !string.IsNullOrWhiteSpace(pathToOpen))
             {
                 MainWindow = new MainWindow();
                 MainWindow.SuppressInitialNavigation = true;
@@ -182,7 +188,11 @@ namespace Zink
                     _replayStartupTask = DelayedReplayStartupAsync(TimeSpan.FromSeconds(2));
                 }
 
-                NavigateToActivatedMediaFile(fileToOpen);
+                if (fileToOpen != null)
+                    NavigateToActivatedMediaFile(fileToOpen);
+                else
+                    NavigateToActivatedMediaPath(pathToOpen);
+
                 return;
             }
 
@@ -521,17 +531,96 @@ namespace Zink
 
         private void NavigateToActivatedMediaFile(StorageFile file)
         {
-            var frame = GetRootFrame();
-            if (frame == null || file == null)
+            if (MainWindow == null || file == null)
                 return;
 
-            frame.Navigate(IsMusicFile(file) ? typeof(MusicPlayerPage) : typeof(VideoPlayerPage), file);
+            MainWindow.NavigateFromFileActivation(IsMusicFile(file) ? typeof(MusicPlayerPage) : typeof(VideoPlayerPage), file);
+        }
+
+        private void NavigateToActivatedMediaPath(string path)
+        {
+            if (MainWindow == null || string.IsNullOrWhiteSpace(path))
+                return;
+
+            MainWindow.NavigateFromFileActivation(IsMusicPath(path) ? typeof(MusicPlayerPage) : typeof(VideoPlayerPage), path);
+        }
+
+        private static string TryGetMediaPathFromLaunchArgs(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
+        {
+            try
+            {
+                var launchArgument = args?.Arguments;
+                var launchMediaPath = TryNormalizeExistingMediaPath(launchArgument);
+                if (!string.IsNullOrWhiteSpace(launchMediaPath))
+                    return launchMediaPath;
+            }
+            catch { }
+
+            try
+            {
+                var commandLineArgs = Environment.GetCommandLineArgs();
+                if (commandLineArgs != null)
+                {
+                    for (int i = 1; i < commandLineArgs.Length; i++)
+                    {
+                        var candidate = commandLineArgs[i];
+                        var mediaPath = TryNormalizeExistingMediaPath(candidate);
+                        if (!string.IsNullOrWhiteSpace(mediaPath))
+                            return mediaPath;
+                    }
+                }
+            }
+            catch { }
+
+            return null;
+        }
+
+        private static string TryNormalizeExistingMediaPath(string path)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(path))
+                    return null;
+
+                path = path.Trim().Trim('"');
+                if (!File.Exists(path))
+                    return null;
+
+                return IsMusicPath(path) || IsVideoPath(path) ? path : null;
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         private static bool IsMusicFile(StorageFile file)
         {
             var extension = file.FileType ?? "";
 
+            return IsMusicExtension(extension);
+        }
+
+        private static bool IsMusicPath(string path)
+        {
+            return IsMusicExtension(Path.GetExtension(path) ?? "");
+        }
+
+        private static bool IsVideoPath(string path)
+        {
+            var extension = Path.GetExtension(path) ?? "";
+
+            return extension.Equals(".mp4", StringComparison.OrdinalIgnoreCase) ||
+                extension.Equals(".m4v", StringComparison.OrdinalIgnoreCase) ||
+                extension.Equals(".mkv", StringComparison.OrdinalIgnoreCase) ||
+                extension.Equals(".avi", StringComparison.OrdinalIgnoreCase) ||
+                extension.Equals(".mov", StringComparison.OrdinalIgnoreCase) ||
+                extension.Equals(".wmv", StringComparison.OrdinalIgnoreCase) ||
+                extension.Equals(".webm", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsMusicExtension(string extension)
+        {
             return extension.Equals(".mp3", StringComparison.OrdinalIgnoreCase) ||
                 extension.Equals(".m4a", StringComparison.OrdinalIgnoreCase) ||
                 extension.Equals(".wav", StringComparison.OrdinalIgnoreCase) ||

@@ -55,9 +55,17 @@ namespace Zink
         private DesktopAcrylicController? _acrylicController;
         private SystemBackdropConfiguration? _backdropConfig;
         private static readonly global::Windows.UI.Color DefaultGlassTint =
+            global::Windows.UI.Color.FromArgb(255, 6, 64, 74);
+        private static readonly global::Windows.UI.Color ZinkNeonAccent =
             global::Windows.UI.Color.FromArgb(255, 56, 255, 102);
+        private static readonly global::Windows.UI.Color ZinkCyanAccent =
+            global::Windows.UI.Color.FromArgb(255, 17, 216, 232);
         private static readonly global::Windows.UI.Color LegacyDefaultGlassTint =
             global::Windows.UI.Color.FromArgb(255, 59, 117, 130);
+        private static readonly global::Windows.UI.Color PreviousEmeraldDefaultGlassTint =
+            global::Windows.UI.Color.FromArgb(255, 14, 143, 61);
+        private static readonly global::Windows.UI.Color PreviousNeonDefaultGlassTint =
+            global::Windows.UI.Color.FromArgb(255, 56, 255, 102);
         private global::Windows.UI.Color _currentGlassTint = DefaultGlassTint;
         private ElementTheme _currentAppTheme = ElementTheme.Dark;
 
@@ -685,6 +693,46 @@ namespace Zink
         public Frame MainFrame => ContentFrame;
         public bool SuppressInitialNavigation { get; set; }
 
+        public void NavigateFromFileActivation(Type pageType, object parameter)
+        {
+            try
+            {
+                SuppressInitialNavigation = true;
+                DiagnosticLogService.WriteLine("File activation navigation started for " + pageType.Name + ".");
+                ContentFrame.Navigate(pageType, parameter);
+                ClearStartupOverlayImmediately();
+
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    try
+                    {
+                        ApplyGlassTintToCurrentPage();
+                        ClearStartupOverlayImmediately();
+                    }
+                    catch { }
+                });
+            }
+            catch
+            {
+                ClearStartupOverlayImmediately();
+            }
+        }
+
+        public void ClearStartupOverlayImmediately()
+        {
+            try
+            {
+                _startupOverlayHidden = true;
+
+                if (StartupOverlay != null)
+                {
+                    StartupOverlay.Visibility = Visibility.Collapsed;
+                    StartupOverlay.IsHitTestVisible = false;
+                }
+            }
+            catch { }
+        }
+
         public void SaveAndHideSidebar()
         {
             if (_savedSidebarStateExists) return;
@@ -992,6 +1040,7 @@ namespace Zink
                 "Visualizer" => typeof(VisualizerPage),
                 "VideoPlayer" => typeof(VideoPlayerPage),
                 "VideoLibrary" => typeof(VideoLibraryPage),
+                "DuplicateVideoSearcher" => typeof(DuplicateVideoSearcherPage),
                 "ScreenRecorder" => typeof(RecorderPage),
                 "RecordingsLibrary" => typeof(RecordingsLibraryPage),
                 "Streaming" => typeof(StreamingPage),
@@ -1210,11 +1259,11 @@ namespace Zink
         private void ApplyGlassTintToResources(global::Windows.UI.Color tint, bool tintCurrentPage)
         {
             var useLightTheme = GetEffectiveAppTheme() == ElementTheme.Light;
-            var panel = useLightTheme ? WithAlpha(MixWithWhite(tint, 210), 172) : WithAlpha(tint, 52);
-            var card = useLightTheme ? WithAlpha(MixWithWhite(tint, 230), 142) : WithAlpha(tint, 36);
-            var hover = useLightTheme ? WithAlpha(tint, 24) : WithAlpha(Lighten(tint, 55), 34);
-            var selected = useLightTheme ? WithAlpha(tint, 38) : WithAlpha(Lighten(tint, 72), 44);
-            var pressed = useLightTheme ? WithAlpha(Darken(tint, 20), 34) : WithAlpha(Lighten(tint, 48), 38);
+            var panel = useLightTheme ? WithAlpha(MixWithWhite(tint, 210), 172) : WithAlpha(Darken(tint, 34), 100);
+            var card = useLightTheme ? WithAlpha(MixWithWhite(tint, 230), 142) : WithAlpha(Darken(tint, 16), 70);
+            var hover = useLightTheme ? WithAlpha(tint, 24) : WithAlpha(ZinkCyanAccent, 48);
+            var selected = useLightTheme ? WithAlpha(tint, 38) : WithAlpha(ZinkNeonAccent, 64);
+            var pressed = useLightTheme ? WithAlpha(Darken(tint, 20), 34) : WithAlpha(ZinkNeonAccent, 56);
             var primaryText = GetTintedTextColor(tint, TextBrushRole.Primary, useLightTheme);
             var mutedText = GetTintedTextColor(tint, TextBrushRole.Muted, useLightTheme);
             var sidebarPrimaryText = useLightTheme
@@ -1226,7 +1275,7 @@ namespace Zink
 
             SetBrushColor("ZinkGlassPanelBrush", panel);
             SetBrushColor("ZinkGlassCardBrush", card);
-            SetBrushColor("ZinkGlassBorderBrush", useLightTheme ? WithAlpha(Darken(tint, 24), 70) : WithAlpha(Lighten(tint, 90), 92));
+            SetBrushColor("ZinkGlassBorderBrush", useLightTheme ? WithAlpha(Darken(tint, 24), 70) : WithAlpha(ZinkCyanAccent, 122));
             SetBrushColor("ZinkGlassHoverBrush", hover);
             SetBrushColor("ZinkGlassSelectedBrush", selected);
             SetBrushColor("NavigationViewItemBackgroundPointerOver", hover);
@@ -1253,9 +1302,9 @@ namespace Zink
             }
             else
             {
-                ShellGradientStart.Color = Darken(tint, 110);
-                ShellGradientMiddle.Color = WithAlpha(Darken(tint, 52), 255);
-                ShellGradientEnd.Color = WithAlpha(Darken(tint, 126), 255);
+                ShellGradientStart.Color = global::Windows.UI.Color.FromArgb(222, 0, 8, 20);
+                ShellGradientMiddle.Color = WithAlpha(Darken(tint, 26), 255);
+                ShellGradientEnd.Color = WithAlpha(tint, 255);
             }
 
             if (tintCurrentPage)
@@ -1405,18 +1454,18 @@ namespace Zink
         private void ApplyGlassTintToResourceDictionary(ResourceDictionary resources, global::Windows.UI.Color tint)
         {
             var useLightTheme = GetEffectiveAppTheme() == ElementTheme.Light;
-            var panel = useLightTheme ? WithAlpha(MixWithWhite(tint, 210), 218) : WithAlpha(tint, 88);
-            var card = useLightTheme ? WithAlpha(MixWithWhite(tint, 230), 190) : WithAlpha(tint, 56);
-            var border = useLightTheme ? WithAlpha(Darken(tint, 24), 60) : WithAlpha(Lighten(tint, 96), 64);
-            var strong = useLightTheme ? WithAlpha(MixWithWhite(tint, 200), 235) : WithAlpha(Darken(tint, 28), 116);
+            var panel = useLightTheme ? WithAlpha(MixWithWhite(tint, 210), 218) : WithAlpha(Darken(tint, 34), 124);
+            var card = useLightTheme ? WithAlpha(MixWithWhite(tint, 230), 190) : WithAlpha(Darken(tint, 16), 88);
+            var border = useLightTheme ? WithAlpha(Darken(tint, 24), 60) : WithAlpha(ZinkCyanAccent, 88);
+            var strong = useLightTheme ? WithAlpha(MixWithWhite(tint, 200), 235) : WithAlpha(global::Windows.UI.Color.FromArgb(255, 0, 8, 20), 188);
 
             SetResourceBrush(resources, "GlassPanelBrush", panel, tint);
             SetResourceBrush(resources, "GlassPanelStrongBrush", strong, useLightTheme ? MixWithWhite(tint, 200) : Darken(tint, 12));
             SetResourceBrush(resources, "GlassPanelBorderBrush", border, useLightTheme ? Darken(tint, 24) : Lighten(tint, 98));
             SetResourceBrush(resources, "GlassStrongBrush", strong, useLightTheme ? MixWithWhite(tint, 200) : Darken(tint, 28));
             SetResourceBrush(resources, "GlassCardBrush", card, tint);
-            SetResourceBrush(resources, "GlassTileBrush", useLightTheme ? WithAlpha(MixWithWhite(tint, 228), 170) : WithAlpha(tint, 48), tint);
-            SetResourceBrush(resources, "GlassTileHoverBrush", useLightTheme ? WithAlpha(tint, 34) : WithAlpha(Lighten(tint, 42), 72), useLightTheme ? tint : Lighten(tint, 42));
+            SetResourceBrush(resources, "GlassTileBrush", useLightTheme ? WithAlpha(MixWithWhite(tint, 228), 170) : WithAlpha(Darken(tint, 18), 82), tint);
+            SetResourceBrush(resources, "GlassTileHoverBrush", useLightTheme ? WithAlpha(tint, 34) : WithAlpha(ZinkCyanAccent, 72), useLightTheme ? tint : ZinkCyanAccent);
             SetResourceBrush(resources, "GlassBorderBrush", border, useLightTheme ? Darken(tint, 24) : Lighten(tint, 96));
             SetResourceBrush(resources, "GlassBorderStrongBrush", useLightTheme ? WithAlpha(Darken(tint, 38), 96) : WithAlpha(Lighten(tint, 112), 108), useLightTheme ? Darken(tint, 38) : Lighten(tint, 112));
             SetResourceBrush(resources, "ThemePanelBrush", panel, tint);
@@ -1502,13 +1551,13 @@ namespace Zink
                         {
                             GlassBrushRole.Border => useLightTheme
                                 ? WithAlpha(Darken(tint, 24), Math.Max((byte)48, solidBrush.Color.A))
-                                : WithAlpha(Lighten(tint, 100), 64),
+                                : WithAlpha(ZinkCyanAccent, 82),
                             GlassBrushRole.Control => useLightTheme
                                 ? WithAlpha(MixWithWhite(tint, 224), Math.Max((byte)45, solidBrush.Color.A))
-                                : WithAlpha(Lighten(tint, 34), 70),
+                                : WithAlpha(Darken(tint, 8), 92),
                             _ => useLightTheme
                                 ? WithAlpha(MixWithWhite(tint, 230), Math.Max((byte)70, solidBrush.Color.A))
-                                : WithAlpha(tint, 88)
+                                : WithAlpha(Darken(tint, 36), 108)
                         };
                         return brush;
                     case AcrylicBrush acrylicBrush:
@@ -1819,7 +1868,13 @@ namespace Zink
         {
             return color.R == LegacyDefaultGlassTint.R &&
                 color.G == LegacyDefaultGlassTint.G &&
-                color.B == LegacyDefaultGlassTint.B;
+                color.B == LegacyDefaultGlassTint.B ||
+                color.R == PreviousEmeraldDefaultGlassTint.R &&
+                color.G == PreviousEmeraldDefaultGlassTint.G &&
+                color.B == PreviousEmeraldDefaultGlassTint.B ||
+                color.R == PreviousNeonDefaultGlassTint.R &&
+                color.G == PreviousNeonDefaultGlassTint.G &&
+                color.B == PreviousNeonDefaultGlassTint.B;
         }
 
         private void ContentFrame_Navigated(object sender, NavigationEventArgs e)
@@ -2345,6 +2400,7 @@ namespace Zink
                 "AmazonMusic" => "Amazon Music",
                 "VideoPlayer" => "Video player",
                 "VideoLibrary" => "Video library",
+                "DuplicateVideoSearcher" => "Duplicate video searcher",
                 "ScreenRecorder" => "Screen recorder",
                 "Streaming" => "Streaming",
                 "YouTubeStreaming" => "YouTube streaming",
@@ -2422,6 +2478,7 @@ namespace Zink
                 if (t == typeof(VisualizerPage)) return "Visualizer";
                 if (t == typeof(VideoPlayerPage)) return "VideoPlayer";
                 if (t == typeof(VideoLibraryPage)) return "VideoLibrary";
+                if (t == typeof(DuplicateVideoSearcherPage)) return "DuplicateVideoSearcher";
                 if (t == typeof(RecorderPage)) return "ScreenRecorder";
                 if (t == typeof(RecordingsLibraryPage)) return "RecordingsLibrary";
                 if (t == typeof(StreamingPage)) return "Streaming";
