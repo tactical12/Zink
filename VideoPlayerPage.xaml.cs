@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Navigation;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Windowing;
 
 using global::Windows.Media.Core;
@@ -29,10 +30,12 @@ using System.Runtime.InteropServices;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Http.Headers;
-using NAudio.Wave;
-
 using DispatcherTimer = Microsoft.UI.Xaml.DispatcherTimer;
 using Zink.Services;
+using VlcCore = LibVLCSharp.Shared.Core;
+using VlcLibVLC = LibVLCSharp.Shared.LibVLC;
+using VlcMedia = LibVLCSharp.Shared.Media;
+using VlcMediaPlayer = LibVLCSharp.Shared.MediaPlayer;
 
 namespace Zink
 {
@@ -69,7 +72,6 @@ namespace Zink
         private bool _ignoreSliderChange = false;
         private bool _mediaReadyForSeek = false;
         private DateTime _lastLiveSeekUtc = DateTime.MinValue;
-        private bool _ffmpegAudioPausedForLiveSeek = false;
 
         private DispatcherTimer _discordPresenceTimer;
         private bool _userPausedDiscordPresence = false;
@@ -147,10 +149,17 @@ namespace Zink
         private MediaPlaybackState? _lastLoggedPlaybackState = null;
         private WStorage.StorageFile _effectivePlaybackFile;
         private bool _usingAudioFallbackFile = false;
-        private bool _useFfmpegAudioRenderer = false;
-        private Process _ffmpegAudioProcess;
-        private WaveOutEvent _ffmpegAudioOutput;
         private bool _isTranslatingAudio = false;
+        private VlcLibVLC _libVLC;
+        private VlcMediaPlayer _vlcMediaPlayer;
+        private VlcMedia _vlcAudioMedia;
+        private long _vlcAudioBaseOffsetMilliseconds = 0;
+        private bool _useCompatibilityPlaybackEngine = false;
+        private bool _vlcReadyForSeek = false;
+        private bool _vlcPlaybackEnded = false;
+        private DateTime _lastCompatibilityAudioSyncUtc = DateTime.MinValue;
+        private DateTime _lastCompatibilityAudioRestartUtc = DateTime.MinValue;
+        private bool _compatibilityAudioRestartInProgress = false;
 
         private Flyout _soundFlyout;
         private Slider _flyoutVolumeSlider;
@@ -256,6 +265,7 @@ namespace Zink
         {
             InitializeComponent();
 
+            EnsureCompatibilityPlaybackEngine();
             InitializeSoundFlyout();
             _volumeUiReady = true;
 
@@ -293,6 +303,27 @@ namespace Zink
             {
                 try
                 {
+                    if (_useCompatibilityPlaybackEngine)
+                    {
+                        if (!(_vlcMediaPlayer?.IsPlaying ?? false))
+                            return;
+
+                        if (!_discordClockReady)
+                            SyncDiscordPlaybackClockFromSession(force: true);
+
+                        var vlcElapsed = GetDiscordLiveElapsed();
+                        int vlcCurrentSecond = (int)Math.Floor(vlcElapsed.TotalSeconds);
+
+                        if (vlcCurrentSecond != _lastDiscordPushedSecond)
+                            _lastDiscordPushedSecond = vlcCurrentSecond;
+
+                        var vlcNowUtc = DateTime.UtcNow;
+                        if ((vlcNowUtc - _lastDiscordPresencePushUtc).TotalSeconds >= DiscordPresencePushIntervalSeconds)
+                            RefreshDiscordVideoPresence(forcePlaying: true, forcePush: false);
+
+                        return;
+                    }
+
                     var session = mediaPlayerElement?.MediaPlayer?.PlaybackSession;
                     if (session == null)
                         return;
@@ -497,6 +528,17 @@ namespace Zink
             {
                 if (_currentFile == null || string.IsNullOrWhiteSpace(_currentFile.Path)) return;
 
+                if (_useCompatibilityPlaybackEngine)
+                {
+                    var durationSeconds = Math.Max(0, (_vlcMediaPlayer?.Length ?? 0) / 1000.0);
+                    var vlcPos = GetCurrentPlaybackPositionSeconds();
+                    if (durationSeconds <= 0 || vlcPos < 1 || (durationSeconds - vlcPos) < 2.0)
+                        return;
+
+                    SavePositionSeconds(_currentFile.Path, vlcPos);
+                    return;
+                }
+
                 var session = mediaPlayerElement?.MediaPlayer?.PlaybackSession;
                 if (session == null) return;
 
@@ -518,6 +560,12 @@ namespace Zink
         {
             try
             {
+                if (_useCompatibilityPlaybackEngine)
+                {
+                    var vlcSeconds = (_vlcMediaPlayer?.Time ?? 0) / 1000.0;
+                    return vlcSeconds < 0 ? 0 : vlcSeconds;
+                }
+
                 var session = mediaPlayerElement?.MediaPlayer?.PlaybackSession;
                 if (session == null) return 0;
 
@@ -558,6 +606,25 @@ namespace Zink
         {
             try
             {
+                if (_useCompatibilityPlaybackEngine)
+                {
+                    var vlcDuration = TimeSpan.FromMilliseconds(Math.Max(0, _vlcMediaPlayer?.Length ?? 0));
+                    if (vlcDuration.TotalSeconds <= 0)
+                        return;
+
+                    var vlcPosition = TimeSpan.FromSeconds(GetCurrentPlaybackPositionSeconds());
+                    if (vlcPosition > vlcDuration)
+                        vlcPosition = vlcDuration;
+
+                    if (force || !_discordClockReady)
+                    {
+                        _discordPlaybackDuration = vlcDuration;
+                        _discordPlaybackStartUtc = DateTime.UtcNow - vlcPosition;
+                        _discordClockReady = true;
+                    }
+                    return;
+                }
+
                 var session = mediaPlayerElement?.MediaPlayer?.PlaybackSession;
                 if (session == null)
                     return;
@@ -625,8 +692,22 @@ namespace Zink
         private void Play_Click(object s, RoutedEventArgs e)
         {
             _userPausedDiscordPresence = false;
-            mediaPlayerElement.MediaPlayer.Play();
-            StartFfmpegAudioRendererFromCurrentPosition();
+            if (_useCompatibilityPlaybackEngine)
+            {
+                if (_vlcPlaybackEnded)
+                {
+                    try { _vlcMediaPlayer.Time = 0; } catch { }
+                    _vlcPlaybackEnded = false;
+                }
+
+                mediaPlayerElement.MediaPlayer.Play();
+                _vlcMediaPlayer?.Play();
+                ScheduleCompatibilityAudioResync(250);
+            }
+            else
+            {
+                mediaPlayerElement.MediaPlayer.Play();
+            }
             TryPushNowPlaying(true);
 
             SyncDiscordPlaybackClockFromSession(force: true);
@@ -640,8 +721,13 @@ namespace Zink
         private void Pause_Click(object s, RoutedEventArgs e)
         {
             _userPausedDiscordPresence = true;
-            mediaPlayerElement.MediaPlayer.Pause();
-            StopFfmpegAudioRenderer(restoreNativeAudio: false);
+            if (_useCompatibilityPlaybackEngine)
+            {
+                mediaPlayerElement.MediaPlayer.Pause();
+                _vlcMediaPlayer?.Pause();
+            }
+            else
+                mediaPlayerElement.MediaPlayer.Pause();
             TryPushNowPlaying(false);
 
             SyncDiscordPlaybackClockFromSession(force: true);
@@ -653,12 +739,30 @@ namespace Zink
 
         private void Rewind_Click(object s, RoutedEventArgs e)
         {
+            if (_useCompatibilityPlaybackEngine)
+            {
+                var compatSession = mediaPlayerElement.MediaPlayer.PlaybackSession;
+                if (compatSession.CanSeek)
+                {
+                    _userPausedDiscordPresence = false;
+                    compatSession.Position -= TimeSpan.FromSeconds(10);
+                    if (_vlcMediaPlayer != null)
+                        _vlcMediaPlayer.Time = (long)Math.Max(0, compatSession.Position.TotalMilliseconds);
+
+                    SyncDiscordPlaybackClockFromSession(force: true);
+                    ResetDiscordSecondPushTracking();
+                    RefreshDiscordVideoPresence(forcePlaying: true, forcePush: true);
+                    ScheduleCompatibilityAudioResync(250);
+                    ScheduleCompatibilityAudioResync(900, forceRestart: true);
+                }
+                return;
+            }
+
             var session = mediaPlayerElement.MediaPlayer.PlaybackSession;
             if (session.CanSeek)
             {
                 _userPausedDiscordPresence = false;
                 session.Position -= TimeSpan.FromSeconds(10);
-                RestartFfmpegAudioRendererIfPlaying();
 
                 SyncDiscordPlaybackClockFromSession(force: true);
                 ResetDiscordSecondPushTracking();
@@ -668,12 +772,30 @@ namespace Zink
 
         private void Forward_Click(object s, RoutedEventArgs e)
         {
+            if (_useCompatibilityPlaybackEngine)
+            {
+                var compatSession = mediaPlayerElement.MediaPlayer.PlaybackSession;
+                if (compatSession.CanSeek)
+                {
+                    _userPausedDiscordPresence = false;
+                    compatSession.Position += TimeSpan.FromSeconds(10);
+                    if (_vlcMediaPlayer != null)
+                        _vlcMediaPlayer.Time = (long)Math.Max(0, compatSession.Position.TotalMilliseconds);
+
+                    SyncDiscordPlaybackClockFromSession(force: true);
+                    ResetDiscordSecondPushTracking();
+                    RefreshDiscordVideoPresence(forcePlaying: true, forcePush: true);
+                    ScheduleCompatibilityAudioResync(250);
+                    ScheduleCompatibilityAudioResync(900, forceRestart: true);
+                }
+                return;
+            }
+
             var session = mediaPlayerElement.MediaPlayer.PlaybackSession;
             if (session.CanSeek)
             {
                 _userPausedDiscordPresence = false;
                 session.Position += TimeSpan.FromSeconds(10);
-                RestartFfmpegAudioRendererIfPlaying();
 
                 SyncDiscordPlaybackClockFromSession(force: true);
                 ResetDiscordSecondPushTracking();
@@ -717,8 +839,6 @@ namespace Zink
             _lastLoggedPlaybackState = null;
             _effectivePlaybackFile = file;
             _usingAudioFallbackFile = false;
-            _useFfmpegAudioRenderer = false;
-            StopFfmpegAudioRenderer(restoreNativeAudio: true);
             UpdateVideoMetadataUI(_detectedVideoMetadata, showBadge: false);
             ResetDiscordPlaybackClock();
             WriteVideoAudioDiagnostics("Load requested for " + FormatVideoFileForLog(file));
@@ -775,9 +895,14 @@ namespace Zink
             }
             catch { }
 
+            if (_useCompatibilityPlaybackEngine)
+                mediaPlayerElement.MediaPlayer.Volume = 0;
+
             mediaPlayerElement.MediaPlayer.Play();
-            StartFfmpegAudioRendererFromCurrentPosition();
             WriteVideoAudioDiagnostics("Play invoked.\n" + BuildPlaybackSettingsSnapshot(mediaPlayerElement.MediaPlayer));
+
+            if (_useCompatibilityPlaybackEngine)
+                await LoadAndPlayWithCompatibilityEngineAsync(file);
 
             SyncDiscordPlaybackClockFromSession(force: true);
 
@@ -1018,6 +1143,68 @@ namespace Zink
                 RefreshAudioTrackComboBox();
                 WriteVideoAudioDiagnostics("Audio stream detection failed: " + ex.Message);
             }
+        }
+
+        private void EnsureCompatibilityPlaybackEngine()
+        {
+            try
+            {
+                if (_vlcMediaPlayer != null)
+                    return;
+
+                VlcCore.Initialize();
+                _libVLC = new VlcLibVLC("--no-video-title-show", "--quiet");
+                _vlcMediaPlayer = new VlcMediaPlayer(_libVLC)
+                {
+                    EnableHardwareDecoding = true
+                };
+
+                _vlcMediaPlayer.LengthChanged += VlcMediaPlayer_LengthChanged;
+                _vlcMediaPlayer.TimeChanged += VlcMediaPlayer_TimeChanged;
+                _vlcMediaPlayer.Playing += VlcMediaPlayer_Playing;
+                _vlcMediaPlayer.Paused += VlcMediaPlayer_Paused;
+                _vlcMediaPlayer.EndReached += VlcMediaPlayer_EndReached;
+                _vlcMediaPlayer.EncounteredError += VlcMediaPlayer_EncounteredError;
+
+                WriteVideoAudioDiagnostics("Compatibility audio engine initialized.");
+            }
+            catch (Exception ex)
+            {
+                WriteVideoAudioDiagnostics("Compatibility playback engine initialization failed: " + ex.Message);
+            }
+        }
+
+        private void UseNativePlaybackSurface()
+        {
+            try
+            {
+                _useCompatibilityPlaybackEngine = false;
+                _vlcReadyForSeek = false;
+                _vlcPlaybackEnded = false;
+                _lastCompatibilityAudioSyncUtc = DateTime.MinValue;
+                _lastCompatibilityAudioRestartUtc = DateTime.MinValue;
+                _compatibilityAudioRestartInProgress = false;
+                try { _vlcMediaPlayer?.Stop(); } catch { }
+
+                if (mediaPlayerElement != null)
+                    mediaPlayerElement.Visibility = Visibility.Visible;
+            }
+            catch { }
+        }
+
+        private void UseCompatibilityPlaybackSurface()
+        {
+            try
+            {
+                _useCompatibilityPlaybackEngine = true;
+                _vlcReadyForSeek = false;
+                _vlcPlaybackEnded = false;
+                _lastCompatibilityAudioSyncUtc = DateTime.MinValue;
+
+                if (mediaPlayerElement != null)
+                    mediaPlayerElement.Visibility = Visibility.Visible;
+            }
+            catch { }
         }
 
         private async System.Threading.Tasks.Task<IReadOnlyList<AudioStreamInfo>> DetectAudioStreamsAsync(WStorage.StorageFile file)
@@ -2376,17 +2563,22 @@ namespace Zink
         {
             try
             {
-                _useFfmpegAudioRenderer = ShouldUseDirectFfmpegAudioRenderer(_selectedAudioStream);
-
                 if (mediaPlayerElement?.MediaPlayer != null)
-                    mediaPlayerElement.MediaPlayer.IsMuted = _useFfmpegAudioRenderer;
+                    mediaPlayerElement.MediaPlayer.IsMuted = false;
 
-                if (!_useFfmpegAudioRenderer)
-                    StopFfmpegAudioRenderer(restoreNativeAudio: true);
+                var selected = _selectedAudioStream;
+                if (selected != null && NeedsNonNativeAudioEngine(selected))
+                {
+                    UseCompatibilityPlaybackSurface();
+                    WriteVideoAudioDiagnostics(
+                        "Compatibility playback engine enabled for " +
+                        FormatAudioStreamSummary(selected) +
+                        ". This uses the bundled LibVLC media engine in-process; no FFmpeg playback process will be started.");
+                    return;
+                }
 
-                WriteVideoAudioDiagnostics(_useFfmpegAudioRenderer
-                    ? "Direct FFmpeg audio renderer enabled for " + FormatAudioStreamSummary(_selectedAudioStream)
-                    : "Native Windows audio renderer enabled for " + (_selectedAudioStream == null ? "no selected stream" : FormatAudioStreamSummary(_selectedAudioStream)));
+                UseNativePlaybackSurface();
+                WriteVideoAudioDiagnostics("Native Windows audio renderer enabled for " + (selected == null ? "no selected stream" : FormatAudioStreamSummary(selected)));
             }
             catch (Exception ex)
             {
@@ -2394,7 +2586,7 @@ namespace Zink
             }
         }
 
-        private static bool ShouldUseDirectFfmpegAudioRenderer(AudioStreamInfo stream)
+        private static bool NeedsNonNativeAudioEngine(AudioStreamInfo stream)
         {
             if (stream == null)
                 return false;
@@ -2426,141 +2618,296 @@ namespace Zink
             return false;
         }
 
-        private void StartFfmpegAudioRendererFromCurrentPosition()
+        private async System.Threading.Tasks.Task LoadAndPlayWithCompatibilityEngineAsync(WStorage.StorageFile file)
         {
             try
             {
-                if (!_useFfmpegAudioRenderer)
-                    return;
-
-                var sourceFile = _currentFile;
-                if (sourceFile == null || string.IsNullOrWhiteSpace(sourceFile.Path))
-                    return;
-
-                var selected = _selectedAudioStream;
-                if (selected == null)
-                    return;
-
-                StopFfmpegAudioRenderer(restoreNativeAudio: false);
-
-                var ffmpegPath = GetBundledFfmpegPathAsync().GetAwaiter().GetResult();
-                if (string.IsNullOrWhiteSpace(ffmpegPath) || !File.Exists(ffmpegPath))
+                EnsureCompatibilityPlaybackEngine();
+                if (_vlcMediaPlayer == null || _libVLC == null)
                 {
-                    WriteVideoAudioDiagnostics("Direct FFmpeg audio renderer could not start because ffmpeg.exe was not found.");
+                    WriteVideoAudioDiagnostics("Compatibility audio engine was requested but unavailable; continuing with native Windows playback.");
                     return;
                 }
 
-                var player = mediaPlayerElement?.MediaPlayer;
-                var session = player?.PlaybackSession;
-                var startSeconds = Math.Max(0, session?.Position.TotalSeconds ?? 0);
+                UseCompatibilityPlaybackSurface();
+                ApplySavedVolume();
+                try { mediaPlayerElement.MediaPlayer.Volume = 0; } catch { }
 
-                if (player != null)
-                    player.IsMuted = true;
+                PlayCompatibilityAudioFromMilliseconds(0);
 
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = ffmpegPath,
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true
-                };
-
-                startInfo.ArgumentList.Add("-hide_banner");
-                startInfo.ArgumentList.Add("-loglevel");
-                startInfo.ArgumentList.Add("warning");
-                startInfo.ArgumentList.Add("-ss");
-                startInfo.ArgumentList.Add(startSeconds.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture));
-                startInfo.ArgumentList.Add("-i");
-                startInfo.ArgumentList.Add(sourceFile.Path);
-                startInfo.ArgumentList.Add("-map");
-                startInfo.ArgumentList.Add("0:a:" + Math.Max(0, selected.AudioTrackNumber));
-                startInfo.ArgumentList.Add("-vn");
-                startInfo.ArgumentList.Add("-sn");
-                startInfo.ArgumentList.Add("-dn");
-                startInfo.ArgumentList.Add("-f");
-                startInfo.ArgumentList.Add("s16le");
-                startInfo.ArgumentList.Add("-acodec");
-                startInfo.ArgumentList.Add("pcm_s16le");
-                startInfo.ArgumentList.Add("-ac");
-                startInfo.ArgumentList.Add("2");
-                startInfo.ArgumentList.Add("-ar");
-                startInfo.ArgumentList.Add("48000");
-                startInfo.ArgumentList.Add("pipe:1");
-
-                var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
-                process.ErrorDataReceived += (_, e) =>
-                {
-                    if (!string.IsNullOrWhiteSpace(e.Data))
-                        WriteVideoAudioDiagnostics("FFmpeg audio: " + e.Data);
-                };
-
-                process.Start();
-                process.BeginErrorReadLine();
-
-                var waveStream = new RawSourceWaveStream(process.StandardOutput.BaseStream, new WaveFormat(48000, 16, 2));
-                var output = new WaveOutEvent
-                {
-                    DesiredLatency = 120,
-                    NumberOfBuffers = 3
-                };
-                output.Init(waveStream);
-
+                await System.Threading.Tasks.Task.Delay(250);
                 try
                 {
-                    output.Volume = (float)Math.Max(0, Math.Min(1, player?.Volume ?? 1.0));
+                    var nativeSeconds = mediaPlayerElement?.MediaPlayer?.PlaybackSession?.Position.TotalSeconds ?? 0;
+                    if (nativeSeconds > 0)
+                        PlayCompatibilityAudioFromMilliseconds((long)(nativeSeconds * 1000.0));
                 }
                 catch { }
 
-                _ffmpegAudioProcess = process;
-                _ffmpegAudioOutput = output;
-                output.Play();
+                ScheduleCompatibilityAudioResync(350);
+                ScheduleCompatibilityAudioResync(1200);
 
-                WriteVideoAudioDiagnostics("Direct FFmpeg audio renderer started at " + startSeconds.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) + "s for " + FormatAudioStreamSummary(selected));
+                WriteVideoAudioDiagnostics("Compatibility audio engine play invoked for " + FormatVideoFileForLog(file) + " with LibVLC video disabled.");
             }
             catch (Exception ex)
             {
-                WriteVideoAudioDiagnostics("Direct FFmpeg audio renderer failed to start: " + ex.Message);
-                StopFfmpegAudioRenderer(restoreNativeAudio: true);
+                WriteVideoAudioDiagnostics("Compatibility audio engine playback failed: " + ex.Message);
             }
         }
 
-        private void RestartFfmpegAudioRendererIfPlaying()
+        private void PlayCompatibilityAudioFromMilliseconds(long startMilliseconds)
         {
-            try
-            {
-                if (!_useFfmpegAudioRenderer)
-                    return;
+            if (_vlcMediaPlayer == null || _libVLC == null || _currentFile == null)
+                return;
 
-                var state = mediaPlayerElement?.MediaPlayer?.PlaybackSession?.PlaybackState;
-                if (state == MediaPlaybackState.Playing || state == MediaPlaybackState.Opening || state == MediaPlaybackState.Buffering)
-                    StartFfmpegAudioRendererFromCurrentPosition();
-            }
-            catch { }
+            var clampedMilliseconds = Math.Max(0, startMilliseconds);
+            var startSeconds = clampedMilliseconds / 1000.0;
+            _vlcAudioBaseOffsetMilliseconds = clampedMilliseconds;
+            _vlcReadyForSeek = true;
+
+            try { _vlcAudioMedia?.Dispose(); } catch { }
+            _vlcAudioMedia = new VlcMedia(_libVLC, new Uri(_currentFile.Path));
+            _vlcAudioMedia.AddOption(":no-video");
+            _vlcAudioMedia.AddOption(":audio-time-stretch");
+            _vlcAudioMedia.AddOption(":input-fast-seek");
+            if (startSeconds > 0)
+                _vlcAudioMedia.AddOption(":start-time=" + startSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+            _vlcMediaPlayer.Play(_vlcAudioMedia);
         }
 
-        private void StopFfmpegAudioRenderer(bool restoreNativeAudio)
+        private void VlcMediaPlayer_LengthChanged(object sender, LibVLCSharp.Shared.MediaPlayerLengthChangedEventArgs e)
         {
-            try
+            DispatcherQueue.TryEnqueue(() =>
             {
-                try { _ffmpegAudioOutput?.Stop(); } catch { }
-                try { _ffmpegAudioOutput?.Dispose(); } catch { }
-                _ffmpegAudioOutput = null;
-
                 try
                 {
-                    if (_ffmpegAudioProcess != null && !_ffmpegAudioProcess.HasExited)
-                        _ffmpegAudioProcess.Kill(true);
+                    if (_useCompatibilityPlaybackEngine)
+                        return;
+
+                    var duration = TimeSpan.FromMilliseconds(Math.Max(0, e.Length));
+                    if (duration.TotalSeconds <= 0)
+                        return;
+
+                    _vlcReadyForSeek = true;
+                    _mediaReadyForSeek = true;
+                    SeekSlider.IsEnabled = true;
+
+                    if (_pendingResumeSeconds > 1 && (duration.TotalSeconds - _pendingResumeSeconds) > 2)
+                    {
+                        try { _vlcMediaPlayer.Time = (long)(_pendingResumeSeconds * 1000.0); } catch { }
+                        _pendingResumeSeconds = 0;
+                    }
+
+                    _ignoreSliderChange = true;
+                    SeekSlider.Minimum = 0;
+                    SeekSlider.Maximum = duration.TotalSeconds;
+                    SeekSlider.Value = Math.Max(0, Math.Min(GetCurrentPlaybackPositionSeconds(), duration.TotalSeconds));
+                    _ignoreSliderChange = false;
+
+                    TotalTimeText.Text = FormatTime(duration);
+                    CurrentTimeText.Text = FormatTime(TimeSpan.FromSeconds(GetCurrentPlaybackPositionSeconds()));
+                    SyncDiscordPlaybackClockFromSession(force: true);
+                    ResetDiscordSecondPushTracking();
+                    try { _discordPresenceTimer?.Start(); } catch { }
+                    RefreshDiscordVideoPresence(forcePlaying: true, forcePush: true);
                 }
                 catch { }
+            });
+        }
 
-                try { _ffmpegAudioProcess?.Dispose(); } catch { }
-                _ffmpegAudioProcess = null;
+        private void VlcMediaPlayer_TimeChanged(object sender, LibVLCSharp.Shared.MediaPlayerTimeChangedEventArgs e)
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                try
+                {
+                    if (_useCompatibilityPlaybackEngine)
+                        return;
 
-                if (restoreNativeAudio && mediaPlayerElement?.MediaPlayer != null)
-                    mediaPlayerElement.MediaPlayer.IsMuted = false;
+                    var position = TimeSpan.FromMilliseconds(Math.Max(0, e.Time));
+                    CurrentTimeText.Text = FormatTime(position);
+                    UpdateSubtitleOverlay(position);
+                }
+                catch { }
+            });
+        }
+
+        private void VlcMediaPlayer_Playing(object sender, EventArgs e)
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                try
+                {
+                    _vlcPlaybackEnded = false;
+                    _userPausedDiscordPresence = false;
+                    SyncDiscordPlaybackClockFromSession(force: true);
+                    try { _discordPresenceTimer?.Start(); } catch { }
+                    RefreshDiscordVideoPresence(forcePlaying: true, forcePush: true);
+                }
+                catch { }
+            });
+        }
+
+        private void VlcMediaPlayer_Paused(object sender, EventArgs e)
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                try
+                {
+                    if (_userPausedDiscordPresence)
+                    {
+                        try { _discordPresenceTimer?.Stop(); } catch { }
+                        RefreshDiscordPausedPresence(forcePush: true);
+                    }
+                }
+                catch { }
+            });
+        }
+
+        private void VlcMediaPlayer_EndReached(object sender, EventArgs e)
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                try
+                {
+                    _vlcPlaybackEnded = true;
+                    _userPausedDiscordPresence = false;
+                    _discordPresenceTimer?.Stop();
+                    ResetDiscordPlaybackClock();
+                    ClearDiscordVideoPresence();
+                }
+                catch { }
+            });
+        }
+
+        private void VlcMediaPlayer_EncounteredError(object sender, EventArgs e)
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                try
+                {
+                    WriteVideoAudioDiagnostics("Compatibility engine encountered a playback error for " + FormatVideoFileForLog(_currentFile) + ".");
+                    ScheduleCompatibilityAudioResync(500, forceRestart: true);
+                }
+                catch { }
+            });
+        }
+
+        private void ScheduleCompatibilityAudioResync(int delayMilliseconds, bool forceRestart = false)
+        {
+            _ = ResyncCompatibilityAudioAfterDelayAsync(delayMilliseconds, forceRestart);
+        }
+
+        private async System.Threading.Tasks.Task ResyncCompatibilityAudioAfterDelayAsync(int delayMilliseconds, bool forceRestart = false)
+        {
+            try
+            {
+                await System.Threading.Tasks.Task.Delay(Math.Max(0, delayMilliseconds));
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    try { EnsureCompatibilityAudioSyncedToNativeVideo(forceRestart); } catch { }
+                });
             }
             catch { }
+        }
+
+        private void EnsureCompatibilityAudioSyncedToNativeVideo(bool forceRestart = false)
+        {
+            try
+            {
+                if (!_useCompatibilityPlaybackEngine || _vlcMediaPlayer == null || _currentFile == null)
+                    return;
+
+                var session = mediaPlayerElement?.MediaPlayer?.PlaybackSession;
+                if (session == null)
+                    return;
+
+                var duration = session.NaturalDuration;
+                if (duration.TotalSeconds <= 0)
+                    return;
+
+                var state = session.PlaybackState;
+                var nativePosition = session.Position;
+                if (nativePosition < TimeSpan.Zero)
+                    nativePosition = TimeSpan.Zero;
+                if (nativePosition > duration)
+                    nativePosition = duration;
+
+                var targetMilliseconds = (long)nativePosition.TotalMilliseconds;
+                var audioMilliseconds = _vlcAudioBaseOffsetMilliseconds + Math.Max(0, _vlcMediaPlayer.Time);
+                var driftMilliseconds = Math.Abs(audioMilliseconds - targetMilliseconds);
+                var shouldBePlaying = state == MediaPlaybackState.Playing || state == MediaPlaybackState.Opening || state == MediaPlaybackState.Buffering;
+                var audioStopped = shouldBePlaying && !_vlcMediaPlayer.IsPlaying;
+                var farOutOfSync = driftMilliseconds > 2200;
+
+                var nowUtc = DateTime.UtcNow;
+                if (!forceRestart && !audioStopped && !farOutOfSync)
+                    return;
+
+                if (!forceRestart && (nowUtc - _lastCompatibilityAudioSyncUtc).TotalMilliseconds < 650)
+                    return;
+
+                _lastCompatibilityAudioSyncUtc = nowUtc;
+
+                if ((forceRestart || audioStopped) && (nowUtc - _lastCompatibilityAudioRestartUtc).TotalMilliseconds > 450)
+                {
+                    _lastCompatibilityAudioRestartUtc = nowUtc;
+                    RestartCompatibilityAudioAtNativePositionAsync(targetMilliseconds, shouldBePlaying);
+                    return;
+                }
+
+                if (driftMilliseconds > 7000)
+                {
+                    _lastCompatibilityAudioRestartUtc = nowUtc;
+                    RestartCompatibilityAudioAtNativePositionAsync(targetMilliseconds, shouldBePlaying);
+                    return;
+                }
+
+                _vlcMediaPlayer.Time = Math.Max(0, targetMilliseconds - _vlcAudioBaseOffsetMilliseconds);
+                if (shouldBePlaying)
+                    _vlcMediaPlayer.Play();
+                else
+                    _vlcMediaPlayer.Pause();
+            }
+            catch (Exception ex)
+            {
+                WriteVideoAudioDiagnostics("Compatibility audio sync failed: " + ex.Message);
+            }
+        }
+
+        private async void RestartCompatibilityAudioAtNativePositionAsync(long targetMilliseconds, bool shouldPlay)
+        {
+            if (_compatibilityAudioRestartInProgress)
+                return;
+
+            _compatibilityAudioRestartInProgress = true;
+            try
+            {
+                if (_vlcMediaPlayer == null || _libVLC == null || _currentFile == null)
+                    return;
+
+                _vlcMediaPlayer.Stop();
+                await System.Threading.Tasks.Task.Delay(120);
+
+                PlayCompatibilityAudioFromMilliseconds(targetMilliseconds);
+                await System.Threading.Tasks.Task.Delay(180);
+
+                if (shouldPlay)
+                    _vlcMediaPlayer.Play();
+                else
+                    _vlcMediaPlayer.Pause();
+
+                WriteVideoAudioDiagnostics("Compatibility audio restarted at " + FormatTime(TimeSpan.FromMilliseconds(Math.Max(0, targetMilliseconds))) + " after seek/resync.");
+            }
+            catch (Exception ex)
+            {
+                WriteVideoAudioDiagnostics("Compatibility audio restart failed: " + ex.Message);
+            }
+            finally
+            {
+                _compatibilityAudioRestartInProgress = false;
+            }
         }
 
         private static bool ShouldCreateAudioFallbackFile(AudioStreamInfo stream)
@@ -2759,6 +3106,40 @@ namespace Zink
                 if (_suppressDiscordPresenceRefresh)
                     return;
 
+                if (_useCompatibilityPlaybackEngine)
+                {
+                    var vlcTitle = GetDiscordVideoTitle();
+                    if (_discordPlaybackDuration.TotalSeconds <= 0)
+                    {
+                        var length = _vlcMediaPlayer?.Length ?? 0;
+                        if (length > 0)
+                            _discordPlaybackDuration = TimeSpan.FromMilliseconds(length);
+                    }
+
+                    if (_discordPlaybackDuration.TotalSeconds <= 0)
+                        return;
+
+                    if (!(forcePlaying || (_vlcMediaPlayer?.IsPlaying ?? false)))
+                        return;
+
+                    if (!_discordClockReady)
+                        SyncDiscordPlaybackClockFromSession(force: true);
+
+                    var vlcNowUtc = DateTime.UtcNow;
+                    if (!forcePush && (vlcNowUtc - _lastDiscordPresencePushUtc).TotalSeconds < DiscordPresencePushIntervalSeconds)
+                        return;
+
+                    DiscordPresenceService.Instance.SetVideoPresence(
+                        vlcTitle,
+                        GetDiscordLiveElapsed(),
+                        _discordPlaybackDuration,
+                        "zink_1024",
+                        vlcTitle);
+
+                    _lastDiscordPresencePushUtc = vlcNowUtc;
+                    return;
+                }
+
                 var player = mediaPlayerElement?.MediaPlayer;
                 var session = player?.PlaybackSession;
                 if (session == null)
@@ -2808,6 +3189,34 @@ namespace Zink
         {
             try
             {
+                if (_useCompatibilityPlaybackEngine)
+                {
+                    var length = _vlcMediaPlayer?.Length ?? 0;
+                    if (length > 0)
+                        _discordPlaybackDuration = TimeSpan.FromMilliseconds(length);
+
+                    if (_discordPlaybackDuration.TotalSeconds <= 0)
+                        return;
+
+                    var vlcNowUtc = DateTime.UtcNow;
+                    if (!forcePush && (vlcNowUtc - _lastDiscordPresencePushUtc).TotalSeconds < 1.0)
+                        return;
+
+                    var vlcPosition = TimeSpan.FromSeconds(GetCurrentPlaybackPositionSeconds());
+                    if (vlcPosition > _discordPlaybackDuration)
+                        vlcPosition = _discordPlaybackDuration;
+
+                    DiscordPresenceService.Instance.SetVideoPresence(
+                        GetDiscordVideoTitle(),
+                        vlcPosition,
+                        _discordPlaybackDuration,
+                        "zink_1024",
+                        GetDiscordVideoTitle());
+
+                    _lastDiscordPresencePushUtc = vlcNowUtc;
+                    return;
+                }
+
                 var player = mediaPlayerElement?.MediaPlayer;
                 var session = player?.PlaybackSession;
                 if (session == null)
@@ -4185,7 +4594,6 @@ namespace Zink
                         SyncDiscordPlaybackClockFromSession(force: true);
                         TryAutoSelectBestAudioTrack();
                         WriteVideoAudioDiagnostics("Media opened UI initialization complete.\n" + BuildPlaybackSettingsSnapshot(sender) + "\n" + BuildAudioDiagnosticsSnapshot());
-                        StartFfmpegAudioRendererFromCurrentPosition();
                         ResetDiscordSecondPushTracking();
                         try { _discordPresenceTimer?.Start(); } catch { }
                         RefreshDiscordVideoPresence(forcePlaying: true, forcePush: true);
@@ -4217,7 +4625,6 @@ namespace Zink
                 {
                     _userPausedDiscordPresence = false;
                     _discordPresenceTimer?.Stop();
-                    StopFfmpegAudioRenderer(restoreNativeAudio: true);
                     ResetDiscordPlaybackClock();
                     ClearDiscordVideoPresence();
                 }
@@ -4244,7 +4651,6 @@ namespace Zink
                     if (state == MediaPlaybackState.Playing)
                     {
                         _userPausedDiscordPresence = false;
-                        StartFfmpegAudioRendererFromCurrentPosition();
 
                         if (!_discordClockReady)
                             SyncDiscordPlaybackClockFromSession(force: true);
@@ -4261,8 +4667,6 @@ namespace Zink
                     }
                     else if (state == MediaPlaybackState.Paused)
                     {
-                        StopFfmpegAudioRenderer(restoreNativeAudio: false);
-
                         if (_userPausedDiscordPresence)
                         {
                             try { _discordPresenceTimer?.Stop(); } catch { }
@@ -4348,6 +4752,45 @@ namespace Zink
         {
             try
             {
+                if (_useCompatibilityPlaybackEngine)
+                {
+                    var compatPlayer = mediaPlayerElement.MediaPlayer;
+                    var compatSession = compatPlayer.PlaybackSession;
+
+                    if (!compatSession.CanSeek) return;
+
+                    var compatDuration = compatSession.NaturalDuration;
+                    if (compatDuration.TotalSeconds <= 0) return;
+
+                    var compatSeconds = Math.Max(0, Math.Min(SeekSlider.Value, compatDuration.TotalSeconds));
+                    var compatWasPlaying = compatSession.PlaybackState == MediaPlaybackState.Playing;
+
+                    _suppressDiscordPresenceRefresh = true;
+
+                    compatPlayer.Pause();
+                    _vlcMediaPlayer?.Pause();
+
+                    var compatPosition = TimeSpan.FromSeconds(compatSeconds);
+                    compatSession.Position = compatPosition;
+                    if (_vlcMediaPlayer != null)
+                        RestartCompatibilityAudioAtNativePositionAsync((long)compatPosition.TotalMilliseconds, compatWasPlaying);
+                    CurrentTimeText.Text = FormatTime(compatPosition);
+                    UpdateSubtitleOverlay(compatPosition);
+
+                    if (compatWasPlaying)
+                    {
+                        _userPausedDiscordPresence = false;
+                        compatPlayer.Play();
+                    }
+
+                    _suppressDiscordPresenceRefresh = false;
+                    SyncDiscordPlaybackClockFromSession(force: true);
+                    ResetDiscordSecondPushTracking();
+                    RefreshDiscordVideoPresence(forcePlaying: compatWasPlaying, forcePush: true);
+                    ScheduleCompatibilityAudioResync(700);
+                    return;
+                }
+
                 var player = mediaPlayerElement.MediaPlayer;
                 var session = player.PlaybackSession;
 
@@ -4362,7 +4805,6 @@ namespace Zink
                 _suppressDiscordPresenceRefresh = true;
 
                 player.Pause();
-                StopFfmpegAudioRenderer(restoreNativeAudio: false);
                 session.Position = TimeSpan.FromSeconds(seconds);
                 CurrentTimeText.Text = FormatTime(session.Position);
                 UpdateSubtitleOverlay(session.Position);
@@ -4371,11 +4813,9 @@ namespace Zink
                 {
                     _userPausedDiscordPresence = false;
                     player.Play();
-                    StartFfmpegAudioRendererFromCurrentPosition();
                 }
 
                 _suppressDiscordPresenceRefresh = false;
-                _ffmpegAudioPausedForLiveSeek = false;
                 SyncDiscordPlaybackClockFromSession(force: true);
                 ResetDiscordSecondPushTracking();
                 RefreshDiscordVideoPresence(forcePlaying: wasPlaying, forcePush: true);
@@ -4383,7 +4823,6 @@ namespace Zink
             catch
             {
                 _suppressDiscordPresenceRefresh = false;
-                _ffmpegAudioPausedForLiveSeek = false;
             }
         }
 
@@ -4391,6 +4830,37 @@ namespace Zink
         {
             try
             {
+                if (_useCompatibilityPlaybackEngine)
+                {
+                    var compatSession = mediaPlayerElement.MediaPlayer.PlaybackSession;
+
+                    if (!compatSession.CanSeek) return;
+
+                    var compatDuration = compatSession.NaturalDuration;
+                    if (compatDuration.TotalSeconds <= 0) return;
+
+                    var compatNowUtc = DateTime.UtcNow;
+                    if (!force && (compatNowUtc - _lastLiveSeekUtc).TotalMilliseconds < 35)
+                    {
+                        CurrentTimeText.Text = FormatTime(TimeSpan.FromSeconds(SeekSlider.Value));
+                        return;
+                    }
+
+                    _lastLiveSeekUtc = compatNowUtc;
+                    var compatSeconds = Math.Max(0, Math.Min(SeekSlider.Value, compatDuration.TotalSeconds));
+                    var compatPosition = TimeSpan.FromSeconds(compatSeconds);
+
+                    _suppressDiscordPresenceRefresh = true;
+                    compatSession.Position = compatPosition;
+                    if (_vlcMediaPlayer != null)
+                        _vlcMediaPlayer.Time = Math.Max(0, (long)compatPosition.TotalMilliseconds - _vlcAudioBaseOffsetMilliseconds);
+                    CurrentTimeText.Text = FormatTime(compatPosition);
+                    UpdateSubtitleOverlay(compatPosition);
+                    _suppressDiscordPresenceRefresh = false;
+                    ScheduleCompatibilityAudioResync(250);
+                    return;
+                }
+
                 var player = mediaPlayerElement.MediaPlayer;
                 var session = player.PlaybackSession;
 
@@ -4412,12 +4882,6 @@ namespace Zink
                 var position = TimeSpan.FromSeconds(seconds);
 
                 _suppressDiscordPresenceRefresh = true;
-
-                if (_useFfmpegAudioRenderer && !_ffmpegAudioPausedForLiveSeek)
-                {
-                    StopFfmpegAudioRenderer(restoreNativeAudio: false);
-                    _ffmpegAudioPausedForLiveSeek = true;
-                }
 
                 session.Position = position;
                 CurrentTimeText.Text = FormatTime(position);
@@ -4455,6 +4919,9 @@ namespace Zink
                 TotalTimeText.Text = FormatTime(duration);
                 UpdateSubtitleOverlay(pos);
 
+                if (_useCompatibilityPlaybackEngine)
+                    EnsureCompatibilityAudioSyncedToNativeVideo();
+
                 MaybeSaveResumePosition(duration.TotalSeconds, pos.TotalSeconds);
             }
             catch { }
@@ -4463,7 +4930,7 @@ namespace Zink
         private static string FormatTime(TimeSpan t)
             => t.TotalHours >= 1 ? t.ToString(@"hh\:mm\:ss") : t.ToString(@"mm\:ss");
 
-        private void FullScreenButton_Click(object sender, RoutedEventArgs e)
+        private async void FullScreenButton_Click(object sender, RoutedEventArgs e)
         {
             var hwnd = WindowNative.GetWindowHandle(App.MainWindow);
             var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
@@ -4474,26 +4941,173 @@ namespace Zink
 
             if (!isFullScreen)
             {
-                StartNvidiaOverlaySuppression();
-                appWindow.SetPresenter(AppWindowPresenterKind.FullScreen);
+                FullScreenButton.IsEnabled = false;
+                try
+                {
+                    await PlayFullScreenTransitionAsync(true);
 
-                if (sidebarColumnDef != null)
-                    sidebarColumnDef.Width = new GridLength(0);
+                    StartNvidiaOverlaySuppression();
+                    appWindow.SetPresenter(AppWindowPresenterKind.FullScreen);
 
-                isFullScreen = true;
-                FullScreenLabel.Text = "Exit Fullscreen";
+                    if (sidebarColumnDef != null)
+                        sidebarColumnDef.Width = new GridLength(0);
+
+                    isFullScreen = true;
+                    FullScreenLabel.Text = "Exit Fullscreen";
+                    await FinishFullScreenTransitionAsync(true);
+                }
+                finally
+                {
+                    ResetFullScreenTransitionVisuals();
+                    FullScreenButton.IsEnabled = true;
+                }
             }
             else
             {
-                appWindow.SetPresenter(AppWindowPresenterKind.Overlapped);
-                StopNvidiaOverlaySuppression();
+                FullScreenButton.IsEnabled = false;
+                try
+                {
+                    await PlayFullScreenTransitionAsync(false);
 
-                if (sidebarColumnDef != null)
-                    sidebarColumnDef.Width = new GridLength(250);
+                    appWindow.SetPresenter(AppWindowPresenterKind.Overlapped);
+                    StopNvidiaOverlaySuppression();
 
-                isFullScreen = false;
-                FullScreenLabel.Text = "Fullscreen";
+                    if (sidebarColumnDef != null)
+                        sidebarColumnDef.Width = new GridLength(250);
+
+                    isFullScreen = false;
+                    FullScreenLabel.Text = "Fullscreen";
+                    await FinishFullScreenTransitionAsync(false);
+                }
+                finally
+                {
+                    ResetFullScreenTransitionVisuals();
+                    FullScreenButton.IsEnabled = true;
+                }
             }
+        }
+
+        private System.Threading.Tasks.Task PlayFullScreenTransitionAsync(bool enteringFullScreen)
+        {
+            try
+            {
+                var storyboard = CreateFullScreenTransitionStoryboard(enteringFullScreen, false);
+                return BeginStoryboardAsync(storyboard);
+            }
+            catch
+            {
+                return System.Threading.Tasks.Task.CompletedTask;
+            }
+        }
+
+        private System.Threading.Tasks.Task FinishFullScreenTransitionAsync(bool enteringFullScreen)
+        {
+            try
+            {
+                var storyboard = CreateFullScreenTransitionStoryboard(enteringFullScreen, true);
+                return BeginStoryboardAsync(storyboard);
+            }
+            catch
+            {
+                return System.Threading.Tasks.Task.CompletedTask;
+            }
+        }
+
+        private Storyboard CreateFullScreenTransitionStoryboard(bool enteringFullScreen, bool finishing)
+        {
+            FullScreenAnimationOverlay.Visibility = Visibility.Visible;
+            FullScreenAnimationOverlay.RenderTransformOrigin = new global::Windows.Foundation.Point(0.5, 0.5);
+
+            if (!finishing)
+            {
+                FullScreenAnimationOverlay.Opacity = 0;
+                FullScreenOverlayTransform.ScaleX = enteringFullScreen ? 0.92 : 1.05;
+                FullScreenOverlayTransform.ScaleY = enteringFullScreen ? 0.92 : 1.05;
+                VideoSurfaceTransform.ScaleX = enteringFullScreen ? 0.985 : 1.018;
+                VideoSurfaceTransform.ScaleY = enteringFullScreen ? 0.985 : 1.018;
+                ControlPanel.Opacity = 1;
+            }
+
+            var storyboard = new Storyboard();
+            var duration = new Duration(TimeSpan.FromMilliseconds(finishing ? 260 : 220));
+            var ease = new CubicEase
+            {
+                EasingMode = finishing ? EasingMode.EaseOut : EasingMode.EaseInOut
+            };
+
+            if (finishing)
+            {
+                AddDoubleAnimation(storyboard, FullScreenAnimationOverlay, "Opacity", FullScreenAnimationOverlay.Opacity, 0, duration, ease);
+                AddDoubleAnimation(storyboard, FullScreenOverlayTransform, "ScaleX", FullScreenOverlayTransform.ScaleX, 1, duration, ease);
+                AddDoubleAnimation(storyboard, FullScreenOverlayTransform, "ScaleY", FullScreenOverlayTransform.ScaleY, 1, duration, ease);
+                AddDoubleAnimation(storyboard, VideoSurfaceTransform, "ScaleX", VideoSurfaceTransform.ScaleX, 1, duration, ease);
+                AddDoubleAnimation(storyboard, VideoSurfaceTransform, "ScaleY", VideoSurfaceTransform.ScaleY, 1, duration, ease);
+                AddDoubleAnimation(storyboard, ControlPanel, "Opacity", ControlPanel.Opacity, 1, duration, ease);
+            }
+            else
+            {
+                AddDoubleAnimation(storyboard, FullScreenAnimationOverlay, "Opacity", 0, enteringFullScreen ? 0.34 : 0.48, duration, ease);
+                AddDoubleAnimation(storyboard, FullScreenOverlayTransform, "ScaleX", FullScreenOverlayTransform.ScaleX, enteringFullScreen ? 1.08 : 0.9, duration, ease);
+                AddDoubleAnimation(storyboard, FullScreenOverlayTransform, "ScaleY", FullScreenOverlayTransform.ScaleY, enteringFullScreen ? 1.08 : 0.9, duration, ease);
+                AddDoubleAnimation(storyboard, VideoSurfaceTransform, "ScaleX", VideoSurfaceTransform.ScaleX, enteringFullScreen ? 1.02 : 0.975, duration, ease);
+                AddDoubleAnimation(storyboard, VideoSurfaceTransform, "ScaleY", VideoSurfaceTransform.ScaleY, enteringFullScreen ? 1.02 : 0.975, duration, ease);
+                AddDoubleAnimation(storyboard, ControlPanel, "Opacity", 1, enteringFullScreen ? 0.58 : 0.74, duration, ease);
+            }
+
+            return storyboard;
+        }
+
+        private static void AddDoubleAnimation(
+            Storyboard storyboard,
+            DependencyObject target,
+            string targetProperty,
+            double from,
+            double to,
+            Duration duration,
+            EasingFunctionBase ease)
+        {
+            var animation = new DoubleAnimation
+            {
+                From = from,
+                To = to,
+                Duration = duration,
+                EasingFunction = ease
+            };
+
+            Storyboard.SetTarget(animation, target);
+            Storyboard.SetTargetProperty(animation, targetProperty);
+            storyboard.Children.Add(animation);
+        }
+
+        private System.Threading.Tasks.Task BeginStoryboardAsync(Storyboard storyboard)
+        {
+            var completionSource = new System.Threading.Tasks.TaskCompletionSource<bool>();
+
+            void StoryboardCompleted(object sender, object args)
+            {
+                storyboard.Completed -= StoryboardCompleted;
+                completionSource.TrySetResult(true);
+            }
+
+            storyboard.Completed += StoryboardCompleted;
+            storyboard.Begin();
+
+            return completionSource.Task;
+        }
+
+        private void ResetFullScreenTransitionVisuals()
+        {
+            try
+            {
+                FullScreenAnimationOverlay.Opacity = 0;
+                FullScreenAnimationOverlay.Visibility = Visibility.Collapsed;
+                FullScreenOverlayTransform.ScaleX = 1;
+                FullScreenOverlayTransform.ScaleY = 1;
+                VideoSurfaceTransform.ScaleX = 1;
+                VideoSurfaceTransform.ScaleY = 1;
+                ControlPanel.Opacity = 1;
+            }
+            catch { }
         }
 
         private void StartNvidiaOverlaySuppression()
@@ -4656,16 +5270,22 @@ namespace Zink
                 if (!_volumeUiReady)
                     return;
 
-                if (mediaPlayerElement?.MediaPlayer == null)
+                if (!_useCompatibilityPlaybackEngine && mediaPlayerElement?.MediaPlayer == null)
                     return;
 
                 if (_flyoutVolumeSlider == null)
                     return;
 
                 double volume = Math.Max(0, Math.Min(100, _flyoutVolumeSlider.Value)) / 100.0;
-                mediaPlayerElement.MediaPlayer.Volume = volume;
-                if (_ffmpegAudioOutput != null)
-                    _ffmpegAudioOutput.Volume = (float)volume;
+                if (_useCompatibilityPlaybackEngine)
+                {
+                    if (_vlcMediaPlayer != null)
+                        _vlcMediaPlayer.Volume = (int)Math.Round(volume * 100.0);
+                }
+                else
+                {
+                    mediaPlayerElement.MediaPlayer.Volume = volume;
+                }
 
                 if (volume > 0)
                     _lastNonZeroVolume = volume;
@@ -4680,10 +5300,12 @@ namespace Zink
         {
             try
             {
-                if (mediaPlayerElement?.MediaPlayer == null)
+                if (!_useCompatibilityPlaybackEngine && mediaPlayerElement?.MediaPlayer == null)
                     return;
 
-                double currentVolume = mediaPlayerElement.MediaPlayer.Volume;
+                double currentVolume = _useCompatibilityPlaybackEngine
+                    ? Math.Max(0, Math.Min(100, _vlcMediaPlayer?.Volume ?? 100)) / 100.0
+                    : mediaPlayerElement.MediaPlayer.Volume;
 
                 if (currentVolume > 0)
                 {
@@ -4727,12 +5349,11 @@ namespace Zink
                 if (mediaPlayerElement?.MediaPlayer != null)
                 {
                     mediaPlayerElement.MediaPlayer.Volume = savedVolume;
-                    if (_useFfmpegAudioRenderer)
-                        mediaPlayerElement.MediaPlayer.IsMuted = true;
+                    mediaPlayerElement.MediaPlayer.IsMuted = false;
                 }
 
-                if (_ffmpegAudioOutput != null)
-                    _ffmpegAudioOutput.Volume = (float)savedVolume;
+                if (_vlcMediaPlayer != null)
+                    _vlcMediaPlayer.Volume = (int)Math.Round(savedVolume * 100.0);
 
                 if (_flyoutVolumeSlider != null)
                     _flyoutVolumeSlider.Value = savedVolume * 100.0;
@@ -4818,7 +5439,6 @@ namespace Zink
 
                 TryAutoSelectBestAudioTrack();
                 ConfigureDirectAudioSupportForSelectedStream();
-                RestartFfmpegAudioRendererIfPlaying();
                 UpdateSurroundModeStatusText();
             }
             catch { }
@@ -5046,7 +5666,6 @@ namespace Zink
                 hideControlsTimer?.Stop();
                 _videoBadgeHideTimer?.Stop();
                 _discordPresenceTimer?.Stop();
-                StopFfmpegAudioRenderer(restoreNativeAudio: true);
 
                 var mp = mediaPlayerElement?.MediaPlayer;
                 if (mp != null)
@@ -5057,9 +5676,20 @@ namespace Zink
                     try { mp.PlaybackSession.Position = TimeSpan.Zero; } catch { }
                 }
 
+                if (_vlcMediaPlayer != null)
+                {
+                    try { SaveVolume(Math.Max(0, Math.Min(100, _vlcMediaPlayer.Volume)) / 100.0); } catch { }
+                    try { _vlcMediaPlayer.Stop(); } catch { }
+                    try { _vlcAudioMedia?.Dispose(); _vlcAudioMedia = null; } catch { }
+                }
+
                 try { mediaPlayerElement.Source = null; } catch { }
+                try { mediaPlayerElement.Visibility = Visibility.Visible; } catch { }
 
                 _currentPlaybackItem = null;
+                _useCompatibilityPlaybackEngine = false;
+                _vlcReadyForSeek = false;
+                _vlcPlaybackEnded = false;
                 try { VideoFormatBadge.Visibility = Visibility.Collapsed; } catch { }
                 _mediaReadyForSeek = false;
                 _codecPromptAlreadyShownForCurrentFile = false;
@@ -5230,8 +5860,16 @@ namespace Zink
                 if (_currentFile == null || string.IsNullOrWhiteSpace(_currentFile.Path)) return;
 
                 var state = mediaPlayerElement?.MediaPlayer?.PlaybackSession?.PlaybackState ?? MediaPlaybackState.None;
-                if (state != MediaPlaybackState.Playing && state != MediaPlaybackState.Paused)
-                    return;
+                if (_useCompatibilityPlaybackEngine)
+                {
+                    if (!(_vlcMediaPlayer?.IsPlaying ?? false) && !_userPausedDiscordPresence)
+                        return;
+                }
+                else
+                {
+                    if (state != MediaPlaybackState.Playing && state != MediaPlaybackState.Paused)
+                        return;
+                }
 
                 if (durationSeconds <= 0) return;
                 if (posSeconds < 1) return;

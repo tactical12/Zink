@@ -30,8 +30,8 @@
             <Setter Property="Foreground" Value="{StaticResource GlassTextBrush}" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="MinHeight" Value="40" />
-            <Setter Property="MinWidth" Value="92" />
-            <Setter Property="Padding" Value="18,8" />
+            <Setter Property="MinWidth" Value="84" />
+            <Setter Property="Padding" Value="14,8" />
         </Style>
 
         <Style
@@ -40,7 +40,7 @@
             TargetType="Button">
             <Setter Property="Background" Value="{StaticResource GlassAccentButtonBackground}" />
             <Setter Property="BorderBrush" Value="#90FFFFFF" />
-            <Setter Property="MinWidth" Value="104" />
+            <Setter Property="MinWidth" Value="96" />
         </Style>
     </Page.Resources>
 
@@ -49,7 +49,12 @@
             x:Name="mediaPlayerElement"
             AreTransportControlsEnabled="False"
             AutoPlay="False"
-            Stretch="Uniform" />
+            Stretch="Uniform"
+            RenderTransformOrigin="0.5,0.5">
+            <controls:MediaPlayerElement.RenderTransform>
+                <CompositeTransform x:Name="VideoSurfaceTransform" />
+            </controls:MediaPlayerElement.RenderTransform>
+        </controls:MediaPlayerElement>
 
         <Grid
             IsHitTestVisible="False"
@@ -140,11 +145,9 @@
             HorizontalAlignment="Center"
             VerticalAlignment="Bottom"
             Margin="28,0,28,126"
-            Background="{StaticResource ControlPanelBackground}"
-            BorderBrush="{StaticResource GlassSubtleBorderBrush}"
-            BorderThickness="1"
-            CornerRadius="16"
-            Padding="18,12"
+            Background="Transparent"
+            BorderThickness="0"
+            Padding="0"
             Visibility="Collapsed">
 
             <TextBlock
@@ -165,17 +168,17 @@
             BorderThickness="1"
             CornerRadius="26"
             Padding="18,16"
-            HorizontalAlignment="Center"
+            HorizontalAlignment="Stretch"
             VerticalAlignment="Bottom"
             Margin="24,0,24,24"
             MaxWidth="1220">
 
-            <Grid
-                Width="1160"
-                MaxWidth="1160">
+            <Grid HorizontalAlignment="Stretch">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="14" />
+                    <RowDefinition Height="12" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="10" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
@@ -224,12 +227,6 @@
                 </Border>
 
                 <Grid Grid.Row="2">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-
                     <StackPanel
                         Orientation="Horizontal"
                         HorizontalAlignment="Center"
@@ -257,9 +254,10 @@
                             Content="Forward"
                             Style="{StaticResource GlassControlButtonStyle}" />
                     </StackPanel>
+                </Grid>
 
+                <Grid Grid.Row="4">
                     <StackPanel
-                        Grid.Column="2"
                         Orientation="Horizontal"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center"
@@ -289,6 +287,15 @@
                         </Button>
 
                         <Button
+                            x:Name="TranslateAudioButton"
+                            Click="TranslateAudioButton_Click"
+                            Style="{StaticResource GlassControlButtonStyle}">
+                            <TextBlock
+                                x:Name="TranslateAudioButtonLabel"
+                                Text="Translate audio" />
+                        </Button>
+
+                        <Button
                             x:Name="SoundButton"
                             Content="Sound"
                             Style="{StaticResource GlassControlButtonStyle}" />
@@ -306,6 +313,36 @@
                             Style="{StaticResource GlassControlButtonStyle}" />
                     </StackPanel>
                 </Grid>
+            </Grid>
+        </Border>
+
+        <Border
+            x:Name="FullScreenAnimationOverlay"
+            IsHitTestVisible="False"
+            Opacity="0"
+            Background="#000000"
+            BorderBrush="#A8FFFFFF"
+            BorderThickness="0"
+            CornerRadius="0">
+            <Border.RenderTransform>
+                <CompositeTransform x:Name="FullScreenOverlayTransform" />
+            </Border.RenderTransform>
+            <Grid>
+                <Grid.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#00FFFFFF" Offset="0" />
+                        <GradientStop Color="#22FFFFFF" Offset="0.48" />
+                        <GradientStop Color="#006BDAFF" Offset="1" />
+                    </LinearGradientBrush>
+                </Grid.Background>
+
+                <Border
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch"
+                    BorderBrush="#66FFFFFF"
+                    BorderThickness="2"
+                    Margin="18"
+                    Opacity="0.72" />
             </Grid>
         </Border>
     </Grid>
