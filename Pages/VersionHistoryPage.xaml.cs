@@ -17,6 +17,7 @@ namespace Zink.Pages
                     Released: new DateTime(2026, 07, 05),
                     Notes:
 @"Version 3.0.35.0
+- Fixed WebView pages staying open after navigating away so each page's WebView shuts down until that page is opened again.
 - Fixed opening movie files directly from File Explorer with Zink so file activation now reaches the video player instead of hanging on the startup loading screen.
 - Added support for media paths passed through Explorer command-line launches as well as packaged Windows file activation.
 - Fixed the startup overlay so it clears immediately when a video or music file is opened directly with Zink.

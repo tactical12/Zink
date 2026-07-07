@@ -100,6 +100,7 @@ namespace Zink
             SidebarNav.IsPaneOpen = true;
             SetSidebarColumnForPaneState(true);
 
+            ContentFrame.Navigating += ContentFrame_Navigating;
             ContentFrame.Navigated += ContentFrame_Navigated;
             RootGrid.Loaded += RootGrid_Loaded_StartInitialNavigation;
 
@@ -1877,6 +1878,33 @@ namespace Zink
                 color.B == PreviousNeonDefaultGlassTint.B;
         }
 
+        private void ContentFrame_Navigating(object sender, NavigatingCancelEventArgs e)
+        {
+            if (ContentFrame.Content is DependencyObject outgoingPage)
+            {
+                CloseWebViews(outgoingPage);
+            }
+        }
+
+        private void CloseWebViews(DependencyObject root)
+        {
+            if (root is WebView2 webView)
+            {
+                _discordPresenceWebViews.Remove(webView);
+
+                try { webView.CoreWebView2?.Stop(); } catch { }
+                try { webView.CoreWebView2?.Navigate("about:blank"); } catch { }
+                try { webView.Close(); } catch { }
+
+                return;
+            }
+
+            var childCount = VisualTreeHelper.GetChildrenCount(root);
+            for (var i = 0; i < childCount; i++)
+            {
+                CloseWebViews(VisualTreeHelper.GetChild(root, i));
+            }
+        }
         private void ContentFrame_Navigated(object sender, NavigationEventArgs e)
         {
             try
