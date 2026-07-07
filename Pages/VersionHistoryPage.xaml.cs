@@ -22,7 +22,8 @@ namespace Zink.Pages
 - Added support for media paths passed through Explorer command-line launches as well as packaged Windows file activation.
 - Fixed the startup overlay so it clears immediately when a video or music file is opened directly with Zink.
 - Added real timeouts to video and audio metadata probing so slow or unusual movie files cannot leave the app waiting forever before playback.
-- Fixed direct-open movie playback hanging on the video player page by keeping Windows-playable AAC and other supported audio streams on the native Windows media path instead of starting the custom FFmpeg audio pipe."
+- Fixed direct-open movie playback hanging on the video player page by keeping Windows-playable AAC and other supported audio streams on the native Windows media path instead of starting the custom FFmpeg audio pipe.
+- Fixed slow, laggy, and sometimes unresponsive app behaviour by reducing repeated Home Dashboard Spotify checks and throttling diagnostic log flushing/mirroring."
                 ),
                 // 3.0.34.0
                 ["3.0.34.0"] = (
